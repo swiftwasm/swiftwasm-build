@@ -99,6 +99,14 @@ def main
     end
   end
 
+  schemes = ["main"]
+
+  matrix_entries = schemes.flat_map do |scheme|
+    matrix_entries.map do |entry|
+      entry.merge("scheme": scheme)
+    end
+  end
+
   print JSON.generate(matrix_entries)
 end
 
