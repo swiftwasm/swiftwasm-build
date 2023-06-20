@@ -38,7 +38,8 @@ def derive_options_from_args(argv)
     end
   end.parse(argv)
 
-  schemes = Dir.glob("schemes/*/manifest.json").map { |path| File.basename(File.dirname(path)) }
+  repo_root = File.dirname(File.dirname(__FILE__))
+  schemes = Dir.glob(File.join(repo_root, "schemes/*/manifest.json")).map { |path| File.basename(File.dirname(path)) }
   if options[:scheme].nil?
     $stderr.puts "Missing --scheme option. Please specify one of the following schemes: #{schemes.join(', ')}"
     exit 1
@@ -103,7 +104,7 @@ end
 class ApplyPatchesAction < Action
   def run
     require "pathname"
-    patches = Dir.glob("patches/#{@options[:scheme]}/*.patch")
+    patches = Dir.glob("schemes/#{@options[:scheme]}/swift/*.patch")
     patches.sort!
     puts "=====> Applying #{patches.count} patches for scheme #{@options[:scheme]}"
 
