@@ -1,0 +1,156 @@
+#!/usr/bin/env ruby
+# git-swift-workspace - A script to create a workspace for a Swift project applying patches
+#
+# Usage: git-swift-workspace [options]
+#
+# The basic flow of this script is:
+# 1. `git clone https://github.com/apple/swift.git ../swift` if needed
+# 2. `./swift/utils/update-checkout --clone --scheme <scheme>` to clone all the dependencies
+# 3. `git am patches/<scheme>/*.patch` to apply all the patches
+
+def derive_options_from_args(argv)
+  require 'optparse'
+  require 'json'
+
+  manifest = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../manifest.json')))
+  options = {}
+  OptionParser.new do |opts|
+    opts.banner = "Usage: git-swift-workspace [options]"
+
+    opts.on("-s", "--scheme SCHEME", "The scheme to use") do |v|
+      options[:scheme] = v
+    end
+
+    opts.on("-t", "--tag TAG", "The upstream Swift tag to use as the base") do |v|
+      options[:tag] = v
+    end
+
+    opts.on("--dry-run", "Prints the commands that would be executed") do |v|
+      options[:dry_run] = v
+    end
+
+    opts.on("-v", "--verbose", "Prints the commands that are executed") do |v|
+      options[:verbose] = v
+    end
+
+    opts.on("-h", "--help", "Prints this help") do
+      puts opts
+      exit
+    end
+  end.parse(argv)
+
+  if options[:scheme].nil?
+    schemes = manifest['schemes'].keys
+    $stderr.puts "Missing --scheme option. Please specify one of the following schemes: #{schemes.join(', ')}"
+    exit 1
+  end
+
+  if manifest['schemes'][options[:scheme]].nil?
+    $stderr.puts "Invalid scheme: #{options[:scheme]}. Please specify one of the following schemes: #{manifest['schemes'].keys.join(', ')}"
+    exit 1
+  end
+
+  if options[:tag].nil?
+    default_tag = manifest['schemes'][options[:scheme]]['tag']
+    if default_tag.nil?
+      $stderr.puts "Missing --tag option and no default tag for scheme #{options[:scheme]}"
+      exit 1
+    end
+    options[:tag] = default_tag
+  end
+
+  options
+end
+
+class Action
+  def initialize(options)
+    @options = options
+  end
+
+  def run
+    raise "Not implemented"
+  end
+
+  def system(*args)
+    if @options[:verbose] || @options[:dry_run]
+      puts args.join(' ')
+    end
+    return if @options[:dry_run]
+    status = Kernel.system(*args)
+    if !status
+      raise "Command failed: #{args.join(' ')}"
+    end
+  end
+end
+
+class CloneAction < Action
+  def run
+    return if File.exist?('../swift/.git')
+    puts "=====> Cloning Swift repository"
+    system(*['git', 'clone', 'https://github.com/apple/swift.git', '../swift'])
+  end
+end
+
+class UpdateCheckoutAction < Action
+  def run
+    puts "=====> Updating checkout for scheme #{@options[:scheme]} with tag #{@options[:tag]}"
+    system(*['../swift/utils/update-checkout', '--clone', '--scheme', @options[:scheme], '--tag', @options[:tag]])
+  end
+end
+
+class ApplyPatchesAction < Action
+  def run
+    require "pathname"
+    patches = Dir.glob("patches/#{@options[:scheme]}/*.patch")
+    patches.sort!
+    puts "=====> Applying #{patches.count} patches for scheme #{@options[:scheme]}"
+
+    # If the repository is not clean, abort
+    status = `git -C ../swift status --porcelain`
+    if status != ""
+      $stderr.puts "Repository is not clean. Please commit or stash your changes."
+      exit 1
+    end
+
+    staging_branch = "swiftwasm-staging/#{@options[:tag]}"
+    suffix = 0
+    while true
+      if `git -C ../swift branch --list #{staging_branch}` != ""
+        suffix += 1
+        staging_branch = "swiftwasm-staging/#{@options[:tag]}-#{suffix}"
+      else
+        break
+      end
+    end
+    system(*['git', '-C', '../swift', 'switch', '-c', staging_branch])
+
+    patches.each do |patch|
+      patch = Pathname.new(File.absolute_path(patch))
+      relative_path = patch.relative_path_from(File.absolute_path("../swift"))
+      system(*['git', '-C', '../swift', 'am', '--keep-non-patch', relative_path.to_s])
+    end
+  end
+end
+
+class ActionRunner
+  def initialize(actions)
+    @actions = actions
+  end
+
+  def run
+    Dir.chdir(File.dirname(File.dirname(__FILE__))) do
+      @actions.each do |action|
+        action.run
+      end
+    end
+  end
+end
+
+def main
+  options = derive_options_from_args(ARGV)
+
+  actions = [CloneAction, UpdateCheckoutAction, ApplyPatchesAction].map { |action| action.new(options) }
+  ActionRunner.new(actions).run
+end
+
+main if __FILE__ == $0
