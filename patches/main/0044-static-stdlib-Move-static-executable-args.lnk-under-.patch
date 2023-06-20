@@ -1,4 +1,4 @@
-From 1eb7aa81c07bf7f14d0ef4269c507b2eb12628b3 Mon Sep 17 00:00:00 2001
+From fb27652997f563a9698760df83fbce30bbe7df6d Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Jun 2023 19:04:23 +0000
 Subject: [PATCH] [static-stdlib] Move static-executable-args.lnk under

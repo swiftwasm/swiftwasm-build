@@ -1,4 +1,4 @@
-From e952cc74d5cc03c32aa34cab1d640412e72294e2 Mon Sep 17 00:00:00 2001
+From 326fce8abe7b1c6c3e1c8c1b98a042ee15ee37d7 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Jun 2023 17:58:49 +0000
 Subject: [PATCH] [wasm][build] Add WASILibc module and its build support

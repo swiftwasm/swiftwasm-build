@@ -1,4 +1,4 @@
-From f42d789520e71e58cd1512c0fed3871f8e276cb2 Mon Sep 17 00:00:00 2001
+From 9cbc38cf671471578996dad08a7f3fca7a7d55df Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 10:14:36 +0000
 Subject: [PATCH] [wasm][build] Use forked foundation and xctest

@@ -1,4 +1,4 @@
-From c8435d17c6f43ae03f10de4d3ad9a22be4876997 Mon Sep 17 00:00:00 2001
+From db73af0653e947c61bc857ab6c345a2d7acaace2 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:44:04 +0000
 Subject: [PATCH] [stdlib] Fix calling convention mismatch for runtime function

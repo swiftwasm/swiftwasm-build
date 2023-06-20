@@ -1,4 +1,4 @@
-From 9ecfd62248f9224d8b5e3bbda5be8868e4e6a500 Mon Sep 17 00:00:00 2001
+From fbdfa1c3402bd9a38412a9195579a4dad23632e9 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:21:31 +0000
 Subject: [PATCH] [wasm][IRGen] Disable stack protection

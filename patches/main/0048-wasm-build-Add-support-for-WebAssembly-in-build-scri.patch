@@ -1,4 +1,4 @@
-From 221545b0680d9281caa542d2d7273a75635f0df0 Mon Sep 17 00:00:00 2001
+From cc51a159b3fa8cba58803b06f165c5af4894f8e0 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:49:27 +0000
 Subject: [PATCH] [wasm][build] Add support for WebAssembly in build-script

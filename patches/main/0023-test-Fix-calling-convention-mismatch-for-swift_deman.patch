@@ -1,4 +1,4 @@
-From cd10a3d1bad38b00537f69c0eb80fc3e06bec676 Mon Sep 17 00:00:00 2001
+From 7ea7ceacb00287625d38c350b6d2dfdb1dcbebb8 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:17:12 +0000
 Subject: [PATCH] [test] Fix calling convention mismatch for swift_demangle

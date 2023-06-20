@@ -1,4 +1,4 @@
-From bb4b2ee0d4caba8330280f41d0e2647965ec80dc Mon Sep 17 00:00:00 2001
+From 1e8f5c8e7e51d72ccab75cee6cf0be5cffb6b933 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:02:13 +0000
 Subject: [PATCH] [wasm][stdlib] Stop including stdint.h in wasi-libc for

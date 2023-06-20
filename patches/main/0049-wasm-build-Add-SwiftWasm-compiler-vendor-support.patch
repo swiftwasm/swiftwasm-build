@@ -1,4 +1,4 @@
-From 17167bb0e8366670f242419aa37a670112d13494 Mon Sep 17 00:00:00 2001
+From 1ec32facb0cb3174ad61052400ab8354a3b4ffe1 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:51:29 +0000
 Subject: [PATCH] [wasm][build] Add SwiftWasm compiler vendor support

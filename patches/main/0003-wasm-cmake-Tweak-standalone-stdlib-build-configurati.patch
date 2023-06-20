@@ -1,4 +1,4 @@
-From f3e81cc42d2bb78a7e3d6a584619ed2d3072f77a Mon Sep 17 00:00:00 2001
+From d049622cbbf2e3784e1b803a7028aec657f75f24 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 06:58:41 +0000
 Subject: [PATCH] [wasm][cmake] Tweak standalone stdlib build configuration

@@ -1,4 +1,4 @@
-From c1d23ede7be215c9fc4879854e6040fe8855ac71 Mon Sep 17 00:00:00 2001
+From 43f627fc36b5a958509f438fcdc621be33763163 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:21:12 +0000
 Subject: [PATCH] [wasm][test] Prefer -sdk instead of -Xcc --sysroot

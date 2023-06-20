@@ -1,4 +1,4 @@
-From c14a94f9d2c10e8ac45cf9703b3922e64aac8b3e Mon Sep 17 00:00:00 2001
+From 563851a09c7bd82b827707dc8b0041f12ace074f Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:40:00 +0000
 Subject: [PATCH] [wasm][test] HACK: Disable PrintStruct.swift test for unclear
