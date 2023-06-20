@@ -89,6 +89,11 @@ jobs:
     timeout-minutes: 0
     runs-on: ${{ matrix.agent_query }}
     steps:
+      - name: Configure git user for git-am
+        run: |
+          git config --global user.name "SwiftWasm Buildbot"
+          git config --global user.email "hello@swiftwasm.org"
+
       - name: Free disk space
         if: ${{ matrix.free_disk_space }}
         run: |
