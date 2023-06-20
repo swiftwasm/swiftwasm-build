@@ -139,12 +139,13 @@ jobs:
 
       - run: chmod -R 777 ./build-cache
         if: ${{ steps.build-cache.outputs.cache-hit }}
-      - name: Install Homebrew dependencies
-        if: ${{ startsWith(matrix.build_os, 'macos-') }}
-        run: brew bundle --file swift/Brewfile && brew install wasmer
 
       - run: ./swiftwasm-build/tools/build/install-build-sdk.sh ${{ matrix.scheme }}
       - run: ./swiftwasm-build/tools/git-swift-workspace --scheme ${{ matrix.scheme }}
+
+      - name: Install Homebrew dependencies
+        if: ${{ startsWith(matrix.build_os, 'macos-') }}
+        run: brew bundle --file swift/Brewfile && brew install wasmer
 
       - name: Build ${{ matrix.target }} installable archive on Docker container
         if: ${{ matrix.container != null }}
