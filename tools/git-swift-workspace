@@ -51,13 +51,15 @@ def derive_options_from_args(argv)
   end
 
   if options[:tag].nil?
-    default_tag = manifest['schemes'][options[:scheme]]['tag']
+    default_tag = manifest['schemes'][options[:scheme]]['base-tag']
     if default_tag.nil?
       $stderr.puts "Missing --tag option and no default tag for scheme #{options[:scheme]}"
       exit 1
     end
     options[:tag] = default_tag
   end
+
+  options[:repos] = manifest['schemes'][options[:scheme]]['repos'] || []
 
   options
 end
@@ -132,6 +134,21 @@ class ApplyPatchesAction < Action
   end
 end
 
+class CheckoutCorelibsAction < Action
+  def run
+    puts "=====> Checking out swift-corelibs for scheme #{@options[:scheme]}"
+    @options[:repos].each do |repo, rev|
+      fork_repo = "https://github.com/swiftwasm/#{repo}.git"
+      unless Kernel.system(*['git', '-C', "../#{repo}", 'remote', 'get-url', 'swiftwasm'])
+        system(*['git', '-C', "../#{repo}", 'remote', 'add', 'swiftwasm', fork_repo])
+      end
+      puts "Checking out #{repo} at #{rev}"
+      system(*['git', '-C', "../#{repo}", 'fetch', 'swiftwasm', rev])
+      system(*['git', '-C', "../#{repo}", 'checkout', rev])
+    end
+  end
+end
+
 class ActionRunner
   def initialize(actions)
     @actions = actions
@@ -149,7 +166,7 @@ end
 def main
   options = derive_options_from_args(ARGV)
 
-  actions = [CloneAction, UpdateCheckoutAction, ApplyPatchesAction].map { |action| action.new(options) }
+  actions = [CloneAction, UpdateCheckoutAction, ApplyPatchesAction, CheckoutCorelibsAction].map { |action| action.new(options) }
   ActionRunner.new(actions).run
 end
 
