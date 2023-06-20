@@ -1,0 +1,53 @@
+From d7b5d994609c63c37dbada5cfb4c1430c8bda5cc Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 07:11:04 +0000
+Subject: [PATCH] [wasm][Driver] Add wasi-sysroot layout and auto-detection
+ support
+
+Currenty, SwiftWasm toolchain contains wasi-sysroot under
+`./usr/share/wasi-sysroot` directory in the toolchain package, but we
+don't have a good consensus on the location of wasi-sysroot yet. So this
+patch is a temporary solution just to avoid the need to specify `-sdk`
+option manually. That being said, SwiftPM already passes `-sdk` option
+to the driver, so the option is only needed when the driver is invoked
+directly.
+---
+ lib/Driver/Driver.cpp     | 7 +++++++
+ lib/Driver/ToolChains.cpp | 3 ++-
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/lib/Driver/Driver.cpp b/lib/Driver/Driver.cpp
+index 32867832d38..1bfce29afcd 100644
+--- a/lib/Driver/Driver.cpp
++++ b/lib/Driver/Driver.cpp
+@@ -1797,6 +1797,13 @@ void Driver::buildOutputInfo(const ToolChain &TC, const DerivedArgList &Args,
+           });
+         }
+       }
++    } if (OI.SDKPath.empty() && TC.getTriple().isOSWASI()) {
++        llvm::SmallString<128> SDKPath;
++        llvm::sys::path::append(SDKPath, getSwiftProgramPath());
++        llvm::sys::path::remove_filename(SDKPath); // 'swift'
++        llvm::sys::path::remove_filename(SDKPath); // 'bin'
++        llvm::sys::path::append(SDKPath, "share", "wasi-sysroot");
++        OI.SDKPath = SDKPath.str().str();
+     }
+ 
+     if (!OI.SDKPath.empty()) {
+diff --git a/lib/Driver/ToolChains.cpp b/lib/Driver/ToolChains.cpp
+index eb1c8a0ade5..a1aecdc6d84 100644
+--- a/lib/Driver/ToolChains.cpp
++++ b/lib/Driver/ToolChains.cpp
+@@ -1472,7 +1472,8 @@ void ToolChain::getResourceDirPath(SmallVectorImpl<char> &resourceDirPath,
+   if (const Arg *A = args.getLastArg(options::OPT_resource_dir)) {
+     StringRef value = A->getValue();
+     resourceDirPath.append(value.begin(), value.end());
+-  } else if (!getTriple().isOSDarwin() && args.hasArg(options::OPT_sdk)) {
++  } else if (!getTriple().isOSDarwin() && !getTriple().isOSWASI() && args.hasArg(options::OPT_sdk)) {
++    // for WASI, sdk option points to wasi-sysroot which doesn't have Swift toolchain
+     StringRef value = args.getLastArg(options::OPT_sdk)->getValue();
+     resourceDirPath.append(value.begin(), value.end());
+     llvm::sys::path::append(resourceDirPath, "usr");
+-- 
+2.40.0
+

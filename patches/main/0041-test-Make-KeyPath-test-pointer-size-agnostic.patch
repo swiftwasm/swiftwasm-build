@@ -1,0 +1,27 @@
+From 2c44fecfe6d19a61ef5f4fa34d1b92723ce824f3 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 09:37:52 +0000
+Subject: [PATCH] [test] Make KeyPath test pointer-size agnostic
+
+The field offset of the `age` property is 16 bytes on 64-bit platforms
+but not on other pointer-sized platforms.
+---
+ test/stdlib/KeyPath.swift | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/stdlib/KeyPath.swift b/test/stdlib/KeyPath.swift
+index 59d02f7a2e0..40ff0f79dd1 100644
+--- a/test/stdlib/KeyPath.swift
++++ b/test/stdlib/KeyPath.swift
+@@ -1078,7 +1078,7 @@ if #available(SwiftStdlib 5.9, *) {
+     let dogAgeKp = _createOffsetBasedKeyPath(
+       root: Dog.self,
+       value: Int.self,
+-      offset: 16
++      offset: MemoryLayout<String>.size
+     ) as? KeyPath<Dog, Int>
+ 
+     expectNotNil(dogAgeKp)
+-- 
+2.40.0
+

@@ -1,0 +1,76 @@
+From 5a32cdb8d899c7691daeb14e40bc5dd0d7b90a70 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 07:17:38 +0000
+Subject: [PATCH] [wasm][Driver] Add `-use-static-resource-dir` by default for
+ wasm target
+
+Currently, wasm target only supports static linking mode, so we add
+`-use-static-resource-dir` by default for wasm target. This patch is not
+an essential change because we can also add `-use-static-resource-dir`
+in the driver invocation. But it is a convenient change for users.
+---
+ lib/Driver/Driver.cpp     |  3 ++-
+ lib/Driver/ToolChains.cpp | 19 +++++++++++++++++--
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/lib/Driver/Driver.cpp b/lib/Driver/Driver.cpp
+index 1bfce29afcd..9044e4adebb 100644
+--- a/lib/Driver/Driver.cpp
++++ b/lib/Driver/Driver.cpp
+@@ -2404,7 +2404,8 @@ bool Driver::handleImmediateArgs(const ArgList &Args, const ToolChain &TC) {
+     if (Args.hasFlag(options::OPT_static_executable,
+                      options::OPT_no_static_executable, false) ||
+         Args.hasFlag(options::OPT_static_stdlib, options::OPT_no_static_stdlib,
+-                     false)) {
++                     false) ||
++        TC.getTriple().isOSBinFormatWasm()) {
+       commandLine.push_back("-use-static-resource-dir");
+     }
+ 
+diff --git a/lib/Driver/ToolChains.cpp b/lib/Driver/ToolChains.cpp
+index a1aecdc6d84..8e27d7d3410 100644
+--- a/lib/Driver/ToolChains.cpp
++++ b/lib/Driver/ToolChains.cpp
+@@ -660,7 +660,8 @@ ToolChain::constructInvocation(const CompileJobAction &job,
+   if (context.Args.hasFlag(options::OPT_static_executable,
+                            options::OPT_no_static_executable, false) ||
+       context.Args.hasFlag(options::OPT_static_stdlib,
+-                           options::OPT_no_static_stdlib, false)) {
++                           options::OPT_no_static_stdlib, false) ||
++      getTriple().isOSBinFormatWasm()) {
+     Arguments.push_back("-use-static-resource-dir");
+   }
+ 
+@@ -1188,7 +1189,13 @@ ToolChain::constructInvocation(const MergeModuleJobAction &job,
+   context.Args.AddLastArg(Arguments, options::OPT_import_objc_header);
+ 
+   context.Args.AddLastArg(Arguments, options::OPT_disable_incremental_imports);
+-
++  if (context.Args.hasFlag(options::OPT_static_executable,
++                            options::OPT_no_static_executable, false) ||
++      context.Args.hasFlag(options::OPT_static_stdlib,
++                            options::OPT_no_static_stdlib, false) ||
++      getTriple().isOSBinFormatWasm()) {
++    Arguments.push_back("-use-static-resource-dir");
++  }
+   Arguments.push_back("-module-name");
+   Arguments.push_back(context.Args.MakeArgString(context.OI.ModuleName));
+ 
+@@ -1388,6 +1395,14 @@ ToolChain::constructInvocation(const GeneratePCHJobAction &job,
+   addInputsOfType(Arguments, context.InputActions, file_types::TY_ClangHeader);
+   context.Args.AddLastArg(Arguments, options::OPT_index_store_path);
+ 
++  if (context.Args.hasFlag(options::OPT_static_executable,
++                   options::OPT_no_static_executable, false) ||
++      context.Args.hasFlag(options::OPT_static_stdlib, options::OPT_no_static_stdlib,
++                   false) ||
++      getTriple().isOSBinFormatWasm()) {
++    Arguments.push_back("-use-static-resource-dir");
++  }
++
+   if (job.isPersistentPCH()) {
+     Arguments.push_back("-emit-pch");
+     Arguments.push_back("-pch-output-dir");
+-- 
+2.40.0
+

@@ -1,0 +1,78 @@
+From f4f058c412d2ef17dd947e309ab98bb4bc3d6208 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 09:51:29 +0000
+Subject: [PATCH] [wasm][build] Add SwiftWasm compiler vendor support
+
+This patch should not be upstreamed. Maybe we can use
+`--compiler-vendor=none` to avoid hardcoding specific downstream names.
+---
+ .../build_swift/build_swift/driver_arguments.py  |  2 +-
+ .../swift_build_support/products/llvm.py         |  7 +++++++
+ .../swift_build_support/products/swift.py        | 16 ++++++++++++----
+ 3 files changed, 20 insertions(+), 5 deletions(-)
+
+diff --git a/utils/build_swift/build_swift/driver_arguments.py b/utils/build_swift/build_swift/driver_arguments.py
+index 3fc18b3c281..e62bfee0e8a 100644
+--- a/utils/build_swift/build_swift/driver_arguments.py
++++ b/utils/build_swift/build_swift/driver_arguments.py
+@@ -459,7 +459,7 @@ def create_argument_parser():
+            help='if set, provide a fixed path for the Swift backtracer')
+ 
+     option('--compiler-vendor', store,
+-           choices=['none', 'apple'],
++           choices=['none', 'apple', 'swiftwasm'],
+            default=defaults.COMPILER_VENDOR,
+            help='Compiler vendor name')
+     option('--clang-compiler-version', store,
+diff --git a/utils/swift_build_support/swift_build_support/products/llvm.py b/utils/swift_build_support/swift_build_support/products/llvm.py
+index c0011248316..f38040ae21a 100644
+--- a/utils/swift_build_support/swift_build_support/products/llvm.py
++++ b/utils/swift_build_support/swift_build_support/products/llvm.py
+@@ -64,6 +64,13 @@ class LLVM(cmake_product.CMakeProduct):
+         if self.args.compiler_vendor == "none":
+             return []
+ 
++        if self.args.compiler_vendor == "swiftwasm":
++            return [
++                ('CLANG_VENDOR', 'SwiftWasm'),
++                ('CLANG_VENDOR_UTI', 'org.swiftwasm.compilers.llvm.clang'),
++                ('PACKAGE_VERSION', str(self.args.clang_user_visible_version))
++            ]
++
+         if self.args.compiler_vendor != "apple":
+             raise RuntimeError("Unknown compiler vendor?!")
+ 
+diff --git a/utils/swift_build_support/swift_build_support/products/swift.py b/utils/swift_build_support/swift_build_support/products/swift.py
+index de6843b06a1..2e8d1caf41f 100644
+--- a/utils/swift_build_support/swift_build_support/products/swift.py
++++ b/utils/swift_build_support/swift_build_support/products/swift.py
+@@ -104,14 +104,22 @@ class Swift(product.Product):
+         if self.args.compiler_vendor == "none":
+             return []
+ 
+-        if self.args.compiler_vendor != "apple":
+-            raise RuntimeError("Unknown compiler vendor?! Was build-script \
+-updated without updating swift.py?")
+-
+         swift_compiler_version = ""
+         if self.args.swift_compiler_version is not None:
+             swift_compiler_version = self.args.swift_compiler_version
+ 
++        if self.args.compiler_vendor == "swiftwasm":
++            return [
++                ('SWIFT_VENDOR', 'SwiftWasm'),
++                ('SWIFT_VENDOR_UTI', 'org.swiftwasm.compilers.llvm.swift'),
++                ('SWIFT_VERSION', str(self.args.swift_user_visible_version)),
++                ('SWIFT_COMPILER_VERSION', str(swift_compiler_version)),
++            ]
++
++        if self.args.compiler_vendor != "apple":
++            raise RuntimeError("Unknown compiler vendor?! Was build-script \
++updated without updating swift.py?")
++
+         return [
+             ('SWIFT_VENDOR', 'Apple'),
+             ('SWIFT_VENDOR_UTI', 'com.apple.compilers.llvm.swift'),
+-- 
+2.40.0
+
