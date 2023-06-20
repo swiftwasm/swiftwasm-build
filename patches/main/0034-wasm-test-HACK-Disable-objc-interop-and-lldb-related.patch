@@ -1,0 +1,50 @@
+From 072eaab1d05daf923e07e1555bf54565946d6737 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 09:11:53 +0000
+Subject: [PATCH] [wasm][test] HACK: Disable objc-interop and lldb related
+ tests
+
+---
+ test/lit.cfg | 26 ++++++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+diff --git a/test/lit.cfg b/test/lit.cfg
+index d2cecb5015d..2d73066157b 100644
+--- a/test/lit.cfg
++++ b/test/lit.cfg
+@@ -1822,6 +1822,32 @@ elif run_os == 'wasi':
+     config.target_sdk_name = "wasi"
+     config.target_runtime = "native"
+ 
++    # Exclude test cases that use objc-interop because clang doesn't support it
++    # with WebAssembly binary file yet.
++    def use_objc_interop(path):
++      try:
++        with open(path) as f:
++          return '-enable-objc-interop' in f.read()
++      except:
++        return False
++    def lldb_related_test(path):
++      try:
++        with open(path) as f:
++          return 'lldb-moduleimport-test' in f.read()
++      except:
++        return False
++
++    def disabled_filenames(path):
++      matches = []
++      for root, dirnames, filenames in os.walk(path):
++        for filename in filenames:
++          filepath = os.path.join(root, filename)
++          if use_objc_interop(filepath) or lldb_related_test(filepath):
++            matches.append(os.path.basename(filepath))
++      return matches
++
++    config.excludes += disabled_filenames(config.test_source_root)
++
+     config.target_swift_autolink_extract = inferSwiftBinary("swift-autolink-extract")
+ 
+     config.target_build_swift = ' '.join([
+-- 
+2.40.0
+

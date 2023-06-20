@@ -1,0 +1,141 @@
+From b32e7bc82742849901b14aaf60826d2a1d1847ce Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 07:53:38 +0000
+Subject: [PATCH] [wasm][test] Fix build of StdlibUnittest on WASI
+
+WASI platform doesn't support crash interception and spawning
+threads/processes. So this patch disables interception support and
+subprocess spawning. The later patch will disable crash tests in each
+test case.
+---
+ .../private/StdlibUnittest/InterceptTraps.cpp |  6 +++---
+ stdlib/private/StdlibUnittest/RaceTest.swift  |  2 ++
+ .../StdlibUnittest/StdlibUnittest.swift       | 20 +++++++++++++++++--
+ 3 files changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/stdlib/private/StdlibUnittest/InterceptTraps.cpp b/stdlib/private/StdlibUnittest/InterceptTraps.cpp
+index 80c3fa59795..cf81e872556 100644
+--- a/stdlib/private/StdlibUnittest/InterceptTraps.cpp
++++ b/stdlib/private/StdlibUnittest/InterceptTraps.cpp
+@@ -50,8 +50,6 @@ static void CrashCatcher(int Sig) {
+   _exit(0);
+ }
+ 
+-#endif // __wasi__
+-
+ #if defined(_WIN32)
+ static LONG WINAPI
+ VectoredCrashHandler(PEXCEPTION_POINTERS ExceptionInfo) {
+@@ -92,6 +90,8 @@ void installTrapInterceptor() {
+   signal(SIGBUS,  CrashCatcher);
+   signal(SIGSYS,  CrashCatcher);
+ #endif
+-}
+ 
+ #endif // !defined(__wasi__)
++}
++
++#endif // !defined(__wasi__)
+\ No newline at end of file
+diff --git a/stdlib/private/StdlibUnittest/RaceTest.swift b/stdlib/private/StdlibUnittest/RaceTest.swift
+index 008f17a5200..368f49d7000 100644
+--- a/stdlib/private/StdlibUnittest/RaceTest.swift
++++ b/stdlib/private/StdlibUnittest/RaceTest.swift
+@@ -38,7 +38,9 @@
+ 
+ import SwiftPrivate
+ import SwiftPrivateLibcExtras
++#if !os(WASI)
+ import SwiftPrivateThreadExtras
++#endif
+ #if canImport(Darwin)
+ import Darwin
+ #elseif canImport(Glibc)
+diff --git a/stdlib/private/StdlibUnittest/StdlibUnittest.swift b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
+index 9cb21b7d6d1..56aea542128 100644
+--- a/stdlib/private/StdlibUnittest/StdlibUnittest.swift
++++ b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
+@@ -12,7 +12,9 @@
+ 
+ 
+ import SwiftPrivate
++#if !os(WASI)
+ import SwiftPrivateThreadExtras
++#endif
+ import SwiftPrivateLibcExtras
+ 
+ #if canImport(Darwin)
+@@ -22,6 +24,8 @@ import Foundation
+ import Darwin
+ #elseif canImport(Glibc)
+ import Glibc
++#elseif os(WASI)
++import WASILibc
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
+@@ -35,6 +39,12 @@ import ObjectiveC
+ import _Concurrency
+ #endif
+ 
++#if os(WASI)
++let platformSupportSpawnChild = false
++#else
++let platformSupportSpawnChild = true
++#endif
++
+ extension String {
+   /// Returns the lines in `self`.
+   public var _lines : [String] {
+@@ -855,8 +865,10 @@ var _testSuiteNameToIndex: [String : Int] = [:]
+ let _stdlibUnittestStreamPrefix = "__STDLIB_UNITTEST__"
+ let _crashedPrefix = "CRASHED:"
+ 
++#if !os(WASI)
+ @_silgen_name("installTrapInterceptor")
+ func _installTrapInterceptor()
++#endif
+ 
+ #if _runtime(_ObjC)
+ @objc protocol _StdlibUnittestNSException {
+@@ -867,7 +879,9 @@ func _installTrapInterceptor()
+ // Avoid serializing references to objc_setUncaughtExceptionHandler in SIL.
+ @inline(never)
+ func _childProcess() {
++#if !os(WASI)
+   _installTrapInterceptor()
++#endif
+ 
+ #if _runtime(_ObjC)
+   objc_setUncaughtExceptionHandler {
+@@ -923,7 +937,9 @@ func _childProcess() {
+ @available(SwiftStdlib 5.1, *)
+ @inline(never)
+ func _childProcessAsync() async {
++#if !os(WASI)
+   _installTrapInterceptor()
++#endif
+ 
+ #if _runtime(_ObjC)
+   objc_setUncaughtExceptionHandler {
+@@ -1724,7 +1740,7 @@ public func runAllTests() {
+   if _isChildProcess {
+     _childProcess()
+   } else {
+-    var runTestsInProcess: Bool = false
++    var runTestsInProcess: Bool = !platformSupportSpawnChild
+     var filter: String?
+     var args = [String]()
+     var i = 0
+@@ -1794,7 +1810,7 @@ public func runAllTestsAsync() async {
+   if _isChildProcess {
+     await _childProcessAsync()
+   } else {
+-    var runTestsInProcess: Bool = false
++    var runTestsInProcess: Bool = !platformSupportSpawnChild
+     var filter: String?
+     var args = [String]()
+     var i = 0
+-- 
+2.40.0
+

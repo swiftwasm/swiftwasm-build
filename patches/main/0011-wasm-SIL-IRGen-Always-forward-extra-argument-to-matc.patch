@@ -1,0 +1,246 @@
+From 3325fa3e0e5cd1bd7633850c012c6d11248eb00b Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 07:25:35 +0000
+Subject: [PATCH] [wasm][SIL/IRGen] Always forward extra argument to match
+ callee and caller signature
+
+This is a legacy solution for the KeyPath calling convention problem
+described in https://forums.swift.org/t/wasm-support/16087/21. This
+patch will be replaced by https://github.com/apple/swift/pull/66273
+---
+ lib/IRGen/GenKeyPath.cpp                      |  7 +++-
+ lib/SIL/Verifier/SILVerifier.cpp              | 10 +++--
+ lib/SILGen/SILGenExpr.cpp                     | 39 +++++++++++++++++--
+ .../SILCombiner/SILCombinerApplyVisitors.cpp  | 14 +++++++
+ lib/SILOptimizer/Utils/KeyPathProjector.cpp   | 17 +++++++-
+ 5 files changed, 77 insertions(+), 10 deletions(-)
+
+diff --git a/lib/IRGen/GenKeyPath.cpp b/lib/IRGen/GenKeyPath.cpp
+index 6f8a676bef6..93b59497d36 100644
+--- a/lib/IRGen/GenKeyPath.cpp
++++ b/lib/IRGen/GenKeyPath.cpp
+@@ -224,7 +224,8 @@ getAccessorForComputedComponent(IRGenModule &IGM,
+       componentArgsBuf = params.claimNext();
+       // Pass the argument pointer down to the underlying function, if it
+       // wants it.
+-      if (hasSubscriptIndices) {
++      // Always forward extra argument to match callee and caller signature on WebAssembly
++      if (hasSubscriptIndices || IGM.TargetInfo.OutputObjectFormat == llvm::Triple::Wasm) {
+         forwardedArgs.add(componentArgsBuf);
+       }
+       break;
+@@ -250,6 +251,10 @@ getAccessorForComputedComponent(IRGenModule &IGM,
+                                forwardingSubs,
+                                &ignoreWitnessMetadata,
+                                forwardedArgs);
++    } else if (IGM.Triple.isOSBinFormatWasm()) {
++      // wasm: Add null swift.type pointer to match signature even when there is
++      // no generic environment.
++      forwardedArgs.add(llvm::ConstantPointerNull::get(IGM.TypeMetadataPtrTy));
+     }
+     auto fnPtr =
+         FunctionPointer::forDirect(IGM, accessorFn, /*secondaryValue*/ nullptr,
+diff --git a/lib/SIL/Verifier/SILVerifier.cpp b/lib/SIL/Verifier/SILVerifier.cpp
+index 4cedea8007d..c761c37740f 100644
+--- a/lib/SIL/Verifier/SILVerifier.cpp
++++ b/lib/SIL/Verifier/SILVerifier.cpp
+@@ -299,8 +299,9 @@ void verifyKeyPathComponent(SILModule &M,
+                 SILFunctionTypeRepresentation::Thin,
+               "getter should be a thin function");
+       
+-      require(substGetterType->getNumParameters() == 1 + hasIndices,
+-              "getter should have one parameter");
++      // FIXME(katei): Disabled for now. Will be replaced by keypath cc
++      // require(substGetterType->getNumParameters() == 1 + hasIndices,
++      //         "getter should have one parameter");
+       auto baseParam = substGetterType->getParameters()[0];
+       require(baseParam.getConvention() == normalArgConvention,
+               "getter base parameter should have normal arg convention");
+@@ -351,8 +352,9 @@ void verifyKeyPathComponent(SILModule &M,
+                 SILFunctionTypeRepresentation::Thin,
+               "setter should be a thin function");
+       
+-      require(substSetterType->getNumParameters() == 2 + hasIndices,
+-              "setter should have two parameters");
++      // FIXME(katei): Disabled for now. Will be replaced by keypath cc
++      // require(substSetterType->getNumParameters() == 2 + hasIndices,
++      //         "setter should have two parameters");
+ 
+       auto newValueParam = substSetterType->getParameters()[0];
+       // TODO: This should probably be unconditionally +1 when we
+diff --git a/lib/SILGen/SILGenExpr.cpp b/lib/SILGen/SILGenExpr.cpp
+index 6fb3c14dcde..49536a15fbd 100644
+--- a/lib/SILGen/SILGenExpr.cpp
++++ b/lib/SILGen/SILGenExpr.cpp
+@@ -2994,6 +2994,7 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+     }
+   }
+ 
++  auto Target = SGM.getASTContext().LangOpts.Target;
+   auto genericSig =
+       genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
+                  : nullptr;
+@@ -3002,6 +3003,14 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+     genericEnv = nullptr;
+   }
+ 
++  // Add empty generic type parameter to match function signature on WebAssembly
++  if (!genericSig && Target.isOSBinFormatWasm()) {
++    auto param = GenericTypeParamType::get(false, 0, 0, SGM.getASTContext());
++    auto sig = GenericSignature::get(param, { });
++    genericSig = CanGenericSignature(sig);
++    genericEnv = sig.getGenericEnvironment();
++  }
++
+   // Build the signature of the thunk as expected by the keypath runtime.
+   auto signature = [&]() {
+     CanType loweredBaseTy, loweredPropTy;
+@@ -3017,7 +3026,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+     SmallVector<SILParameterInfo, 2> params;
+     params.push_back({loweredBaseTy, paramConvention});
+     auto &C = SGM.getASTContext();
+-    if (!indexes.empty())
++    // Always take indexes parameter to match callee and caller signature on WebAssembly
++    if (!indexes.empty() || C.LangOpts.Target.isOSBinFormatWasm())
+       params.push_back({C.getUnsafeRawPointerType()->getCanonicalType(),
+                         ParameterConvention::Direct_Unowned});
+     
+@@ -3080,7 +3090,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+   }
+   auto baseArg = entry->createFunctionArgument(baseArgTy);
+   SILValue indexPtrArg;
+-  if (!indexes.empty()) {
++  // Always take indexes parameter to match callee and caller signature on WebAssembly
++  if (!indexes.empty() || Target.isOSBinFormatWasm()) {
+     auto indexArgTy = signature->getParameters()[1].getSILStorageType(
+         SGM.M, signature, subSGF.F.getTypeExpansionContext());
+     indexPtrArg = entry->createFunctionArgument(indexArgTy);
+@@ -3169,6 +3180,7 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+     }
+   }
+ 
++  auto Target = SGM.getASTContext().LangOpts.Target;
+   auto genericSig =
+       genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
+                  : nullptr;
+@@ -3177,6 +3189,14 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+     genericEnv = nullptr;
+   }
+ 
++  // Add empty generic type parameter to match function signature on WebAssembly
++  if (!genericSig && Target.isOSBinFormatWasm()) {
++    auto param = GenericTypeParamType::get(false, 0, 0, SGM.getASTContext());
++    auto sig = GenericSignature::get(param, { });
++    genericSig = CanGenericSignature(sig);
++    genericEnv = sig.getGenericEnvironment();
++  }
++
+   // Build the signature of the thunk as expected by the keypath runtime.
+   auto signature = [&]() {
+     CanType loweredBaseTy, loweredPropTy;
+@@ -3202,7 +3222,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+                         ? ParameterConvention::Indirect_Inout
+                         : paramConvention});
+     // indexes
+-    if (!indexes.empty())
++    // Always take indexes parameter to match callee and caller signature on WebAssembly
++    if (!indexes.empty() || C.LangOpts.Target.isOSBinFormatWasm())
+       params.push_back({C.getUnsafeRawPointerType()->getCanonicalType(),
+                         ParameterConvention::Direct_Unowned});
+     
+@@ -3259,7 +3280,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+   auto baseArg = entry->createFunctionArgument(baseArgTy);
+   SILValue indexPtrArg;
+   
+-  if (!indexes.empty()) {
++  // Always take indexes parameter to match callee and caller signature on WebAssembly
++  if (!indexes.empty() || Target.isOSBinFormatWasm()) {
+     auto indexArgTy = signature->getParameters()[2].getSILStorageType(
+         SGM.M, signature, subSGF.getTypeExpansionContext());
+     indexPtrArg = entry->createFunctionArgument(indexArgTy);
+@@ -3350,6 +3372,7 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
+     return;
+   }
+ 
++  auto Target = SGM.getASTContext().LangOpts.Target;
+   auto genericSig =
+       genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
+                  : nullptr;
+@@ -3359,6 +3382,14 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
+     genericEnv = nullptr;
+   }
+ 
++  // Add empty generic type parameter to match function signature on WebAssembly
++  if (!genericSig && Target.isOSBinFormatWasm()) {
++    auto param = GenericTypeParamType::get(false, 0, 0, SGM.getASTContext());
++    auto sig = GenericSignature::get(param, { });
++    genericSig = CanGenericSignature(sig);
++    genericEnv = sig.getGenericEnvironment();
++  }
++
+   auto &C = SGM.getASTContext();
+   auto unsafeRawPointerTy = C.getUnsafeRawPointerType()->getCanonicalType();
+   auto boolTy = C.getBoolType()->getCanonicalType();
+diff --git a/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp b/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
+index 085e548eb7e..fc411208ced 100644
+--- a/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
++++ b/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
+@@ -505,6 +505,13 @@ bool SILCombiner::tryOptimizeKeypathKVCString(ApplyInst *AI,
+ }
+ 
+ bool SILCombiner::tryOptimizeKeypath(ApplyInst *AI) {
++  // FIXME(katei): Disable for WebAssembly for now because
++  // KeyPath cc is unstable and KeyPathProjector hask violates
++  // some assert assumptions
++  SILModule &M = AI->getModule();
++  if (M.getASTContext().LangOpts.Target.isOSBinFormatWasm())
++    return false;
++
+   if (SILFunction *callee = AI->getReferencedFunctionOrNull()) {
+     return tryOptimizeKeypathApplication(AI, callee);
+   }
+@@ -550,6 +557,13 @@ bool SILCombiner::tryOptimizeKeypath(ApplyInst *AI) {
+ ///   %addr = struct_element_addr/ref_element_addr %root_object
+ ///   // use %inout_addr
+ bool SILCombiner::tryOptimizeInoutKeypath(BeginApplyInst *AI) {
++  // FIXME(katei): Disable for WebAssembly for now because
++  // KeyPath cc is unstable and KeyPathProjector hask violates
++  // some assert assumptions
++  SILModule &M = AI->getModule();
++  if (M.getASTContext().LangOpts.Target.isOSBinFormatWasm())
++    return false;
++
+   // Disable in OSSA because KeyPathProjector is not fully ported
+   if (AI->getFunction()->hasOwnership())
+     return false;
+diff --git a/lib/SILOptimizer/Utils/KeyPathProjector.cpp b/lib/SILOptimizer/Utils/KeyPathProjector.cpp
+index 6051ae07d3e..f66ed98396c 100644
+--- a/lib/SILOptimizer/Utils/KeyPathProjector.cpp
++++ b/lib/SILOptimizer/Utils/KeyPathProjector.cpp
+@@ -233,7 +233,22 @@ public:
+       assert(getter->getConventions().getNumSILArguments());
+       
+       auto ref = builder.createFunctionRef(loc, getter);
+-      builder.createApply(loc, ref, subs, {addr, parentValue});
++
++      std::vector<SILValue> args{addr, parentValue};
++      // FIXME(wasm): For wasm, KeyPath getter always take indices parameter
++      // to match callee and caller signature. So need to pass stub pointer.
++      // See also: getOrCreateKeyPathSetter and getOrCreateKeyPathGetter
++      if (builder.getASTContext().LangOpts.Target.isOSBinFormatWasm()) {
++        auto IntTy = SILType::getBuiltinIntegerType(32, builder.getASTContext());
++        auto UnsafeRawPointerTy = SILType::getRawPointerType(builder.getASTContext());
++        auto zeroVal = SILValue(builder.createIntegerLiteral(loc, IntTy, 0));
++        auto stackBuffer = SILValue(builder.createAllocStack(loc, IntTy));
++        builder.createStore(loc, zeroVal, stackBuffer, StoreOwnershipQualifier::Unqualified);
++        auto nonePointer = builder.createUncheckedAddrCast(loc, stackBuffer, UnsafeRawPointerTy);
++        args.push_back(SILValue(nonePointer));
++      }
++
++      builder.createApply(loc, ref, subs, args);
+       
+       // If we were previously accessing a class member, we're done now.
+       insertEndAccess(beginAccess, builder);
+-- 
+2.40.0
+

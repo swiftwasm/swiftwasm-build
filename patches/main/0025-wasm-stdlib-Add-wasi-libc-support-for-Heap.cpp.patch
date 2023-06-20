@@ -1,0 +1,33 @@
+From 294879574c889eba33b3302014ad2e3a23176e90 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 08:37:23 +0000
+Subject: [PATCH] [wasm][stdlib] Add wasi-libc support for Heap.cpp
+
+Pointers returned by malloc() are 16-byte aligned on wasi-libc, even
+it's 32-bit architecture. See wasi-libc's dlmalloc configuration:
+https://github.com/WebAssembly/wasi-libc/blob/aecd368c6dedc417037afa136139eccc4490e56e/dlmalloc/src/dlmalloc.c#L31
+---
+ stdlib/public/runtime/Heap.cpp | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/stdlib/public/runtime/Heap.cpp b/stdlib/public/runtime/Heap.cpp
+index 23e09ffa4ee..dcf13c40960 100644
+--- a/stdlib/public/runtime/Heap.cpp
++++ b/stdlib/public/runtime/Heap.cpp
+@@ -32,10 +32,11 @@ using namespace swift;
+ /// On Apple platforms, \c malloc() is always 16-byte aligned.
+ static constexpr size_t MALLOC_ALIGN_MASK = 15;
+ 
+-#elif defined(__linux__) || defined(_WIN32)
++#elif defined(__linux__) || defined(_WIN32) || defined(__wasi__)
+ /// On Linux and Windows, \c malloc() returns 16-byte aligned pointers on 64-bit
+ /// and 8-byte aligned pointers on 32-bit.
+-#if defined(__LP64) || defined(_WIN64)
++/// On wasi-libc, pointers are 16-byte aligned even though 32-bit for SIMD access.
++#if defined(__LP64) || defined(_WIN64) || defined(__wasi__)
+ static constexpr size_t MALLOC_ALIGN_MASK = 15;
+ #else
+ static constexpr size_t MALLOC_ALIGN_MASK = 7;
+-- 
+2.40.0
+

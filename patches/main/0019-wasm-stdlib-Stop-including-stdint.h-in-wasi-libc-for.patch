@@ -1,0 +1,28 @@
+From bb4b2ee0d4caba8330280f41d0e2647965ec80dc Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 08:02:13 +0000
+Subject: [PATCH] [wasm][stdlib] Stop including stdint.h in wasi-libc for
+ SwiftShims
+
+To avoid `error: 'stddef.h' file not found' issue described in
+SwiftStdint.h
+---
+ stdlib/public/SwiftShims/swift/shims/SwiftStdint.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/stdlib/public/SwiftShims/swift/shims/SwiftStdint.h b/stdlib/public/SwiftShims/swift/shims/SwiftStdint.h
+index 7b83e90d727..117677e497a 100644
+--- a/stdlib/public/SwiftShims/swift/shims/SwiftStdint.h
++++ b/stdlib/public/SwiftShims/swift/shims/SwiftStdint.h
+@@ -24,7 +24,7 @@
+ 
+ // Clang has been defining __INTxx_TYPE__ macros for a long time.
+ // __UINTxx_TYPE__ are defined only since Clang 3.5.
+-#if !defined(__APPLE__) && !defined(__linux__) && !defined(__OpenBSD__)
++#if !defined(__APPLE__) && !defined(__linux__) && !defined(__OpenBSD__) && !defined(__wasi__)
+ #include <stdint.h>
+ typedef int64_t __swift_int64_t;
+ typedef uint64_t __swift_uint64_t;
+-- 
+2.40.0
+
