@@ -143,7 +143,7 @@ jobs:
         if: ${{ startsWith(matrix.build_os, 'macos-') }}
         run: brew bundle --file swift/Brewfile && brew install wasmer
 
-      - run: ./swiftwasm-build/tools/build/install-build-sdk.sh
+      - run: ./swiftwasm-build/tools/build/install-build-sdk.sh ${{ matrix.scheme }}
       - run: ./swiftwasm-build/tools/git-swift-workspace --scheme ${{ matrix.scheme }}
 
       - name: Build ${{ matrix.target }} installable archive on Docker container

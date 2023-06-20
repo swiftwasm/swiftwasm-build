@@ -4,7 +4,8 @@ set -eux
 
 SOURCE_PATH="$( cd "$(dirname "$0")/../../../" && pwd  )"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
-PATCHES="$(cd "$(dirname "$0")/patches" && pwd)"
+SCHEME="${1:?"scheme is not specified"}"
+PATCHES="$(cd "$(dirname "$0")/../../schemes/$SCHEME" && pwd)"
 
 install_libxml2() {
   LIBXML2_URL="https://github.com/swiftwasm/libxml2-wasm/releases/download/1.0.0/libxml2-wasm32-unknown-wasi.tar.gz"
