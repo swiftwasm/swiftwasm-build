@@ -3,6 +3,7 @@ set -ex
 DESTINATION_TOOLCHAIN=$1
 WASI_SYSROOT_PATH=$2
 SOURCE_PATH="$(cd "$(dirname $0)/../../.." && pwd)"
+TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
 LIBXML2_PATH="$BUILD_SDK_PATH/libxml2"
 
@@ -16,7 +17,7 @@ cmake -G Ninja \
   -DCMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
   -DCMAKE_Swift_COMPILER="$DESTINATION_TOOLCHAIN/usr/bin/swiftc" \
   -DCMAKE_STAGING_PREFIX="$DESTINATION_TOOLCHAIN/usr" \
-  -DCMAKE_TOOLCHAIN_FILE="$SOURCE_PATH/swift/utils/webassembly/toolchain-wasi.cmake" \
+  -DCMAKE_TOOLCHAIN_FILE="$TOOLS_BUILD_PATH/toolchain-wasi.cmake" \
   -DLLVM_BIN="$DESTINATION_TOOLCHAIN/usr/bin" \
   -DICU_ROOT="$BUILD_SDK_PATH/icu" \
   -DLIBXML2_INCLUDE_DIR="$LIBXML2_PATH/include/libxml2" \

@@ -3,6 +3,7 @@ set -ex
 DESTINATION_TOOLCHAIN=$1
 WASI_SYSROOT_PATH=$2
 SOURCE_PATH="$(cd "$(dirname $0)/../../.." && pwd)"
+TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 
 BUILD_DIR="$SOURCE_PATH/target-build/xctest-wasi-wasm32"
 
@@ -13,7 +14,7 @@ cmake -G Ninja \
   -DCMAKE_BUILD_TYPE="Release" \
   -DCMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
   -DCMAKE_Swift_COMPILER="$DESTINATION_TOOLCHAIN/usr/bin/swiftc" \
-  -DCMAKE_TOOLCHAIN_FILE="$SOURCE_PATH/swift/utils/webassembly/toolchain-wasi.cmake" \
+  -DCMAKE_TOOLCHAIN_FILE="$TOOLS_BUILD_PATH/toolchain-wasi.cmake" \
   -DLLVM_BIN="$DESTINATION_TOOLCHAIN/usr/bin" \
   -DBUILD_SHARED_LIBS=OFF \
   -DCMAKE_Swift_COMPILER_FORCED=ON \
