@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env python3
 # git-swift-workspace - A script to create a workspace for a Swift project applying patches
 #
 # Usage: git-swift-workspace [options]
@@ -8,167 +8,120 @@
 # 2. `./swift/utils/update-checkout --clone --scheme <scheme>` to clone all the dependencies
 # 3. `git am patches/<scheme>/*.patch` to apply all the patches
 
-def derive_options_from_args(argv)
-  require 'optparse'
-  require 'json'
+import os
+import sys
+import argparse
+import json
+import pathlib
+import subprocess
 
-  options = {}
-  OptionParser.new do |opts|
-    opts.banner = "Usage: git-swift-workspace [options]"
+def derive_options_from_args(argv):
+    repo_root = os.path.dirname(os.path.dirname(__file__))
+    schemes = [os.path.basename(path) for path in os.listdir(os.path.join(repo_root, 'schemes'))]
 
-    opts.on("-s", "--scheme SCHEME", "The scheme to use") do |v|
-      options[:scheme] = v
-    end
+    parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
+    parser.add_argument('--scheme', help='The scheme to use', required=True, choices=schemes)
+    parser.add_argument('--tag', help='The upstream Swift tag to use as the base')
+    parser.add_argument('--dry-run', help='Prints the commands that would be executed', action='store_true')
+    parser.add_argument('-v', '--verbose', help='Prints the commands that are executed', action='store_true')
 
-    opts.on("-t", "--tag TAG", "The upstream Swift tag to use as the base") do |v|
-      options[:tag] = v
-    end
+    options = parser.parse_args(argv)
 
-    opts.on("--dry-run", "Prints the commands that would be executed") do |v|
-      options[:dry_run] = v
-    end
+    manifest = json.load(open(os.path.join(repo_root, 'schemes', options.scheme, 'manifest.json')))
 
-    opts.on("-v", "--verbose", "Prints the commands that are executed") do |v|
-      options[:verbose] = v
-    end
+    if options.tag is None:
+        options.tag = manifest['base-tag']
+        if options.tag is None:
+            raise Exception('Missing --tag option and no default tag for scheme {}'.format(options.scheme))
 
-    opts.on("-h", "--help", "Prints this help") do
-      puts opts
-      exit
-    end
-  end.parse(argv)
+    options.repos = manifest['repos'] or {}
+    return options
 
-  repo_root = File.dirname(File.dirname(__FILE__))
-  schemes = Dir.glob(File.join(repo_root, "schemes/*/manifest.json")).map { |path| File.basename(File.dirname(path)) }
-  if options[:scheme].nil?
-    $stderr.puts "Missing --scheme option. Please specify one of the following schemes: #{schemes.join(', ')}"
-    exit 1
-  end
+class Action:
+    def __init__(self, options):
+        self.options = options
 
-  unless schemes.include?(options[:scheme])
-    $stderr.puts "Invalid scheme: #{options[:scheme]}. Please specify one of the following schemes: #{schemes.join(', ')}"
-    exit 1
-  end
+    def run(self):
+        raise Exception('Not implemented')
 
-  manifest = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], 'manifest.json')))
-  if options[:tag].nil?
-    default_tag = manifest['base-tag']
-    if default_tag.nil?
-      $stderr.puts "Missing --tag option and no default tag for scheme #{options[:scheme]}"
-      exit 1
-    end
-    options[:tag] = default_tag
-  end
+    def system(self, *args):
+        if self.options.verbose or self.options.dry_run:
+            print(' '.join(args), file=sys.stderr)
+        if self.options.dry_run:
+            return
+        result = subprocess.run(args)
+        if result.returncode != 0:
+            raise Exception('Command failed: {}'.format(' '.join(args)))
 
-  options[:repos] = manifest['repos'] || []
+class CloneAction(Action):
+    def run(self):
+        if os.path.exists("../swift/.git"):
+            return
+        print('=====> Cloning Swift repository')
+        self.system('git', 'clone', 'https://github.com/apple/swift.git', '../swift')
 
-  options
-end
+class UpdateCheckoutAction(Action):
+    def run(self):
+        print('=====> Updating checkout for scheme {} with tag {}'.format(self.options.scheme, self.options.tag))
+        self.system('../swift/utils/update-checkout', '--clone', '--scheme', self.options.scheme, '--tag', self.options.tag)
 
-class Action
-  def initialize(options)
-    @options = options
-  end
+class ApplyPatchesAction(Action):
+    def run(self):
+        patches_dir = os.path.join('schemes', self.options.scheme, 'swift')
+        patches = [os.path.join(patches_dir, path) for path in os.listdir(patches_dir)]
+        patches.sort()
+        print('=====> Applying {} patches for scheme {}'.format(len(patches), self.options.scheme))
 
-  def run
-    raise "Not implemented"
-  end
+        # If the repository is not clean, abort
+        status = subprocess.run(['git', '-C', '../swift', 'status', '--porcelain']).returncode
+        if status != 0:
+            raise Exception('Repository is not clean. Please commit or stash your changes.')
 
-  def system(*args)
-    if @options[:verbose] || @options[:dry_run]
-      puts args.join(' ')
-    end
-    return if @options[:dry_run]
-    status = Kernel.system(*args)
-    if !status
-      raise "Command failed: #{args.join(' ')}"
-    end
-  end
-end
+        staging_branch = self.compute_unique_branch_name('swiftwasm-staging/{}'.format(self.options.tag))
+        self.system('git', '-C', '../swift', 'switch', '-c', staging_branch)
+        for patch in patches:
+            repo_root_dirname = pathlib.Path(".").resolve().name
+            relative_path = os.path.join("..", repo_root_dirname, patch)
+            self.system('git', '-C', '../swift', 'am', '--keep-non-patch', str(relative_path))
 
-class CloneAction < Action
-  def run
-    return if File.exist?('../swift/.git')
-    puts "=====> Cloning Swift repository"
-    system(*['git', 'clone', 'https://github.com/apple/swift.git', '../swift'])
-  end
-end
+    def compute_unique_branch_name(self, basename):
+        name = basename
+        suffix = 0
+        while True:
+            result = subprocess.run(['git', '-C', '../swift', 'branch', '--list', name], stdout=subprocess.PIPE)
+            if len(result.stdout) == 0:
+                return name
+            suffix += 1
+            name = '{}-{}'.format(basename, suffix)
 
-class UpdateCheckoutAction < Action
-  def run
-    puts "=====> Updating checkout for scheme #{@options[:scheme]} with tag #{@options[:tag]}"
-    system(*['../swift/utils/update-checkout', '--clone', '--scheme', @options[:scheme], '--tag', @options[:tag]])
-  end
-end
+class CheckoutCorelibsAction(Action):
+    def run(self):
+        print('=====> Checking out swift-corelibs for scheme {}'.format(self.options.scheme))
+        for repo, rev in self.options.repos.items():
+            fork_repo = f'https://github.com/swiftwasm/{repo}.git'
+            status = subprocess.run(['git', '-C', f'../{repo}', 'remote', 'get-url', 'swiftwasm']).returncode
+            if status != 0:
+                self.system('git', '-C', f'../{repo}', 'remote', 'add', 'swiftwasm', fork_repo)
+            print(f'Checking out {repo} at {rev}')
+            self.system('git', '-C', f'../{repo}', 'fetch', 'swiftwasm', rev)
+            self.system('git', '-C', f'../{repo}', 'checkout', rev)
 
-class ApplyPatchesAction < Action
-  def run
-    require "pathname"
-    patches = Dir.glob("schemes/#{@options[:scheme]}/swift/*.patch")
-    patches.sort!
-    puts "=====> Applying #{patches.count} patches for scheme #{@options[:scheme]}"
 
-    # If the repository is not clean, abort
-    status = `git -C ../swift status --porcelain`
-    if status != ""
-      $stderr.puts "Repository is not clean. Please commit or stash your changes."
-      exit 1
-    end
+class ActionRunner:
+    def __init__(self, actions):
+        self.actions = actions
 
-    staging_branch = "swiftwasm-staging/#{@options[:tag]}"
-    suffix = 0
-    while true
-      if `git -C ../swift branch --list #{staging_branch}` != ""
-        suffix += 1
-        staging_branch = "swiftwasm-staging/#{@options[:tag]}-#{suffix}"
-      else
-        break
-      end
-    end
-    system(*['git', '-C', '../swift', 'switch', '-c', staging_branch])
+    def run(self):
+        repo_root = os.path.dirname(os.path.dirname(__file__))
+        os.chdir(repo_root)
+        for action in self.actions:
+            action.run()
 
-    patches.each do |patch|
-      patch = Pathname.new(File.absolute_path(patch))
-      relative_path = patch.relative_path_from(File.absolute_path("../swift"))
-      system(*['git', '-C', '../swift', 'am', '--keep-non-patch', relative_path.to_s])
-    end
-  end
-end
+def main():
+    options = derive_options_from_args(sys.argv[1:])
+    actions = [CloneAction(options), UpdateCheckoutAction(options), ApplyPatchesAction(options), CheckoutCorelibsAction(options)]
 
-class CheckoutCorelibsAction < Action
-  def run
-    puts "=====> Checking out swift-corelibs for scheme #{@options[:scheme]}"
-    @options[:repos].each do |repo, rev|
-      fork_repo = "https://github.com/swiftwasm/#{repo}.git"
-      unless Kernel.system(*['git', '-C', "../#{repo}", 'remote', 'get-url', 'swiftwasm'])
-        system(*['git', '-C', "../#{repo}", 'remote', 'add', 'swiftwasm', fork_repo])
-      end
-      puts "Checking out #{repo} at #{rev}"
-      system(*['git', '-C', "../#{repo}", 'fetch', 'swiftwasm', rev])
-      system(*['git', '-C', "../#{repo}", 'checkout', rev])
-    end
-  end
-end
+    ActionRunner(actions).run()
 
-class ActionRunner
-  def initialize(actions)
-    @actions = actions
-  end
-
-  def run
-    Dir.chdir(File.dirname(File.dirname(__FILE__))) do
-      @actions.each do |action|
-        action.run
-      end
-    end
-  end
-end
-
-def main
-  options = derive_options_from_args(ARGV)
-
-  actions = [CloneAction, UpdateCheckoutAction, ApplyPatchesAction, CheckoutCorelibsAction].map { |action| action.new(options) }
-  ActionRunner.new(actions).run
-end
-
-main if __FILE__ == $0
+if __name__ == '__main__':
+    main()
