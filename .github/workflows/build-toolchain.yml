@@ -110,6 +110,12 @@ jobs:
 
       - name: Configure git user for git-am
         run: |
+          # Linux self-hosted runners somehow clear HOME environment variable
+          if [[ -z "$HOME" ]]; then
+            export HOME="$RUNNER_TEMP/home/buildbot"
+            mkdir -p "$HOME"
+            echo "HOME=$HOME" >> $GITHUB_ENV
+          fi
           git config --global user.name "SwiftWasm Buildbot"
           git config --global user.email "hello@swiftwasm.org"
 
