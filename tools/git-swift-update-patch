@@ -22,7 +22,7 @@ def main
   manifest = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], 'manifest.json')))
 
   patches_path = File.absolute_path(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], 'swift'))
-  upstream_rev = manifest['tag']
+  upstream_rev = manifest['base-tag']
 
   unless `git status --porcelain`.empty?
     puts "Patch set repository is not clean"
