@@ -1,4 +1,4 @@
-From 42c2dc8506bf38ad82bfbe4e821b476cb32896e0 Mon Sep 17 00:00:00 2001
+From 2cb5c1c468eba57dd7e75cf93b6a817d41546f0e Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 24 Nov 2020 13:16:58 +0900
 Subject: [PATCH] [installer] Do not follow an existing symbolic link when
