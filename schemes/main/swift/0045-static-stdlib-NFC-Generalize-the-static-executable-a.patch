@@ -1,4 +1,4 @@
-From 039af11446d46f3a095285a9b109a4d2ccb5aed2 Mon Sep 17 00:00:00 2001
+From bbae7ac80441ae3caacf8c10620444842b5716d5 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 9 Jun 2023 15:43:23 +0000
 Subject: [PATCH] [static-stdlib] NFC: Generalize the

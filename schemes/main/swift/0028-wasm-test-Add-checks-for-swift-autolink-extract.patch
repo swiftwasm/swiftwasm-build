@@ -1,4 +1,4 @@
-From 585a3d38a0077adfce7f8ea83d8f21b2a746a9e8 Mon Sep 17 00:00:00 2001
+From 8d6b98c2fe81361b15c21972235f3b9befeb1b2e Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:54:00 +0000
 Subject: [PATCH] [wasm][test] Add checks for swift-autolink-extract

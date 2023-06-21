@@ -1,4 +1,4 @@
-From 02e070e0a8470b435bc18c9aec1a5cf3a8e8687e Mon Sep 17 00:00:00 2001
+From 3b2a17624497ff0b6a54770c456c45a2a7f99ea5 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 9 Jun 2023 15:47:16 +0000
 Subject: [PATCH] [static-stdlib] Add static executable support for WASI target

@@ -1,4 +1,4 @@
-From 88bc3e6022e57963de00b2bcd0ad045140f37eb1 Mon Sep 17 00:00:00 2001
+From e3943bbcfa3cef3056bf0180fa861273ddc6468a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:34:30 +0000
 Subject: [PATCH] [stdlib] Propagate `SWIFT_STDLIB_SINGLE_THREADED_RUNTIME`

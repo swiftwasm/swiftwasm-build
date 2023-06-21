@@ -1,4 +1,4 @@
-From 843028643d473df9cdd83807b2667d03e844226a Mon Sep 17 00:00:00 2001
+From d9f51571f83a54f144edb94290d33387a75be256 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:57:26 +0000
 Subject: [PATCH] [wasm][stdlib] Fix build of SwiftPrivate on WASI

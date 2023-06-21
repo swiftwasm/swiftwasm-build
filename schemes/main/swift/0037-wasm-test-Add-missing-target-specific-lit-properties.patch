@@ -1,4 +1,4 @@
-From af251aefeb5ec75b226ab4443491971f08f0528e Mon Sep 17 00:00:00 2001
+From c1701a7908a73319ceb1db267400f1beac73b5da Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:24:47 +0000
 Subject: [PATCH] [wasm][test] Add missing target specific lit properties

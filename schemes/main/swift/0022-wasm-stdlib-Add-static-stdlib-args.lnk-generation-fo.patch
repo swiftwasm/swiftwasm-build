@@ -1,4 +1,4 @@
-From c4b5180b51c5fa2c406a438160b5c35a726b7681 Mon Sep 17 00:00:00 2001
+From c9b2397e596e19855524cb7eef292b861a820454 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:15:30 +0000
 Subject: [PATCH] [wasm][stdlib] Add static-stdlib-args.lnk generation for WASI

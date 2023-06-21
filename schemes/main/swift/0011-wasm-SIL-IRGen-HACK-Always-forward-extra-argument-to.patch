@@ -1,8 +1,8 @@
-From 8a157d0314c26ff48387f0f9ee7d499d8c0be087 Mon Sep 17 00:00:00 2001
+From 887c727366e3b36c4ae33cec8fb9315082ca3888 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:25:35 +0000
-Subject: [PATCH] [wasm][SIL/IRGen] Always forward extra argument to match
- callee and caller signature
+Subject: [PATCH] [wasm][SIL/IRGen] HACK: Always forward extra argument to
+ match callee and caller signature
 
 This is a legacy solution for the KeyPath calling convention problem
 described in https://forums.swift.org/t/wasm-support/16087/21. This

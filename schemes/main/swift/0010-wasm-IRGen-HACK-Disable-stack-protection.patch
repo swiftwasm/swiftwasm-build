@@ -1,7 +1,7 @@
-From fbdfa1c3402bd9a38412a9195579a4dad23632e9 Mon Sep 17 00:00:00 2001
+From c4efbe2451250ed6e5f1fe6b2830644319d9a997 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:21:31 +0000
-Subject: [PATCH] [wasm][IRGen] Disable stack protection
+Subject: [PATCH] [wasm][IRGen] HACK: Disable stack protection
 
 This is a temporary workaround until we can update wasi-sdk to version
 17 or later, which includes stack protection support in wasi-libc.

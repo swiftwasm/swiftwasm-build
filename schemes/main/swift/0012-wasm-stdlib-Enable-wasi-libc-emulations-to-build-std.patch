@@ -1,4 +1,4 @@
-From 6be024c94dd467260fd3f9e2bd13bb4b160d560e Mon Sep 17 00:00:00 2001
+From 61aca49be663a9d8cb16d95caa5135cdc3933434 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:31:23 +0000
 Subject: [PATCH] [wasm][stdlib] Enable wasi-libc emulations to build stdlib

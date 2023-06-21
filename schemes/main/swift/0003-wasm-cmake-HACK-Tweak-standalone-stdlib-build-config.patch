@@ -1,7 +1,8 @@
-From d049622cbbf2e3784e1b803a7028aec657f75f24 Mon Sep 17 00:00:00 2001
+From 923b700ec7a4ebd58b2c296a18dff5429ce959ae Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 06:58:41 +0000
-Subject: [PATCH] [wasm][cmake] Tweak standalone stdlib build configuration
+Subject: [PATCH] [wasm][cmake] HACK: Tweak standalone stdlib build
+ configuration
 
 This commit disables remote mirrors due to cross-compilation issues, and
 turns off several additional features that are not yet supported on WASI.

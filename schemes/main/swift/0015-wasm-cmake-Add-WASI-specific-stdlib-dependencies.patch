@@ -1,4 +1,4 @@
-From 2cc1c4f9960819b26023ff1f69f67184675bf942 Mon Sep 17 00:00:00 2001
+From 393a17c2f88e6a89bd0a0f83038d722dfa19b179 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:50:16 +0000
 Subject: [PATCH] [wasm][cmake] Add WASI specific stdlib dependencies
