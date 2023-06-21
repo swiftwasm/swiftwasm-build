@@ -24,6 +24,7 @@ def derive_options_from_args(argv):
     parser.add_argument('--tag', help='The upstream Swift tag to use as the base')
     parser.add_argument('--dry-run', help='Prints the commands that would be executed', action='store_true')
     parser.add_argument('-v', '--verbose', help='Prints the commands that are executed', action='store_true')
+    parser.add_argument('--skip-history', help='Skip histories when obtaining sources', action='store_true')
 
     options = parser.parse_args(argv)
 
@@ -58,12 +59,20 @@ class CloneAction(Action):
         if os.path.exists("../swift/.git"):
             return
         print('=====> Cloning Swift repository')
-        self.system('git', 'clone', 'https://github.com/apple/swift.git', '../swift')
+        git_options = []
+        if self.options.skip_history:
+            git_options += ['--depth', '1', '--branch', self.options.tag]
+
+        args = ['git', 'clone'] + git_options + ['https://github.com/apple/swift.git', '../swift']
+        self.system(*args)
 
 class UpdateCheckoutAction(Action):
     def run(self):
         print('=====> Updating checkout for scheme {} with tag {}'.format(self.options.scheme, self.options.tag))
-        self.system('../swift/utils/update-checkout', '--clone', '--scheme', self.options.scheme, '--tag', self.options.tag)
+        args = ['../swift/utils/update-checkout', '--clone', '--scheme', self.options.scheme, '--tag', self.options.tag]
+        if self.options.skip_history:
+            args += ['--skip-history']
+        self.system(*args)
 
 class ApplyPatchesAction(Action):
     def run(self):
