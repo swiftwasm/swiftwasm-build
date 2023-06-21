@@ -14,10 +14,15 @@ def main
     end
   end.parse!
 
-  manifest = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../manifest.json')))
+  if options[:scheme].nil?
+    puts "Please specify a scheme"
+    exit 1
+  end
 
-  patches_path = File.absolute_path(File.join(File.dirname(__FILE__), '../patches', options[:scheme]))
-  upstream_rev = manifest['schemes'][options[:scheme]]['tag']
+  manifest = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], 'manifest.json')))
+
+  patches_path = File.absolute_path(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], 'swift'))
+  upstream_rev = manifest['base-tag']
 
   unless `git status --porcelain`.empty?
     puts "Patch set repository is not clean"
