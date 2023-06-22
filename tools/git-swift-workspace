@@ -36,6 +36,7 @@ def derive_options_from_args(argv):
             raise Exception('Missing --tag option and no default tag for scheme {}'.format(options.scheme))
 
     options.repos = manifest['repos'] or {}
+    options.swift_org_download_channel = manifest['swift-org-download-channel']
     return options
 
 class Action:
@@ -115,6 +116,53 @@ class CheckoutCorelibsAction(Action):
             self.system('git', '-C', f'../{repo}', 'fetch', 'swiftwasm', rev)
             self.system('git', '-C', f'../{repo}', 'checkout', rev)
 
+class DownloadBaseSnapshotAction(Action):
+    def run(self):
+        base_tag = self.options.tag
+        platform = self.platform_info()
+        tarball_name = f"{base_tag}-{platform[1]}.tar.gz"
+        snapshot_url = f"https://download.swift.org/{self.options.swift_org_download_channel}/{platform[0]}/{base_tag}/{tarball_name}"
+
+        base_snapshot_dir = os.path.join('..', 'build', 'Packaging', 'base-snapshot')
+        os.makedirs(base_snapshot_dir, exist_ok=True)
+
+        tarball_path = os.path.join(base_snapshot_dir, tarball_name)
+        if not os.path.exists(tarball_path):
+            print(f"=====> Downloading base snapshot {tarball_name}")
+            self.system('curl', '-L', '-o', tarball_path, snapshot_url)
+
+        unpacked_dir = os.path.join(base_snapshot_dir, f"{base_tag}-{platform[1]}")
+        if not os.path.exists(unpacked_dir):
+            print(f"=====> Unpacking base snapshot {tarball_name}")
+            self.system('tar', '-C', base_snapshot_dir, '-xzf', tarball_path)
+
+    def platform_info(self):
+        uname = os.uname()
+        if uname.sysname == "Darwin":
+            # https://download.swift.org/development/xcode/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-osx.pkg
+            return ["xcode", "osx"]
+        elif uname.sysname == "Linux":
+            release_lines = open("/etc/os-release").read().splitlines()
+            if "ID=ubuntu" in release_lines:
+                # https://download.swift.org/development/ubuntu2004/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-ubuntu20.04.tar.gz
+                # https://download.swift.org/development/ubuntu2004-aarch64/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-ubuntu20.04-aarch64.tar.gz
+                arch_suffix = f"-{uname.machine}" if uname.machine != "x86_64" else ""
+                if 'VERSION_ID="18.04"' in release_lines:
+                    return [f"ubuntu1804{arch_suffix}", f"ubuntu18.04{arch_suffix}"]
+                elif 'VERSION_ID="20.04"' in release_lines:
+                    return [f"ubuntu2004{arch_suffix}", f"ubuntu20.04{arch_suffix}"]
+                elif 'VERSION_ID="22.04"' in release_lines:
+                    return [f"ubuntu2204{arch_suffix}", f"ubuntu22.04{arch_suffix}"]
+                elif 'VERSION_ID="22.04"' in release_lines:
+                    return [f"ubuntu2204{arch_suffix}", f"ubuntu22.04{arch_suffix}"]
+                raise Exception("Unsupported Ubuntu version!?")
+            elif "ID=amzn" in release_lines:
+                # https://download.swift.org/development/amazonlinux2/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-amazonlinux2.tar.gz
+                if 'VERSION_ID="2"' in release_lines:
+                    return ["amazonlinux2", "amazonlinux2"]
+                raise Exception("Unsupported AmazonLinux version!?")
+            raise Exception("Unsupported Linux distribution")
+
 
 class ActionRunner:
     def __init__(self, actions):
@@ -128,7 +176,7 @@ class ActionRunner:
 
 def main():
     options = derive_options_from_args(sys.argv[1:])
-    actions = [CloneAction(options), UpdateCheckoutAction(options), ApplyPatchesAction(options), CheckoutCorelibsAction(options)]
+    actions = [CloneAction(options), UpdateCheckoutAction(options), ApplyPatchesAction(options), CheckoutCorelibsAction(options), DownloadBaseSnapshotAction(options)]
 
     ActionRunner(actions).run()
 
