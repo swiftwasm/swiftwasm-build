@@ -142,8 +142,7 @@ jobs:
       - name: Clean build directory
         if: ${{ matrix.clean_build_dir }}
         run: |
-          rm -rf ${{ github.workspace }}/target-build \
-            ${{ github.workspace }}/host-build \
+          rm -rf ${{ github.workspace }}/build \
             ${{ github.workspace }}/build-sdk \
             ${{ github.workspace }}/host-toolchain-sdk \
             ${{ github.workspace }}/dist-toolchain-sdk
@@ -207,24 +206,24 @@ jobs:
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}
         run: |
-          docker exec swiftwasm-ci-buildbot /bin/bash -lc "cd target-build/swift-stdlib-wasi-wasm32 && ninja check-swift-wasi-wasm32-custom"
+          docker exec swiftwasm-ci-buildbot /bin/bash -lc "cd build/WebAssembly/swift-stdlib-wasi-wasm32 && ninja check-swift-wasi-wasm32-custom"
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container == null }}
         run: |
-          TARGET_STDLIB_BUILD_DIR=${{ github.workspace }}/target-build/swift-stdlib-wasi-wasm32
+          TARGET_STDLIB_BUILD_DIR=${{ github.workspace }}/build/WebAssembly/swift-stdlib-wasi-wasm32
           ninja check-swift-wasi-wasm32-custom -C "$TARGET_STDLIB_BUILD_DIR"
 
       - name: Run all tests for wasi-wasm32
         if: ${{ matrix.run_full_test }}
         run: |
-          TARGET_STDLIB_BUILD_DIR=${{ github.workspace }}/target-build/swift-stdlib-wasi-wasm32
+          TARGET_STDLIB_BUILD_DIR=${{ github.workspace }}/build/WebAssembly/swift-stdlib-wasi-wasm32
           # Run all tests but ignore failure temporarily
           ninja check-swift-wasi-wasm32 -C "$TARGET_STDLIB_BUILD_DIR" || true
 
       - name: Pack test results
         if: ${{ matrix.run_full_test }}
         run: |
-          tar cJf ./swift-test-results.tar.gz target-build/swift-stdlib-wasi-wasm32/swift-test-results
+          tar cJf ./swift-test-results.tar.gz build/WebAssembly/swift-stdlib-wasi-wasm32/swift-test-results
       - name: Upload test results
         uses: actions/upload-artifact@v3
         if: ${{ matrix.run_full_test }}
