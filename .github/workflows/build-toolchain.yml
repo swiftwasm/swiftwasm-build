@@ -143,9 +143,7 @@ jobs:
         if: ${{ matrix.clean_build_dir }}
         run: |
           rm -rf ${{ github.workspace }}/build \
-            ${{ github.workspace }}/build-sdk \
-            ${{ github.workspace }}/host-toolchain-sdk \
-            ${{ github.workspace }}/dist-toolchain-sdk
+            ${{ github.workspace }}/build-sdk
 
       - run: chmod -R 777 ./build-cache
         if: ${{ steps.build-cache.outputs.cache-hit }}

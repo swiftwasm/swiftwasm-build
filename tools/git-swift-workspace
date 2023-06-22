@@ -123,18 +123,17 @@ class DownloadBaseSnapshotAction(Action):
         tarball_name = f"{base_tag}-{platform[1]}.tar.gz"
         snapshot_url = f"https://download.swift.org/{self.options.swift_org_download_channel}/{platform[0]}/{base_tag}/{tarball_name}"
 
-        base_snapshot_dir = os.path.join('..', 'build', 'Packaging', 'base-snapshot')
-        os.makedirs(base_snapshot_dir, exist_ok=True)
-
-        tarball_path = os.path.join(base_snapshot_dir, tarball_name)
+        tarball_path = os.path.join('..', 'build', 'Packaging', 'base-snapshot.tar.gz')
         if not os.path.exists(tarball_path):
             print(f"=====> Downloading base snapshot {tarball_name}")
             self.system('curl', '-L', '-o', tarball_path, snapshot_url)
 
-        unpacked_dir = os.path.join(base_snapshot_dir, f"{base_tag}-{platform[1]}")
-        if not os.path.exists(unpacked_dir):
+        base_snapshot_dir = os.path.join('..', 'build', 'Packaging', 'base-snapshot')
+
+        if not os.path.exists(os.path.join(base_snapshot_dir, 'usr')):
             print(f"=====> Unpacking base snapshot {tarball_name}")
-            self.system('tar', '-C', base_snapshot_dir, '-xzf', tarball_path)
+            os.makedirs(base_snapshot_dir, exist_ok=True)
+            self.system('tar', '-C', base_snapshot_dir, '--strip-components', '1', '-xzf', tarball_path)
 
     def platform_info(self):
         uname = os.uname()
