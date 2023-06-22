@@ -46,3 +46,5 @@ fi
 if [ ! -e "$BUILD_SDK_PATH/wasi-sysroot" ]; then
   install_wasi-sysroot
 fi
+
+$TOOLS_BUILD_PATH/install-base-snapshot --scheme "$SCHEME"

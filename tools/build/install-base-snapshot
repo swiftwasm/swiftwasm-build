@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+
+import sys
+import sys
+import argparse
+from build_support.actions import *
+
+def main():
+    parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
+    options = derive_options_from_args(sys.argv[1:], parser)
+    actions = [DownloadBaseSnapshotAction(options)]
+
+    ActionRunner(actions).run()
+
+if __name__ == '__main__':
+    main()
