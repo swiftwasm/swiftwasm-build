@@ -36,8 +36,58 @@ If our upstreaming commits break ci.swift.org, we should revert the commit or fi
 ## Milestones
 
 1. Upstream compiler patches
-  If we upstream all of our compiler patches, we can stop building our own compiler and use the official Swift compiler instead.
-  After that, we can focus on building standard library and save much time.
+
+   If we upstream all of our compiler patches, we can stop building our own compiler and use the official Swift compiler instead.
+   After that, we can focus on building standard library and save much time.
 
 2. Upstream standard library patches
 3. Set up WebAssembly check in ci.swift.org and make it mandatory to pass the check to merge a PR like [the Windows check](https://ci-external.swift.org/job/swift-PR-windows/)
+
+## Checkout-build-edit-test cycle
+
+Building the Swift toolchain is a time-consuming process. We recommend to use powerful machine or cloud service to build the toolchain. (FYI: [Yuta](https://github.com/kateinoigakukun) usually uses [CPX51 by Hetzner](https://pcr.cloud-mercato.com/providers/hetzner/flavors/cpx51))
+
+Please basically follow the [README](../README.md) process to set up the build environment.
+
+### Checkout
+
+If it's first time to build or patch files are changed, you need to checkout the source code:
+
+```
+./tools/git-swift-workspace --scheme main
+```
+
+### Build
+
+If you want to build the whole toolchain, run the following command:
+
+```
+./tools/build/build-toolchain.sh
+```
+
+If you already built the compiler and want to build only the standard library for WebAssembly, run the following command:
+
+```
+./tools/build/build-toolchain.sh --skip-build-host-toolchain
+```
+
+### Edit
+
+If you want to add a new patch, edit the Swift source code and commit it on the current branch, which is created by `git-swift-workspace` and includes our existing patches.
+
+If you want to edit an existing patch (e.g. to resolve conflicts with upstream changes, or to improve the patch), please edit the commit history by `git rebase -i`.
+
+After editing the source code, you need to rebuild the toolchain, and if you are sure that the patch is OK, you can update our `.patch` files by the follwoing command:
+
+```
+./tools/git-swift-update-patch --scheme main
+```
+
+
+### Test
+
+The above build command does not run tests. If you want to run tests, run the following command:
+
+```
+ninja -C ../target-build/swift-stdlib-wasi-wasm32 check-swift-wasi-wasm32-custom
+```
