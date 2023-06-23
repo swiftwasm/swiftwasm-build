@@ -72,7 +72,7 @@ HOST_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/host-toolchain
 TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain
 
 HOST_BUILD_ROOT=$SOURCE_PATH/build/WebAssemblyCompiler
-TARGET_BUILD_ROOT=$SOURCE_PATH/build/WebAssemblyStdlib
+TARGET_BUILD_ROOT=$SOURCE_PATH/build/WebAssembly
 HOST_BUILD_DIR=$HOST_BUILD_ROOT/Ninja-ReleaseAssert
 
 build_host_toolchain() {
