@@ -38,6 +38,6 @@ class PlatformInfo:
             raise Exception("Unsupported Linux distribution")
 
     def snapshot_url(self, channel: str, tag: str) -> str:
-        arch_suffix = f"-{self.arch}" if self.arch != "x86_64" else ""
+        arch_suffix = f"-{self.arch}" if self.arch != "x86_64" and self.full_name != "osx" else ""
         tarball_name = f"{tag}-{self.full_name + arch_suffix}.{self.package_extension}"
         return [f"https://download.swift.org/{channel}/{self.name + arch_suffix}/{tag}/{tarball_name}", tarball_name]
