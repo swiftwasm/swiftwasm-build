@@ -30,7 +30,7 @@ class PlatformInfo:
                 else:
                     raise Exception("Unsupported Ubuntu version!?")
                 return PlatformInfo(info[0], info[1], "tar.gz", uname.machine)
-            elif "ID=amzn" in release_lines:
+            elif 'ID="amzn"' in release_lines:
                 # https://download.swift.org/development/amazonlinux2/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-amazonlinux2.tar.gz
                 if 'VERSION_ID="2"' in release_lines:
                     return PlatformInfo("amazonlinux2", "amazonlinux2", "tar.gz", uname.machine)
