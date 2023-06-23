@@ -185,7 +185,9 @@ jobs:
         timeout-minutes: 300 # Exit before 6 hours limit to allow cache upload
         env:
           SKIP_XCODE_VERSION_CHECK: 1
-        run: ./swiftwasm-build/tools/build/ci.sh
+        run: |
+          ./swiftwasm-build/tools/build/install-build-sdk.sh ${{ matrix.scheme }}
+          ./swiftwasm-build/tools/build/ci.sh
 
       - uses: actions/cache/save@v3
         if: ${{ always() }}
