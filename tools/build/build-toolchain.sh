@@ -68,11 +68,8 @@ fi
 PACKAGE_ARTIFACT="$SOURCE_PATH/swift-wasm-${TOOLCHAIN_CHANNEL}-SNAPSHOT-${OS_SUFFIX}.tar.gz"
 
 PACKAGING_DIR="$SOURCE_PATH/build/Packaging"
-BASE_SNAPSHOT_DESTDIR=$PACKAGING_DIR/base-snapshot
 HOST_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/host-toolchain
-DIST_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/dist-toolchain
-DIST_TOOLCHAIN_SDK=$DIST_TOOLCHAIN_DESTDIR/$TOOLCHAIN_NAME
-
+TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain
 
 HOST_BUILD_ROOT=$SOURCE_PATH/build/WebAssemblyCompiler
 TARGET_BUILD_ROOT=$SOURCE_PATH/build/WebAssemblyStdlib
@@ -101,7 +98,7 @@ build_target_toolchain() {
     -D CMAKE_AR="$HOST_BUILD_DIR/llvm-$HOST_SUFFIX/bin/llvm-ar" \
     -D CMAKE_C_COMPILER_LAUNCHER="$(which sccache)" \
     -D CMAKE_CXX_COMPILER_LAUNCHER="$(which sccache)" \
-    -D CMAKE_INSTALL_PREFIX="$DIST_TOOLCHAIN_SDK/usr/lib/clang/13.0.0/" \
+    -D CMAKE_INSTALL_PREFIX="$TARGET_TOOLCHAIN_DESTDIR/usr/lib/clang/13.0.0/" \
     -D CMAKE_SYSROOT="${WASI_SYSROOT_PATH}" \
     -G Ninja \
     -S "$SOURCE_PATH/llvm-project/compiler-rt"
@@ -132,7 +129,7 @@ build_target_toolchain() {
     -D CMAKE_BUILD_TYPE=Release \
     -D CMAKE_C_COMPILER_LAUNCHER="$(which sccache)" \
     -D CMAKE_CXX_COMPILER_LAUNCHER="$(which sccache)" \
-    -D CMAKE_INSTALL_PREFIX="$DIST_TOOLCHAIN_SDK/usr" \
+    -D CMAKE_INSTALL_PREFIX="$TARGET_TOOLCHAIN_DESTDIR/usr" \
     -D LLVM_BIN="$HOST_BUILD_DIR/llvm-$HOST_SUFFIX/bin" \
     -D LLVM_DIR="$LLVM_TARGET_BUILD_DIR/lib/cmake/llvm/" \
     -D LLVM_COMPILER_CHECKED=YES \
@@ -168,15 +165,15 @@ build_target_toolchain() {
 
   # Remove host CoreFoundation module directory to avoid module conflict
   # while building Foundation
-  rm -rf "$DIST_TOOLCHAIN_SDK/usr/lib/swift_static/CoreFoundation"
-  "$TOOLS_BUILD_PATH/build-foundation.sh" "$DIST_TOOLCHAIN_SDK" "$WASI_SYSROOT_PATH"
-  "$TOOLS_BUILD_PATH/build-xctest.sh" "$DIST_TOOLCHAIN_SDK" "$WASI_SYSROOT_PATH"
+  rm -rf "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/CoreFoundation"
+  "$TOOLS_BUILD_PATH/build-foundation.sh" "$TARGET_TOOLCHAIN_DESTDIR" "$WASI_SYSROOT_PATH"
+  "$TOOLS_BUILD_PATH/build-xctest.sh" "$TARGET_TOOLCHAIN_DESTDIR" "$WASI_SYSROOT_PATH"
 
 }
 
 embed_wasi_sysroot() {
   # Merge wasi-sdk and the toolchain
-  cp -r "$WASI_SYSROOT_PATH" "$DIST_TOOLCHAIN_SDK/usr/share"
+  cp -r "$WASI_SYSROOT_PATH" "$TARGET_TOOLCHAIN_DESTDIR/usr/share"
 }
 
 swift_version() {
@@ -201,7 +198,7 @@ create_darwin_info_plist() {
   fi
   DARWIN_TOOLCHAIN_ALIAS="swiftwasm"
 
-  DARWIN_TOOLCHAIN_INFO_PLIST="${DIST_TOOLCHAIN_SDK}/Info.plist"
+  DARWIN_TOOLCHAIN_INFO_PLIST="${TARGET_TOOLCHAIN_DESTDIR}/Info.plist"
   DARWIN_TOOLCHAIN_REPORT_URL="https://github.com/swiftwasm/swift/issues"
   COMPATIBILITY_VERSION=2
   COMPATIBILITY_VERSION_DISPLAY_STRING="Xcode 8.0"
@@ -247,10 +244,9 @@ if [ ${OPTIONS_BUILD_HOST_TOOLCHAIN} -eq 1 ]; then
   echo ""
   echo "sccache stats:"
   show_sccache_stats
-  rm -rf "$DIST_TOOLCHAIN_DESTDIR"
-  mkdir -p "$DIST_TOOLCHAIN_SDK"
-  rsync -a "$BASE_SNAPSHOT_DESTDIR/" "$DIST_TOOLCHAIN_SDK"
-  rsync -a "$HOST_TOOLCHAIN_DESTDIR/" "$DIST_TOOLCHAIN_SDK"
+  rm -rf "$TARGET_TOOLCHAIN_DESTDIR"
+  mkdir -p "$TARGET_TOOLCHAIN_DESTDIR"
+  rsync -a "$HOST_TOOLCHAIN_DESTDIR/" "$TARGET_TOOLCHAIN_DESTDIR"
 fi
 
 build_target_toolchain
@@ -260,13 +256,3 @@ echo "===================================="
 echo ""
 echo "sccache stats:"
 show_sccache_stats
-
-embed_wasi_sysroot
-
-if [[ "$(uname)" == "Darwin" ]]; then
-  create_darwin_info_plist
-fi
-
-cd "$DIST_TOOLCHAIN_DESTDIR"
-tar cfz "$PACKAGE_ARTIFACT" "$TOOLCHAIN_NAME"
-echo "Toolchain archive created successfully!"

@@ -88,10 +88,11 @@ class DownloadBaseSnapshotAction(Action):
     def run(self):
         base_tag = self.options.tag
         platform = self.platform_info()
-        tarball_name = f"{base_tag}-{platform[1]}.tar.gz"
+        extension = platform[2]
+        tarball_name = f"{base_tag}-{platform[1]}.{extension}"
         snapshot_url = f"https://download.swift.org/{self.options.swift_org_download_channel}/{platform[0]}/{base_tag}/{tarball_name}"
 
-        tarball_path = os.path.join('..', 'build', 'Packaging', 'base-snapshot.tar.gz')
+        tarball_path = os.path.join('..', 'build', 'Packaging', f'base-snapshot.{extension}')
         if not os.path.exists(tarball_path):
             print(f"=====> Downloading base snapshot {tarball_name}")
             self.system('curl', '-L', '-o', tarball_path, snapshot_url)
@@ -101,13 +102,22 @@ class DownloadBaseSnapshotAction(Action):
         if not os.path.exists(os.path.join(base_snapshot_dir, 'usr')):
             print(f"=====> Unpacking base snapshot {tarball_name}")
             os.makedirs(base_snapshot_dir, exist_ok=True)
-            self.system('tar', '-C', base_snapshot_dir, '--strip-components', '1', '-xzf', tarball_path)
+            if extension == "tar.gz":
+                self.system('tar', '-C', base_snapshot_dir, '--strip-components', '1', '-xzf', tarball_path)
+            elif extension == "pkg":
+                import tempfile
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    self.system('xar', '-xf', tarball_path, '-C', tmpdir)
+                    old_cwd = os.getcwd()
+                    os.chdir(base_snapshot_dir)
+                    self.system('cpio', '-i', '-I', os.path.join(tmpdir, 'Payload'))
+                    os.chdir(old_cwd)
 
     def platform_info(self):
         uname = os.uname()
         if uname.sysname == "Darwin":
             # https://download.swift.org/development/xcode/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-osx.pkg
-            return ["xcode", "osx"]
+            return ["xcode", "osx", "pkg"]
         elif uname.sysname == "Linux":
             release_lines = open("/etc/os-release").read().splitlines()
             if "ID=ubuntu" in release_lines:
@@ -115,18 +125,20 @@ class DownloadBaseSnapshotAction(Action):
                 # https://download.swift.org/development/ubuntu2004-aarch64/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-ubuntu20.04-aarch64.tar.gz
                 arch_suffix = f"-{uname.machine}" if uname.machine != "x86_64" else ""
                 if 'VERSION_ID="18.04"' in release_lines:
-                    return [f"ubuntu1804{arch_suffix}", f"ubuntu18.04{arch_suffix}"]
+                    info = ["ubuntu1804", "ubuntu18.04"]
                 elif 'VERSION_ID="20.04"' in release_lines:
-                    return [f"ubuntu2004{arch_suffix}", f"ubuntu20.04{arch_suffix}"]
+                    info = ["ubuntu2004", "ubuntu20.04"]
                 elif 'VERSION_ID="22.04"' in release_lines:
-                    return [f"ubuntu2204{arch_suffix}", f"ubuntu22.04{arch_suffix}"]
+                    info = ["ubuntu2204", "ubuntu22.04"]
                 elif 'VERSION_ID="22.04"' in release_lines:
-                    return [f"ubuntu2204{arch_suffix}", f"ubuntu22.04{arch_suffix}"]
-                raise Exception("Unsupported Ubuntu version!?")
+                    info = ["ubuntu2204", "ubuntu22.04"]
+                else:
+                    raise Exception("Unsupported Ubuntu version!?")
+                return [info[0] + arch_suffix, info[1] + arch_suffix, "tar.gz"]
             elif "ID=amzn" in release_lines:
                 # https://download.swift.org/development/amazonlinux2/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-amazonlinux2.tar.gz
                 if 'VERSION_ID="2"' in release_lines:
-                    return ["amazonlinux2", "amazonlinux2"]
+                    return ["amazonlinux2", "amazonlinux2", "tar.gz"]
                 raise Exception("Unsupported AmazonLinux version!?")
             raise Exception("Unsupported Linux distribution")
 

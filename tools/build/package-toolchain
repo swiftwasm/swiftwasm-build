@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+
+import sys
+import sys
+import argparse
+from dataclasses import dataclass
+from build_support.actions import *
+
+@dataclass
+class SnapshotInfo:
+    year: int
+    month: int
+    day: int
+    toolchain_name: str
+    tarball_name: str
+    daily_snapshot: bool
+
+class PackageAction(Action):
+    def __init__(self, options, snapshot_info: SnapshotInfo):
+        super().__init__(options)
+        self.snapshot_info = snapshot_info
+
+    def run(self):
+        import shutil
+        print('=====> Packaging toolchain {}'.format(self.snapshot_info.toolchain_name))
+        packaging_dir = os.path.join('..', 'build', 'Packaging')
+        base_toolchain_path = os.path.join(packaging_dir, 'base-snapshot')
+        target_toolchain_path = os.path.join(packaging_dir, 'target-toolchain')
+        dist_toolchain_path = os.path.join(packaging_dir, 'dist-toolchain', self.snapshot_info.toolchain_name)
+
+        shutil.rmtree(os.path.dirname(dist_toolchain_path), ignore_errors=True)
+        os.makedirs(dist_toolchain_path, exist_ok=True)
+        print(f"=====> Copying base snapshot {base_toolchain_path} to {dist_toolchain_path}")
+        self.rsync("-a", base_toolchain_path + "/", dist_toolchain_path)
+        print(f"=====> Copying target toolchain {target_toolchain_path} to {dist_toolchain_path}")
+        self.rsync("-a", target_toolchain_path + "/", dist_toolchain_path)
+
+        wasi_sysroot_path = os.path.join('..', 'build-sdk', 'wasi-sysroot')
+        shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
+
+    def rsync(self, *args):
+        import subprocess
+        subprocess.check_call(['rsync'] + list(args))
+
+class DarwinInfoPlistAction(Action):
+
+    def __init__(self, options, snapshot_info: SnapshotInfo):
+        super().__init__(options)
+        self.snapshot_info = snapshot_info
+
+    def run(self):
+        print('=====> Creating Info.plist')
+
+        bundle_prefix="org.swiftwasm"
+        swift_version = self.swift_version()
+        darwin_toolchain_display_name_short="Swift for WebAssembly Snapshot"
+
+        year, month, day = self.snapshot_info.year, self.snapshot_info.month, self.snapshot_info.day
+        if self.snapshot_info.daily_snapshot:
+          darwin_toolchain_version=f"{swift_version}.{year}{month}{day}"
+          darwin_toolchain_bundle_identifier=f"{bundle_prefix}.{year}{month}{day}"
+          darwin_toolchain_display_name=f"{darwin_toolchain_display_name_short} {year}-{month}-{day} (a)"
+        else:
+          darwin_toolchain_version=f"{swift_version}.9999"
+          darwin_toolchain_bundle_identifier=f"{bundle_prefix}.dev"
+          darwin_toolchain_display_name=f"{darwin_toolchain_display_name_short} Development"
+
+        darwin_toolchain_alias="swiftwasm"
+        darwin_toolchain_report_url="https://github.com/swiftwasm/swift/issues"
+
+        plist_path = f"../build/Packaging/dist-toolchain/{self.snapshot_info.toolchain_name}/Info.plist"
+        self.plistbuddy("-c", f"Set DisplayName {darwin_toolchain_display_name}", plist_path)
+        self.plistbuddy("-c", f"Set ShortDisplayName {darwin_toolchain_display_name_short}", plist_path)
+        self.plistbuddy("-c", f"Set Version {darwin_toolchain_version}", plist_path)
+        self.plistbuddy("-c", f"Set CFBundleIdentifier {darwin_toolchain_bundle_identifier}", plist_path)
+        self.plistbuddy("-c", f"Set ReportProblemURL {darwin_toolchain_report_url}", plist_path)
+        self.plistbuddy("-c", f"Set Aliases:0 {darwin_toolchain_alias}", plist_path)
+
+    def plistbuddy(self, *args):
+        import subprocess
+        subprocess.check_call(['/usr/libexec/PlistBuddy'] + list(args))
+
+    def swift_version(self):
+        swift_source_dir = os.path.join("..", "swift")
+        lines = open(os.path.join(swift_source_dir, "CMakeLists.txt"), "r").read().splitlines()
+        for line in lines:
+            if line.startswith("set(SWIFT_VERSION"):
+                import re
+                return re.sub(r'set\(SWIFT_VERSION "(.+)"\)', r'\1', line)
+        raise Exception("Could not find SWIFT_VERSION in CMakeLists.txt")
+
+class ArchiveTarballAction(Action):
+
+    def __init__(self, options, snapshot_info: SnapshotInfo):
+        super().__init__(options)
+        self.snapshot_info = snapshot_info
+
+    def run(self):
+        print("=====> Creating tarball")
+
+        tarball_path = os.path.join("..", f"{self.snapshot_info.toolchain_name}.tar.gz")
+        dist_toolchain_dir = os.path.join("..", "build", "Packaging", "dist-toolchain")
+        self.system("tar", "-C",  dist_toolchain_dir, "-czf", tarball_path, self.snapshot_info.toolchain_name)
+
+def derive_snapshot_info(daily_snapshot) -> SnapshotInfo:
+    import datetime
+    toolchain_channel = os.environ.get("TOOLCHAIN_CHANNEL", "DEVELOPMENT")
+    now = datetime.datetime.utcnow()
+    if daily_snapshot:
+        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-${now.year}-${now.month}-${now.day}-a"
+    else:
+        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT"
+    tarball_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-.tar.gz"
+    return SnapshotInfo(now.year, now.month, now.day, toolchain_name, daily_snapshot)
+
+def main():
+    parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
+    parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
+    options = derive_options_from_args(sys.argv[1:], parser)
+    snapshot_info = derive_snapshot_info(options.daily_snapshot)
+    actions = [DownloadBaseSnapshotAction(options), PackageAction(options, snapshot_info)]
+    if os.uname().sysname == "Darwin":
+        actions.append(DarwinInfoPlistAction(options, snapshot_info))
+    actions.append(ArchiveTarballAction(options, snapshot_info))
+
+    ActionRunner(actions).run()
+
+if __name__ == '__main__':
+    main()
