@@ -9,23 +9,10 @@ WASI_SYSROOT_PATH="$BUILD_SDK_PATH/wasi-sysroot"
 
 case $(uname -s) in
   Darwin)
-    OS_SUFFIX=macos_$(uname -m)
     HOST_PRESET=webassembly-host-install
     HOST_SUFFIX=macosx-$(uname -m)
   ;;
   Linux)
-    if [ "$(grep RELEASE /etc/lsb-release)" == "DISTRIB_RELEASE=18.04" ]; then
-      OS_SUFFIX=ubuntu18.04_$(uname -m)
-    elif [ "$(grep RELEASE /etc/lsb-release)" == "DISTRIB_RELEASE=20.04" ]; then
-      OS_SUFFIX=ubuntu20.04_$(uname -m)
-    elif [ "$(grep RELEASE /etc/lsb-release)" == "DISTRIB_RELEASE=22.04" ]; then
-      OS_SUFFIX=ubuntu22.04_$(uname -m)
-    elif [[ "$(grep PRETTY_NAME /etc/os-release)" == 'PRETTY_NAME="Amazon Linux 2"' ]]; then
-      OS_SUFFIX=amazonlinux2_$(uname -m)
-    else
-      echo "Unknown Ubuntu version"
-      exit 1
-    fi
     HOST_PRESET=webassembly-linux-host-install
     HOST_SUFFIX=linux-$(uname -m)
   ;;
@@ -64,8 +51,6 @@ if [ ${OPTIONS_DAILY_SNAPSHOT} -eq 1 ]; then
 else
   TOOLCHAIN_NAME="swift-wasm-${TOOLCHAIN_CHANNEL}-SNAPSHOT"
 fi
-
-PACKAGE_ARTIFACT="$SOURCE_PATH/swift-wasm-${TOOLCHAIN_CHANNEL}-SNAPSHOT-${OS_SUFFIX}.tar.gz"
 
 PACKAGING_DIR="$SOURCE_PATH/build/Packaging"
 HOST_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/host-toolchain

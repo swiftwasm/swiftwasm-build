@@ -3,6 +3,7 @@ import sys
 import pathlib
 import subprocess
 import argparse
+from . import platform
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -86,11 +87,9 @@ class CheckoutCorelibsAction(Action):
 
 class DownloadBaseSnapshotAction(Action):
     def run(self):
-        base_tag = self.options.tag
-        platform = self.platform_info()
-        extension = platform[2]
-        tarball_name = f"{base_tag}-{platform[1]}.{extension}"
-        snapshot_url = f"https://download.swift.org/{self.options.swift_org_download_channel}/{platform[0]}/{base_tag}/{tarball_name}"
+        platform_info = platform.PlatformInfo.derive()
+        snapshot_url, tarball_name = platform_info.snapshot_url(self.options.swift_org_download_channel, self.options.tag)
+        extension = platform_info.package_extension
 
         tarball_path = os.path.join('..', 'build', 'Packaging', f'base-snapshot.{extension}')
         if not os.path.exists(tarball_path):
@@ -114,36 +113,6 @@ class DownloadBaseSnapshotAction(Action):
                     pkg_name = tarball_name.replace(".pkg", "-package.pkg")
                     self.system('cpio', '-i', '-I', os.path.join(tmpdir, pkg_name, 'Payload'))
                     os.chdir(old_cwd)
-
-    def platform_info(self):
-        uname = os.uname()
-        if uname.sysname == "Darwin":
-            # https://download.swift.org/development/xcode/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-osx.pkg
-            return ["xcode", "osx", "pkg"]
-        elif uname.sysname == "Linux":
-            release_lines = open("/etc/os-release").read().splitlines()
-            if "ID=ubuntu" in release_lines:
-                # https://download.swift.org/development/ubuntu2004/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-ubuntu20.04.tar.gz
-                # https://download.swift.org/development/ubuntu2004-aarch64/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-ubuntu20.04-aarch64.tar.gz
-                arch_suffix = f"-{uname.machine}" if uname.machine != "x86_64" else ""
-                if 'VERSION_ID="18.04"' in release_lines:
-                    info = ["ubuntu1804", "ubuntu18.04"]
-                elif 'VERSION_ID="20.04"' in release_lines:
-                    info = ["ubuntu2004", "ubuntu20.04"]
-                elif 'VERSION_ID="22.04"' in release_lines:
-                    info = ["ubuntu2204", "ubuntu22.04"]
-                elif 'VERSION_ID="22.04"' in release_lines:
-                    info = ["ubuntu2204", "ubuntu22.04"]
-                else:
-                    raise Exception("Unsupported Ubuntu version!?")
-                return [info[0] + arch_suffix, info[1] + arch_suffix, "tar.gz"]
-            elif "ID=amzn" in release_lines:
-                # https://download.swift.org/development/amazonlinux2/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a/swift-DEVELOPMENT-SNAPSHOT-2023-06-17-a-amazonlinux2.tar.gz
-                if 'VERSION_ID="2"' in release_lines:
-                    return ["amazonlinux2", "amazonlinux2", "tar.gz"]
-                raise Exception("Unsupported AmazonLinux version!?")
-            raise Exception("Unsupported Linux distribution")
-
 
 class ActionRunner:
     def __init__(self, actions):

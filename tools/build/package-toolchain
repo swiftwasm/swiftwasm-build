@@ -5,6 +5,7 @@ import os
 import argparse
 from dataclasses import dataclass
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
+from build_support.platform import PlatformInfo
 
 
 @dataclass
@@ -81,16 +82,13 @@ class DarwinInfoPlistAction(Action):
 
     def plistbuddy(self, *args):
         import subprocess
-        subprocess.check_call(['/usr/libexec/PlistBuddy'] + list(args))
+        return subprocess.check_output(['/usr/libexec/PlistBuddy'] + list(args))
 
     def swift_version(self):
-        swift_source_dir = os.path.join("..", "swift")
-        lines = open(os.path.join(swift_source_dir, "CMakeLists.txt"), "r").read().splitlines()
-        for line in lines:
-            if line.startswith("set(SWIFT_VERSION"):
-                import re
-                return re.sub(r'set\(SWIFT_VERSION "(.+)"\)', r'\1', line)
-        raise Exception("Could not find SWIFT_VERSION in CMakeLists.txt")
+        version = self.plistbuddy("-c", "Print Version", os.path.join("..", "build", "Packaging", "base-snapshot", "Info.plist"))
+        version = version.decode("utf-8").strip()
+        # Get only the major and minor version
+        return ".".join(version.split(".")[:2])
 
 class ArchiveTarballAction(Action):
 
@@ -101,7 +99,7 @@ class ArchiveTarballAction(Action):
     def run(self):
         print("=====> Creating tarball")
 
-        tarball_path = os.path.join("..", f"{self.snapshot_info.toolchain_name}.tar.gz")
+        tarball_path = os.path.join("..", self.snapshot_info.tarball_name)
         dist_toolchain_dir = os.path.join("..", "build", "Packaging", "dist-toolchain")
         self.system("tar", "-C",  dist_toolchain_dir, "-czf", tarball_path, self.snapshot_info.toolchain_name)
 
@@ -113,7 +111,9 @@ def derive_snapshot_info(daily_snapshot) -> SnapshotInfo:
         toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-${now.year}-${now.month}-${now.day}-a"
     else:
         toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT"
-    tarball_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-.tar.gz"
+    platform_info = PlatformInfo.derive()
+    os_suffix = "macos" if platform_info.full_name == "osx" else platform_info.full_name
+    tarball_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}.tar.gz"
     return SnapshotInfo(now.year, now.month, now.day, toolchain_name, tarball_name, daily_snapshot)
 
 def main():
