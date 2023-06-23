@@ -95,6 +95,7 @@ class DownloadBaseSnapshotAction(Action):
         tarball_path = os.path.join('..', 'build', 'Packaging', f'base-snapshot.{extension}')
         if not os.path.exists(tarball_path):
             print(f"=====> Downloading base snapshot {tarball_name}")
+            os.makedirs(os.path.dirname(tarball_path), exist_ok=True)
             self.system('curl', '-L', '-o', tarball_path, snapshot_url)
 
         base_snapshot_dir = os.path.join('..', 'build', 'Packaging', 'base-snapshot')
@@ -110,7 +111,8 @@ class DownloadBaseSnapshotAction(Action):
                     self.system('xar', '-xf', tarball_path, '-C', tmpdir)
                     old_cwd = os.getcwd()
                     os.chdir(base_snapshot_dir)
-                    self.system('cpio', '-i', '-I', os.path.join(tmpdir, 'Payload'))
+                    pkg_name = tarball_name.replace(".pkg", "-package.pkg")
+                    self.system('cpio', '-i', '-I', os.path.join(tmpdir, pkg_name, 'Payload'))
                     os.chdir(old_cwd)
 
     def platform_info(self):
