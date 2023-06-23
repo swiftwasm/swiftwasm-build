@@ -3,19 +3,18 @@
 import sys
 import os
 import argparse
-from dataclasses import dataclass
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 from build_support.platform import PlatformInfo
 
 
-@dataclass
 class SnapshotInfo:
-    year: int
-    month: int
-    day: int
-    toolchain_name: str
-    tarball_name: str
-    daily_snapshot: bool
+    def __init__(self, year: int, month: int, day: int, toolchain_name: str, tarball_name: str, daily_snapshot: bool):
+        self.year = year
+        self.month = month
+        self.day = day
+        self.toolchain_name = toolchain_name
+        self.tarball_name = tarball_name
+        self.daily_snapshot = daily_snapshot
 
 
 class PackageAction(Action):

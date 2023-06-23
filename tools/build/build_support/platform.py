@@ -1,13 +1,12 @@
 import os
-from dataclasses import dataclass
 from typing import Optional
 
-@dataclass
 class PlatformInfo:
-    name: str
-    full_name: str
-    package_extension: str
-    arch: str
+    def __init__(self, name: str, full_name: str, package_extension: str, arch: str):
+        self.name = name
+        self.full_name = full_name
+        self.package_extension = package_extension
+        self.arch = arch
 
     def derive():
         uname = os.uname()
