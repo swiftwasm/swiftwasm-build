@@ -9,5 +9,5 @@ SCHEME="${1:?"scheme is not specified"}"
 export SCCACHE_CACHE_SIZE="50G"
 export SCCACHE_DIR="$SOURCE_PATH/build-cache"
 
-$TOOLS_BUILD_PATH/build-toolchain.sh --daily-snapshot
-$TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME"
+$TOOLS_BUILD_PATH/build-toolchain.sh
+$TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot
