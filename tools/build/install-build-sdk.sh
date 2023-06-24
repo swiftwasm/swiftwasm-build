@@ -3,6 +3,7 @@
 set -eux
 
 SOURCE_PATH="$( cd "$(dirname "$0")/../../../" && pwd  )"
+TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
 SCHEME="${1:?"scheme is not specified"}"
 PATCHES="$(cd "$(dirname "$0")/../../schemes/$SCHEME" && pwd)"

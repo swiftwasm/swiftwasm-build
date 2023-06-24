@@ -7,7 +7,7 @@ TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
 LIBXML2_PATH="$BUILD_SDK_PATH/libxml2"
 
-FOUNDATION_BUILD="$SOURCE_PATH/target-build/foundation-wasi-wasm32"
+FOUNDATION_BUILD="$SOURCE_PATH/build/WebAssembly/foundation-wasi-wasm32"
 
 mkdir -p $FOUNDATION_BUILD
 cd $FOUNDATION_BUILD

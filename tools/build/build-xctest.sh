@@ -5,7 +5,7 @@ WASI_SYSROOT_PATH=$2
 SOURCE_PATH="$(cd "$(dirname $0)/../../.." && pwd)"
 TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 
-BUILD_DIR="$SOURCE_PATH/target-build/xctest-wasi-wasm32"
+BUILD_DIR="$SOURCE_PATH/build/WebAssembly/xctest-wasi-wasm32"
 
 mkdir -p $BUILD_DIR
 cd $BUILD_DIR

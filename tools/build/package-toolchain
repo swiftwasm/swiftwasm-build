@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import argparse
+from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
+from build_support.platform import PlatformInfo
+
+
+class SnapshotInfo:
+    def __init__(self, year: int, month: int, day: int, toolchain_name: str, tarball_name: str, daily_snapshot: bool):
+        self.year = year
+        self.month = month
+        self.day = day
+        self.toolchain_name = toolchain_name
+        self.tarball_name = tarball_name
+        self.daily_snapshot = daily_snapshot
+
+
+class PackageAction(Action):
+    def __init__(self, options, snapshot_info: SnapshotInfo):
+        super().__init__(options)
+        self.snapshot_info = snapshot_info
+
+    def run(self):
+        import shutil
+        print('=====> Packaging toolchain {}'.format(self.snapshot_info.toolchain_name))
+        packaging_dir = os.path.join('..', 'build', 'Packaging')
+        base_toolchain_path = os.path.join(packaging_dir, 'base-snapshot')
+        target_toolchain_path = os.path.join(packaging_dir, 'target-toolchain')
+        dist_toolchain_path = os.path.join(packaging_dir, 'dist-toolchain', self.snapshot_info.toolchain_name)
+
+        shutil.rmtree(os.path.dirname(dist_toolchain_path), ignore_errors=True)
+        os.makedirs(dist_toolchain_path, exist_ok=True)
+        print(f"=====> Copying base snapshot {base_toolchain_path} to {dist_toolchain_path}")
+        self.rsync("-a", base_toolchain_path + "/", dist_toolchain_path)
+        print(f"=====> Copying target toolchain {target_toolchain_path} to {dist_toolchain_path}")
+        self.rsync("-a", target_toolchain_path + "/", dist_toolchain_path)
+
+        # FIXME: We now support only legacy driver because the new swift-driver doesn't have hacks for default
+        # -sdk and forcing -use-static-resource-dir (-static-executable).
+        # e.g.
+        # The canonical way to build a static executable is to use -static-executable and specify -sdk because
+        # we don't have good concensus for the wasi-sysroot layout and the driver should not assume the SDK path.
+        # $ echo | ./usr/bin/swiftc -target wasm32-unknown-wasi -o /dev/null - -static-executable -sdk ./usr/share/wasi-sysroot
+        # But we don't want to force users to specify -sdk, so we have a hack in the legacy driver to assume
+        # the SDK path and pass -static-executable (effectively -use-static-resource-dir).
+        # $ echo | ./usr/bin/swiftc -target wasm32-unknown-wasi -o /dev/null -
+        # The new swift-driver doesn't have this hack, so we remove swift-driver from the toolchain for now.
+        swift_driver_path = os.path.join(dist_toolchain_path, 'usr', 'bin', 'swift-driver')
+        if os.path.exists(swift_driver_path):
+            os.remove(swift_driver_path)
+
+        wasi_sysroot_path = os.path.join('..', 'build-sdk', 'wasi-sysroot')
+        shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
+
+    def rsync(self, *args):
+        import subprocess
+        subprocess.check_call(['rsync'] + list(args))
+
+
+class DarwinInfoPlistAction(Action):
+
+    def __init__(self, options, snapshot_info: SnapshotInfo):
+        super().__init__(options)
+        self.snapshot_info = snapshot_info
+
+    def run(self):
+        print('=====> Creating Info.plist')
+
+        bundle_prefix="org.swiftwasm"
+        swift_version = self.swift_version()
+        darwin_toolchain_display_name_short="Swift for WebAssembly Snapshot"
+
+        year, month, day = self.snapshot_info.year, self.snapshot_info.month, self.snapshot_info.day
+        if self.snapshot_info.daily_snapshot:
+          darwin_toolchain_version=f"{swift_version}.{year}{month}{day}"
+          darwin_toolchain_bundle_identifier=f"{bundle_prefix}.{year}{month}{day}"
+          darwin_toolchain_display_name=f"{darwin_toolchain_display_name_short} {year}-{month}-{day} (a)"
+        else:
+          darwin_toolchain_version=f"{swift_version}.9999"
+          darwin_toolchain_bundle_identifier=f"{bundle_prefix}.dev"
+          darwin_toolchain_display_name=f"{darwin_toolchain_display_name_short} Development"
+
+        darwin_toolchain_alias="swiftwasm"
+        darwin_toolchain_report_url="https://github.com/swiftwasm/swift/issues"
+
+        plist_path = f"../build/Packaging/dist-toolchain/{self.snapshot_info.toolchain_name}/Info.plist"
+        self.plistbuddy("-c", f"Set DisplayName {darwin_toolchain_display_name}", plist_path)
+        self.plistbuddy("-c", f"Set ShortDisplayName {darwin_toolchain_display_name_short}", plist_path)
+        self.plistbuddy("-c", f"Set Version {darwin_toolchain_version}", plist_path)
+        self.plistbuddy("-c", f"Set CFBundleIdentifier {darwin_toolchain_bundle_identifier}", plist_path)
+        self.plistbuddy("-c", f"Set ReportProblemURL {darwin_toolchain_report_url}", plist_path)
+        self.plistbuddy("-c", f"Set Aliases:0 {darwin_toolchain_alias}", plist_path)
+
+    def plistbuddy(self, *args):
+        import subprocess
+        return subprocess.check_output(['/usr/libexec/PlistBuddy'] + list(args))
+
+    def swift_version(self):
+        version = self.plistbuddy("-c", "Print Version", os.path.join("..", "build", "Packaging", "base-snapshot", "Info.plist"))
+        version = version.decode("utf-8").strip()
+        # Get only the major and minor version
+        return ".".join(version.split(".")[:2])
+
+class ArchiveTarballAction(Action):
+
+    def __init__(self, options, snapshot_info: SnapshotInfo):
+        super().__init__(options)
+        self.snapshot_info = snapshot_info
+
+    def run(self):
+        print("=====> Creating tarball")
+
+        tarball_path = os.path.join("..", self.snapshot_info.tarball_name)
+        dist_toolchain_dir = os.path.join("..", "build", "Packaging", "dist-toolchain")
+        self.system("tar", "-C",  dist_toolchain_dir, "-czf", tarball_path, self.snapshot_info.toolchain_name)
+
+def derive_snapshot_info(daily_snapshot) -> SnapshotInfo:
+    import datetime
+    toolchain_channel = os.environ.get("TOOLCHAIN_CHANNEL", "DEVELOPMENT")
+    now = datetime.datetime.utcnow()
+    if daily_snapshot:
+        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{now.year}-{now.month}-{now.day}-a"
+    else:
+        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT"
+    platform_info = PlatformInfo.derive()
+    os_suffix = "macos" if platform_info.full_name == "osx" else platform_info.full_name
+    tarball_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}.tar.gz"
+    return SnapshotInfo(now.year, now.month, now.day, toolchain_name, tarball_name, daily_snapshot)
+
+def main():
+    parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
+    parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
+    options = derive_options_from_args(sys.argv[1:], parser)
+    snapshot_info = derive_snapshot_info(options.daily_snapshot)
+    actions = [DownloadBaseSnapshotAction(options), PackageAction(options, snapshot_info)]
+    if os.uname().sysname == "Darwin":
+        actions.append(DarwinInfoPlistAction(options, snapshot_info))
+    actions.append(ArchiveTarballAction(options, snapshot_info))
+
+    ActionRunner(actions).run()
+
+if __name__ == '__main__':
+    main()

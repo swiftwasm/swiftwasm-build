@@ -9,23 +9,10 @@ WASI_SYSROOT_PATH="$BUILD_SDK_PATH/wasi-sysroot"
 
 case $(uname -s) in
   Darwin)
-    OS_SUFFIX=macos_$(uname -m)
     HOST_PRESET=webassembly-host-install
     HOST_SUFFIX=macosx-$(uname -m)
   ;;
   Linux)
-    if [ "$(grep RELEASE /etc/lsb-release)" == "DISTRIB_RELEASE=18.04" ]; then
-      OS_SUFFIX=ubuntu18.04_$(uname -m)
-    elif [ "$(grep RELEASE /etc/lsb-release)" == "DISTRIB_RELEASE=20.04" ]; then
-      OS_SUFFIX=ubuntu20.04_$(uname -m)
-    elif [ "$(grep RELEASE /etc/lsb-release)" == "DISTRIB_RELEASE=22.04" ]; then
-      OS_SUFFIX=ubuntu22.04_$(uname -m)
-    elif [[ "$(grep PRETTY_NAME /etc/os-release)" == 'PRETTY_NAME="Amazon Linux 2"' ]]; then
-      OS_SUFFIX=amazonlinux2_$(uname -m)
-    else
-      echo "Unknown Ubuntu version"
-      exit 1
-    fi
     HOST_PRESET=webassembly-linux-host-install
     HOST_SUFFIX=linux-$(uname -m)
   ;;
@@ -44,9 +31,6 @@ while [ $# -ne 0 ]; do
     --skip-build-host-toolchain)
     OPTIONS_BUILD_HOST_TOOLCHAIN=0
   ;;
-    --daily-snapshot)
-    OPTIONS_DAILY_SNAPSHOT=1
-  ;;
   *)
     echo "Unrecognised argument \"$1\""
     exit 1
@@ -55,25 +39,12 @@ while [ $# -ne 0 ]; do
   shift
 done
 
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
+PACKAGING_DIR="$SOURCE_PATH/build/Packaging"
+HOST_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/host-toolchain
+TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain
 
-if [ ${OPTIONS_DAILY_SNAPSHOT} -eq 1 ]; then
-  TOOLCHAIN_NAME="swift-wasm-${TOOLCHAIN_CHANNEL}-SNAPSHOT-${YEAR}-${MONTH}-${DAY}-a"
-else
-  TOOLCHAIN_NAME="swift-wasm-${TOOLCHAIN_CHANNEL}-SNAPSHOT"
-fi
-
-PACKAGE_ARTIFACT="$SOURCE_PATH/swift-wasm-${TOOLCHAIN_CHANNEL}-SNAPSHOT-${OS_SUFFIX}.tar.gz"
-
-HOST_TOOLCHAIN_DESTDIR=$SOURCE_PATH/host-toolchain-sdk
-DIST_TOOLCHAIN_DESTDIR=$SOURCE_PATH/dist-toolchain-sdk
-DIST_TOOLCHAIN_SDK=$DIST_TOOLCHAIN_DESTDIR/$TOOLCHAIN_NAME
-
-
-HOST_BUILD_ROOT=$SOURCE_PATH/host-build
-TARGET_BUILD_ROOT=$SOURCE_PATH/target-build
+HOST_BUILD_ROOT=$SOURCE_PATH/build/WebAssemblyCompiler
+TARGET_BUILD_ROOT=$SOURCE_PATH/build/WebAssembly
 HOST_BUILD_DIR=$HOST_BUILD_ROOT/Ninja-ReleaseAssert
 
 build_host_toolchain() {
@@ -99,7 +70,7 @@ build_target_toolchain() {
     -D CMAKE_AR="$HOST_BUILD_DIR/llvm-$HOST_SUFFIX/bin/llvm-ar" \
     -D CMAKE_C_COMPILER_LAUNCHER="$(which sccache)" \
     -D CMAKE_CXX_COMPILER_LAUNCHER="$(which sccache)" \
-    -D CMAKE_INSTALL_PREFIX="$DIST_TOOLCHAIN_SDK/usr/lib/clang/13.0.0/" \
+    -D CMAKE_INSTALL_PREFIX="$TARGET_TOOLCHAIN_DESTDIR/usr/lib/clang/13.0.0/" \
     -D CMAKE_SYSROOT="${WASI_SYSROOT_PATH}" \
     -G Ninja \
     -S "$SOURCE_PATH/llvm-project/compiler-rt"
@@ -130,7 +101,7 @@ build_target_toolchain() {
     -D CMAKE_BUILD_TYPE=Release \
     -D CMAKE_C_COMPILER_LAUNCHER="$(which sccache)" \
     -D CMAKE_CXX_COMPILER_LAUNCHER="$(which sccache)" \
-    -D CMAKE_INSTALL_PREFIX="$DIST_TOOLCHAIN_SDK/usr" \
+    -D CMAKE_INSTALL_PREFIX="$TARGET_TOOLCHAIN_DESTDIR/usr" \
     -D LLVM_BIN="$HOST_BUILD_DIR/llvm-$HOST_SUFFIX/bin" \
     -D LLVM_DIR="$LLVM_TARGET_BUILD_DIR/lib/cmake/llvm/" \
     -D LLVM_COMPILER_CHECKED=YES \
@@ -166,66 +137,10 @@ build_target_toolchain() {
 
   # Remove host CoreFoundation module directory to avoid module conflict
   # while building Foundation
-  rm -rf "$DIST_TOOLCHAIN_SDK/usr/lib/swift_static/CoreFoundation"
-  "$TOOLS_BUILD_PATH/build-foundation.sh" "$DIST_TOOLCHAIN_SDK" "$WASI_SYSROOT_PATH"
-  "$TOOLS_BUILD_PATH/build-xctest.sh" "$DIST_TOOLCHAIN_SDK" "$WASI_SYSROOT_PATH"
+  rm -rf "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/CoreFoundation"
+  "$TOOLS_BUILD_PATH/build-foundation.sh" "$TARGET_TOOLCHAIN_DESTDIR" "$WASI_SYSROOT_PATH"
+  "$TOOLS_BUILD_PATH/build-xctest.sh" "$TARGET_TOOLCHAIN_DESTDIR" "$WASI_SYSROOT_PATH"
 
-}
-
-embed_wasi_sysroot() {
-  # Merge wasi-sdk and the toolchain
-  cp -r "$WASI_SYSROOT_PATH" "$DIST_TOOLCHAIN_SDK/usr/share"
-}
-
-swift_version() {
-  cat "$SOURCE_PATH/swift/CMakeLists.txt" | grep 'set(SWIFT_VERSION ' | sed -E 's/set\(SWIFT_VERSION "(.+)"\)/\1/'
-}
-
-create_darwin_info_plist() {
-  echo "-- Create Info.plist --"
-  PLISTBUDDY_BIN="/usr/libexec/PlistBuddy"
-
-  BUNDLE_PREFIX="org.swiftwasm"
-  DARWIN_TOOLCHAIN_DISPLAY_NAME_SHORT="Swift for WebAssembly Snapshot"
-
-  if [ ${OPTIONS_DAILY_SNAPSHOT} -eq 1 ]; then
-    DARWIN_TOOLCHAIN_VERSION="$(swift_version).${YEAR}${MONTH}${DAY}"
-    DARWIN_TOOLCHAIN_BUNDLE_IDENTIFIER="${BUNDLE_PREFIX}.${YEAR}${MONTH}${DAY}"
-    DARWIN_TOOLCHAIN_DISPLAY_NAME="${DARWIN_TOOLCHAIN_DISPLAY_NAME_SHORT} ${YEAR}-${MONTH}-${DAY}"
-  else
-    DARWIN_TOOLCHAIN_VERSION="$(swift_version).9999"
-    DARWIN_TOOLCHAIN_BUNDLE_IDENTIFIER="${BUNDLE_PREFIX}.dev"
-    DARWIN_TOOLCHAIN_DISPLAY_NAME="${DARWIN_TOOLCHAIN_DISPLAY_NAME_SHORT} Development"
-  fi
-  DARWIN_TOOLCHAIN_ALIAS="swiftwasm"
-
-  DARWIN_TOOLCHAIN_INFO_PLIST="${DIST_TOOLCHAIN_SDK}/Info.plist"
-  DARWIN_TOOLCHAIN_REPORT_URL="https://github.com/swiftwasm/swift/issues"
-  COMPATIBILITY_VERSION=2
-  COMPATIBILITY_VERSION_DISPLAY_STRING="Xcode 8.0"
-  DARWIN_TOOLCHAIN_CREATED_DATE="$(date -u +'%a %b %d %T GMT %Y')"
-  SWIFT_USE_DEVELOPMENT_TOOLCHAIN_RUNTIME="YES"
-
-  rm -f "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-
-  ${PLISTBUDDY_BIN} -c "Add DisplayName string '${DARWIN_TOOLCHAIN_DISPLAY_NAME}'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add ShortDisplayName string '${DARWIN_TOOLCHAIN_DISPLAY_NAME_SHORT}'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add CreatedDate date '${DARWIN_TOOLCHAIN_CREATED_DATE}'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add CompatibilityVersion integer ${COMPATIBILITY_VERSION}" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add CompatibilityVersionDisplayString string ${COMPATIBILITY_VERSION_DISPLAY_STRING}" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add Version string '${DARWIN_TOOLCHAIN_VERSION}'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add CFBundleIdentifier string '${DARWIN_TOOLCHAIN_BUNDLE_IDENTIFIER}'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add ReportProblemURL string '${DARWIN_TOOLCHAIN_REPORT_URL}'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add Aliases array" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add Aliases:0 string '${DARWIN_TOOLCHAIN_ALIAS}'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add OverrideBuildSettings dict" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add OverrideBuildSettings:ENABLE_BITCODE string 'NO'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add OverrideBuildSettings:SWIFT_DISABLE_REQUIRED_ARCLITE string 'YES'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add OverrideBuildSettings:SWIFT_LINK_OBJC_RUNTIME string 'YES'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add OverrideBuildSettings:SWIFT_DEVELOPMENT_TOOLCHAIN string 'YES'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-  ${PLISTBUDDY_BIN} -c "Add OverrideBuildSettings:SWIFT_USE_DEVELOPMENT_TOOLCHAIN_RUNTIME string '${SWIFT_USE_DEVELOPMENT_TOOLCHAIN_RUNTIME}'" "${DARWIN_TOOLCHAIN_INFO_PLIST}"
-
-  chmod a+r "${DARWIN_TOOLCHAIN_INFO_PLIST}"
 }
 
 show_sccache_stats() {
@@ -245,9 +160,9 @@ if [ ${OPTIONS_BUILD_HOST_TOOLCHAIN} -eq 1 ]; then
   echo ""
   echo "sccache stats:"
   show_sccache_stats
-  rm -rf "$DIST_TOOLCHAIN_DESTDIR"
-  mkdir -p "$DIST_TOOLCHAIN_SDK"
-  rsync -a "$HOST_TOOLCHAIN_DESTDIR/" "$DIST_TOOLCHAIN_SDK"
+  rm -rf "$TARGET_TOOLCHAIN_DESTDIR"
+  mkdir -p "$TARGET_TOOLCHAIN_DESTDIR"
+  rsync -a "$HOST_TOOLCHAIN_DESTDIR/" "$TARGET_TOOLCHAIN_DESTDIR"
 fi
 
 build_target_toolchain
@@ -257,13 +172,3 @@ echo "===================================="
 echo ""
 echo "sccache stats:"
 show_sccache_stats
-
-embed_wasi_sysroot
-
-if [[ "$(uname)" == "Darwin" ]]; then
-  create_darwin_info_plist
-fi
-
-cd "$DIST_TOOLCHAIN_DESTDIR"
-tar cfz "$PACKAGE_ARTIFACT" "$TOOLCHAIN_NAME"
-echo "Toolchain archive created successfully!"
