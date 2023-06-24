@@ -1,4 +1,4 @@
-From 46550d36d706fc20e36a11a7b2a679267fb798d6 Mon Sep 17 00:00:00 2001
+From 788d6e02e68f88ae02678f4d20ecfa8e2e08c3b2 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:37:23 +0000
 Subject: [PATCH] [wasm][stdlib] Add wasi-libc support for Heap.cpp

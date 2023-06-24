@@ -1,4 +1,4 @@
-From cc69418664f6ef07bd86d418f33dc0d1f5105ce2 Mon Sep 17 00:00:00 2001
+From 794c2a71e0f9780adf2bf5a3cf3550178ad87d31 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:51:29 +0000
 Subject: [PATCH] [wasm][build] HACK: Add SwiftWasm compiler vendor support

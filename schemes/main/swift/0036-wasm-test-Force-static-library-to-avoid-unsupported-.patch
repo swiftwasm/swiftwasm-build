@@ -1,4 +1,4 @@
-From f5293b379e5f685706a0e683482f8dd7cdc6349b Mon Sep 17 00:00:00 2001
+From 5650e7d15d9a267d361773b2357307836dc5888c Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:22:49 +0000
 Subject: [PATCH] [wasm][test] Force static library to avoid unsupported shared

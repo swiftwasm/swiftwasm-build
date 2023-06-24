@@ -1,4 +1,4 @@
-From ce091444bbd9d4616e68844cbe1ca5e1879ad149 Mon Sep 17 00:00:00 2001
+From 7ba73fc0c8360ff659eaf1bb140cf10303a0c779 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 11 Jun 2023 11:44:24 +0000
 Subject: [PATCH] [wasm] Add metadata registration for WebAssembly
