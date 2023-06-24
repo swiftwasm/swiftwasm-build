@@ -64,9 +64,9 @@ BASE_MATRIX_ENTRIES = [
     "build_os": "macos-11",
     "agent_query": ["self-hosted", "macOS", "ARM64"],
     "target": "macos_arm64",
-    "run_stdlib_test": false,
+    "run_stdlib_test": true,
     "run_full_test": false,
-    "run_e2e_test": false,
+    "run_e2e_test": true,
     "build_hello_wasm": true,
     "clean_build_dir": true
   }
