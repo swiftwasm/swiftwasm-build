@@ -153,7 +153,7 @@ jobs:
 
       - name: Install Homebrew dependencies
         if: ${{ startsWith(matrix.build_os, 'macos-') }}
-        run: brew bundle --file swift/Brewfile && brew install wasmer
+        run: brew bundle --file swift/Brewfile && brew install wasmtime
 
       - name: Build ${{ matrix.target }} installable archive on Docker container
         if: ${{ matrix.container != null }}
@@ -197,9 +197,6 @@ jobs:
         with:
           name: ${{ matrix.target }}-installable
           path: swift-wasm-${{ env.TOOLCHAIN_CHANNEL }}-SNAPSHOT-${{ matrix.target }}.tar.gz
-
-      - name: Add wasmer in PATH for testing
-        run: echo "$HOME/.wasmer/bin" >> $GITHUB_PATH
 
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}

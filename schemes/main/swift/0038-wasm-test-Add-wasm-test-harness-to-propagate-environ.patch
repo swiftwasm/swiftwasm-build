@@ -1,4 +1,4 @@
-From 3e95f5af2201255a8425a243a934f1dd110ec6e6 Mon Sep 17 00:00:00 2001
+From be6fb5626bcd8ebf5367906ba640185d88df14df Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:26:56 +0000
 Subject: [PATCH] [wasm][test] Add wasm test harness to propagate environment
@@ -35,7 +35,7 @@ index 3c4aa7f0c2e..4c065b709dd 100644
      config.target_sil_opt = (
 diff --git a/utils/webassembly/wasm-run.py b/utils/webassembly/wasm-run.py
 new file mode 100755
-index 00000000000..ec4e429f3ad
+index 00000000000..e59f95ebf3c
 --- /dev/null
 +++ b/utils/webassembly/wasm-run.py
 @@ -0,0 +1,54 @@
@@ -52,7 +52,7 @@ index 00000000000..ec4e429f3ad
 +                for key, value in local_env.items() if key.startswith(prefix))
 +
 +
-+class WasmerRunner(object):
++class WasmtimeRunner(object):
 +    def __init__(self):
 +        pass
 +
@@ -65,7 +65,7 @@ index 00000000000..ec4e429f3ad
 +            subprocess.check_call(command)
 +
 +    def invocation(self, args):
-+        command = ["wasmer", "run", "--singlepass"]
++        command = ["wasmtime", "run"]
 +        envs = collect_wasm_env()
 +        for key in envs:
 +            command.append("--env")
@@ -87,7 +87,7 @@ index 00000000000..ec4e429f3ad
 +                        help='the command to run', metavar='command...')
 +
 +    args = parser.parse_args()
-+    runner = WasmerRunner()
++    runner = WasmtimeRunner()
 +    runner.run(args)
 +
 +

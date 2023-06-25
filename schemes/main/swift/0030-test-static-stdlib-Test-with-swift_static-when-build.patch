@@ -1,4 +1,4 @@
-From e977988bc660d24a23327a5e354ce9362d86720e Mon Sep 17 00:00:00 2001
+From 50dc045f1f0fb9a1a041e1b49c443e86b7cf0aba Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:56:16 +0000
 Subject: [PATCH] [test][static-stdlib] Test with swift_static when building

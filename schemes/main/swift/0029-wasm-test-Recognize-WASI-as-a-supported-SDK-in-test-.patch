@@ -1,4 +1,4 @@
-From 350bfaabd3adb2d83a84dc17a65c2ad908e7b0c4 Mon Sep 17 00:00:00 2001
+From 8e18ba0e5648510b9591a7c429558a69cc39179a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:55:22 +0000
 Subject: [PATCH] [wasm][test] Recognize WASI as a supported SDK in test build

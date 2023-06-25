@@ -1,4 +1,4 @@
-From 923b700ec7a4ebd58b2c296a18dff5429ce959ae Mon Sep 17 00:00:00 2001
+From ffb195ae40e8fed2b58bca2932c29a3384195ba4 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 06:58:41 +0000
 Subject: [PATCH] [wasm][cmake] HACK: Tweak standalone stdlib build

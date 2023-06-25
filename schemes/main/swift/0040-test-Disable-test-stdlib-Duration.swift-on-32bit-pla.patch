@@ -1,4 +1,4 @@
-From aaa4caab1ad7171ea853fb894dd244463e34fdc8 Mon Sep 17 00:00:00 2001
+From 9e9b9ce24086942c2a13176a5e128b8b395724f5 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 26 May 2023 16:25:14 +0000
 Subject: [PATCH] [test] Disable test/stdlib/Duration.swift on 32bit platforms

@@ -1,4 +1,4 @@
-From 0929ff0930f24dc27d8776328bde92061345dc63 Mon Sep 17 00:00:00 2001
+From 227371c38cbbc392eddda1831008905d776653d3 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:14:18 +0000
 Subject: [PATCH] [wasm][build] Install ICU static libraries under swift_static
