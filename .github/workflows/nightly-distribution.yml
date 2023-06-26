@@ -54,7 +54,7 @@ jobs:
           DARWIN_TOOLCHAIN_INSTALLER_CERT_BASE64: ${{ secrets.DARWIN_TOOLCHAIN_INSTALLER_CERT_BASE64 }}
           DARWIN_TOOLCHAIN_INSTALLER_CERT_PASSWORD: ${{ secrets.DARWIN_TOOLCHAIN_INSTALLER_CERT_PASSWORD }}
 
-      - run: ./utils/webassembly/distribute-latest-toolchain.sh ${{ matrix.branch }} ${{ matrix.channel }}
+      - run: ./tools/distribute-latest-toolchain.sh ${{ matrix.branch }} ${{ matrix.channel }}
         env:
           TARGETS_TO_DIST: ${{ matrix.targets }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
