@@ -1,0 +1,426 @@
+#!/usr/bin/env python3
+# gh-distribute-toolchain - A script to distribute a toolchain to GitHub
+# It does the following:
+# 1. Download the toolchain artifacts from the given run
+# 2. Create a git tag for the swiftwasm/swift repo with the patches
+# 3. Push the tag to the swiftwasm/swift repo
+# 4. Create a GitHub release for the tag with the toolchain artifacts
+import os
+import sys
+import subprocess
+import tarfile
+from dataclasses import dataclass
+from typing import Optional
+from build.build_support.actions import CloneAction, ApplyPatchesAction
+from build.build_support.actions import derive_options_from_args, REPO_ROOT
+
+
+USER_AGENT = "gh-distribute-toolchain by swiftwasm/swiftwasm-build"
+
+
+@dataclass
+class Secrets:
+    DARWIN_TOOLCHAIN_APPLICATION_CERT: str
+    DARWIN_TOOLCHAIN_INSTALLER_CERT: str
+    DARWIN_TOOLCHAIN_NOTARIZE_EMAIL: str
+    DARWIN_TOOLCHAIN_NOTARIZE_TEAM_ID: str
+    DARWIN_TOOLCHAIN_NOTARIZE_PASSWORD: str
+    GITHUB_TOKEN: str
+
+    @staticmethod
+    def derive():
+        github_token = Secrets.env_value("GITHUB_TOKEN")
+        if github_token is None:
+            result = subprocess.run(
+                ["gh", "auth", "token"], capture_output=True, check=False)
+            if result.returncode != 0:
+                raise Exception(("Failed to get GitHub token "
+                                 "from GITHUB_TOKEN and gh auth token"))
+            github_token = result.stdout.decode("utf-8").strip()
+
+        return Secrets(
+            DARWIN_TOOLCHAIN_APPLICATION_CERT=Secrets.env_value(
+                "DARWIN_TOOLCHAIN_APPLICATION_CERT"),
+            DARWIN_TOOLCHAIN_INSTALLER_CERT=Secrets.env_value(
+                "DARWIN_TOOLCHAIN_INSTALLER_CERT"),
+            DARWIN_TOOLCHAIN_NOTARIZE_EMAIL=Secrets.env_value(
+                "DARWIN_TOOLCHAIN_NOTARIZE_EMAIL"),
+            DARWIN_TOOLCHAIN_NOTARIZE_TEAM_ID=Secrets.env_value(
+                "DARWIN_TOOLCHAIN_NOTARIZE_TEAM_ID"),
+            DARWIN_TOOLCHAIN_NOTARIZE_PASSWORD=Secrets.env_value(
+                "DARWIN_TOOLCHAIN_NOTARIZE_PASSWORD"),
+            GITHUB_TOKEN=github_token,
+        )
+
+    @staticmethod
+    def env_value(key: str):
+        return os.environ.get(key)
+
+
+class DarwinToolchainPackaging:
+    def __init__(self, secrets: Secrets):
+        self.secrets = secrets
+
+    def package(self, toolchain_dir: str, tag_name: str, pkg_path: str):
+        self.sign_darwin_toolchain(toolchain_dir)
+        self.create_installer(toolchain_dir, pkg_path, tag_name)
+
+    def sign_darwin_toolchain(self, toolchain_dir: str):
+        if self.secrets.DARWIN_TOOLCHAIN_APPLICATION_CERT is None:
+            raise Exception("Missing DARWIN_TOOLCHAIN_APPLICATION_CERT")
+
+        codesign_args = [
+            "/usr/bin/codesign",
+            "--force", "--verify", "--verbose", "--deep",
+            "--options", "runtime", "--timestamp",
+            "--sign", self.secrets.DARWIN_TOOLCHAIN_APPLICATION_CERT
+        ]
+
+        for root, dirs, files in os.walk(toolchain_dir):
+            for file in files:
+                path = os.path.join(root, file)
+                if not self.is_macho_binary(path):
+                    continue
+                subprocess.run(codesign_args + [path], check=True)
+
+        subprocess.run(codesign_args + [toolchain_dir], check=True)
+
+    def create_installer(self, toolchain_dir: str, pkg_path: str,
+                         tag_name: str):
+        toolchain_name = tag_name
+        toolchain_installer_package = pkg_path
+        toolchain_install_location = (
+            f"/Library/Developer/Toolchains/{toolchain_name}.xctoolchain")
+        toolchain_version = subprocess.check_output([
+            "/usr/libexec/PlistBuddy",
+            "-c", "Print Version string",
+            f"{toolchain_dir}/Info.plist"
+        ]).decode("utf-8")
+        toolchain_bundle_identifier = subprocess.check_output([
+            "/usr/libexec/PlistBuddy",
+            "-c", "Print CFBundleIdentifier string",
+            f"{toolchain_dir}/Info.plist"
+        ]).decode("utf-8")
+
+        swift_source = "../swift"
+        subprocess.run([
+            f"{swift_source}/utils/toolchain-installer", toolchain_dir,
+            toolchain_bundle_identifier,
+            self.secrets.DARWIN_TOOLCHAIN_INSTALLER_CERT,
+            toolchain_installer_package,
+            toolchain_install_location,
+            toolchain_version,
+            f"{swift_source}/utils/darwin-installer-scripts"
+        ], check=True)
+
+        subprocess.run([
+            "xcrun", "notarytool", "submit",
+            toolchain_installer_package,
+            "--wait",
+            "--apple-id", self.secrets.DARWIN_TOOLCHAIN_NOTARIZE_EMAIL,
+            "--team-id", self.secrets.DARWIN_TOOLCHAIN_NOTARIZE_TEAM_ID,
+            "--password", self.secrets.DARWIN_TOOLCHAIN_NOTARIZE_PASSWORD,
+        ], check=True)
+
+        subprocess.run(["xcrun", "stapler", "staple",
+                        toolchain_installer_package], check=True)
+
+    def is_macho_binary(self, file_path):
+        if not os.path.exists(file_path):
+            return False
+        magic_bytes = None
+        with open(file_path, mode="rb") as f:
+            magic_bytes = f.read(4)
+        macho_bytes = [
+            [0xca, 0xfe, 0xba, 0xbe],  # Mach-O Fat Binary
+            [0xcf, 0xfa, 0xed, 0xfe],  # Mach-O 64-bit executable
+            [0xce, 0xfa, 0xed, 0xfe],  # Mach-O 32-bit executable
+        ]
+        for b in macho_bytes:
+            if magic_bytes == bytes(b):
+                return True
+        return False
+
+
+class GitHub:
+    def __init__(self, token: str, repo: str = "swiftwasm/swiftwasm-build"):
+        self.token = token
+        self.repo = repo
+
+    def list_artifacts(self, run_id: str):
+        url = ("https://api.github.com"
+               f"/repos/{self.repo}/actions/runs/{run_id}/artifacts")
+        return self.json_request("GET", url)
+
+    def get_release(self, tag_name: str):
+        url = ("https://api.github.com"
+               f"/repos/{self.repo}/releases/tags/{tag_name}")
+        return self.json_request("GET", url)
+
+    def create_prerelease(self, tag_name: str):
+        url = f"https://api.github.com/repos/{self.repo}/releases"
+        return self.json_request("POST", url, body={
+            "tag_name": tag_name,
+            "name": tag_name,
+            "prerelease": True,
+        })
+
+    def download_artifact(self, artifact, path: str):
+        curl_args = ["curl", "-L", "-o", path,
+                     artifact["archive_download_url"],
+                     "--header", f"Authorization: Bearer {self.token}"]
+        subprocess.run(curl_args, check=True)
+
+    def upload_release_asset(self, release_id: str, asset_path: str):
+        content_len = os.path.getsize(asset_path)
+        filename = os.path.basename(asset_path)
+        url = (f"https://uploads.github.com/repos/{self.repo}/"
+               f"releases/{release_id}/assets?name={filename}")
+        curl_args = ["curl", "-XPOST",
+                     "--header", f"Authorization: Bearer {self.token}",
+                     "--header", f"Content-Length: {content_len}",
+                     "--header", "Content-Type: application/x-gzip",
+                     "--upload-file", asset_path,
+                     url]
+        subprocess.run(curl_args, check=True)
+
+    def json_request(self, method: str, path: str,
+                     body: Optional[dict] = None):
+        import json
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        data = None
+        if body:
+            data = json.dumps(body).encode("utf-8")
+        resp = self.request(method, path, headers=headers, data=data)
+        return json.loads(resp.read())
+
+    def request(self, method: str, url: str, headers: dict,
+                data: Optional[bytes] = None):
+        headers = headers.copy()
+        headers["Authorization"] = f"Bearer {self.token}"
+        headers["User-Agent"] = USER_AGENT
+
+        import urllib.request
+        req = urllib.request.Request(url, headers=headers, method=method,
+                                     data=data)
+        resp = urllib.request.urlopen(req)
+        if resp.status < 200 or 300 <= resp.status:
+            raise Exception(
+                ("GitHub API request failed: "
+                 f"{resp.status} {resp.reason} {resp.read().decode('utf-8')}"))
+        return resp
+
+
+class Distribution:
+    def __init__(self, github: GitHub, swift_github: GitHub,
+                 run_id: str, secrets: Secrets):
+        self.github = github
+        self.swift_github = swift_github
+        self.run_id = run_id
+        self.secrets = secrets
+        self.distribution_dir = os.path.join(
+            os.path.dirname(REPO_ROOT), "build", "Distribution")
+        self.artifacts_dir = os.path.join(
+            self.distribution_dir, "artifacts", self.run_id)
+
+    def run(self, options):
+        release = None
+        tag_name = options.override_name
+        for artifact in self.toolchain_aritfacts():
+            artifact_path = self.download_and_unpack(artifact)
+            if release is None:
+                if tag_name is None:
+                    tag_name = self.guess_tag_name(artifact_path)
+                release = self.create_tag_and_prerelease(tag_name, options)
+
+            platform_suffix = self.derive_platform_suffix(artifact)
+            package = self.package_artifact(
+                artifact_path, tag_name, platform_suffix)
+            self.upload_to_release(package, release)
+
+    def guess_tag_name(self, path):
+        return os.path.basename(path)
+
+    def derive_platform_suffix(self, artifact):
+        """
+        Returns platform suffix derived from the artifact name.
+        e.g. macos_x86_64
+        """
+
+        # artifact name: <platform-suffix>-installable
+        name: str = artifact["name"]
+        artifact_suffix = "-installable"
+        if not name.endswith(artifact_suffix):
+            raise Exception((f"Unexpected artifact name {name}"
+                             f", expected to have \"{artifact_suffix}\""
+                             " suffix"))
+        return name.removesuffix(artifact_suffix)
+
+    def download_and_unpack(self, artifact):
+        zip_tarball = self.download_artifact(artifact)
+        tarball_output_dir = self.unpack_toolchain(zip_tarball)
+
+        dirents = os.listdir(tarball_output_dir)
+        if len(dirents) != 1:
+            raise Exception((
+                f"Unexpected number of files in {tarball_output_dir}:"
+                f" {len(dirents)} (expected 1)"))
+        return os.path.join(tarball_output_dir, dirents[0])
+
+    def package_artifact(self, artifact_path: str, tag_name: str,
+                         platform_suffix: str):
+        print(f"Packaging {artifact_path}")
+        import shutil
+        dest_dir = os.path.dirname(artifact_path)
+        artifacts_path = os.path.dirname(dest_dir)
+
+        if os.path.basename(artifact_path) != tag_name:
+            # e.g.
+            # dest_dir:
+            # <run-id>/swift-wasm-DEVELOPMENT-SNAPSHOT-amazonlinux2_x86_64
+            # artifact_path:
+            # <dest-dir>/swift-wasm-DEVELOPMENT-SNAPSHOT-2023-6-25-a
+            # dest_path:
+            # <dest-dir>/swift-wasm-DEVELOPMENT-SNAPSHOT-2023-6-25-b
+            print(f"Re-package {artifact_path} as {tag_name}")
+            dest_path = os.path.join(dest_dir, tag_name)
+            shutil.move(artifact_path, dest_path)
+            artifact_path = dest_path
+
+        if platform_suffix.startswith("macos_"):
+            pkg_path = os.path.join(
+                artifacts_path, f"{tag_name}-{platform_suffix}.pkg")
+            if os.path.exists(pkg_path):
+                return pkg_path
+            DarwinToolchainPackaging(self.secrets).package(
+                artifact_path, tag_name, pkg_path)
+            return pkg_path
+        else:
+            tarball_path = os.path.join(
+                artifacts_path, f"{tag_name}-{platform_suffix}.tar.gz")
+            if os.path.exists(tarball_path):
+                return tarball_path
+            tar_args = ["tar", "cfz", tarball_path,
+                        "-C", os.path.dirname(artifact_path),
+                        os.path.basename(artifact_path)]
+            subprocess.run(tar_args, check=True)
+            return tarball_path
+
+    def unpack_toolchain(self, zip_tarball):
+        print(f"Unpacking {zip_tarball}...")
+        # Get the list of files in the .zip file
+        contents = subprocess.check_output(["zipinfo", "-1", zip_tarball])
+        contents = contents.decode("utf-8").splitlines()
+        if len(contents) != 1:
+            raise Exception(
+                (f"Unexpected number of files in {zip_tarball}: "
+                 "{len(contents)} (expected 1)"))
+
+        tarball_name = contents[0]
+        tarball_path = os.path.join(os.path.dirname(zip_tarball), tarball_name)
+
+        if not os.path.exists(tarball_path):
+            subprocess.run(["unzip", zip_tarball, "-d",
+                           os.path.dirname(tarball_path)], check=True)
+
+        # Remove the .tar.gz extension
+        tarball_basename = os.path.splitext(
+            os.path.splitext(tarball_name)[0])[0]
+        tarball_output_dir = os.path.join(
+            os.path.dirname(tarball_path), tarball_basename)
+        if os.path.exists(tarball_output_dir):
+            print(f"Tarball already extracted at {tarball_output_dir}")
+            return tarball_output_dir
+        os.makedirs(tarball_output_dir, exist_ok=True)
+        print(f"Extracting {tarball_path}...")
+        with tarfile.open(tarball_path, "r:gz") as tar:
+            tar.extractall(tarball_output_dir)
+        return tarball_output_dir
+
+    def download_artifact(self, artifact):
+        print((f"Downloading {artifact['name']} from "
+               f"{artifact['archive_download_url']}..."))
+        if not os.path.exists(self.artifacts_dir):
+            os.makedirs(self.artifacts_dir, exist_ok=True)
+        path = os.path.join(self.artifacts_dir, artifact["name"])
+        if os.path.exists(path):
+            print(f"Artifact already exists at {path}")
+            return path
+        self.github.download_artifact(artifact, path)
+        return path
+
+    def create_tag_and_prerelease(self, tag_name, options):
+        print(f"Creating tag for {tag_name}...")
+        self.git_push_swift_source(options, tag_name)
+        try:
+            # If release already exists, use it
+            release = self.swift_github.get_release(tag_name)
+            print(f"Use existing prerelease for {tag_name}...")
+            return release
+        except Exception:
+            print(f"Creating prerelease for {tag_name}...")
+        return self.swift_github.create_prerelease(tag_name)
+
+    def git_push_swift_source(self, options, tag_name):
+        status = subprocess.run([
+            'git', '-C', '../swift',
+            'tag', '--list', '--contains', tag_name]).returncode
+        if status == 0:
+            print(f"Tag {tag_name} already exists")
+            return
+
+        subprocess.run(["git", "-C", "../swift", "checkout", options.tag],
+                       check=True)
+        CloneAction(options).run()
+        ApplyPatchesAction(options).run()
+        subprocess.run(["git", "-C", "../swift", "tag", tag_name], check=True)
+        fork_repo = 'git@github.com:swiftwasm/swift.git'
+        status = subprocess.run(['git', '-C', '../swift',
+                                 'remote', 'get-url', 'swiftwasm']).returncode
+        if status != 0:
+            subprocess.run(['git', '-C', '../swift', 'remote',
+                           'add', 'swiftwasm', fork_repo], check=True)
+        else:
+            subprocess.run(['git', '-C', '../swift', 'remote',
+                            'set-url', 'swiftwasm', fork_repo], check=True)
+
+        subprocess.run(["git", "-C", "../swift",
+                        "push", "swiftwasm", tag_name], check=True)
+
+    def upload_to_release(self, artifact_path, release):
+        name = os.path.basename(artifact_path)
+        if "assets" in release:
+            for asset in release["assets"]:
+                asset_name = asset["name"]
+                if os.path.basename(artifact_path) == asset_name:
+                    print((f"{name} is already uploaded"
+                           f" to release {release['name']}"))
+                    return
+        print(f"Uploading {name} to release {release['name']}...")
+        self.swift_github.upload_release_asset(release['id'], artifact_path)
+
+    def toolchain_aritfacts(self):
+        data = self.github.list_artifacts(self.run_id)
+        for artifact in data["artifacts"]:
+            if artifact["name"].endswith("-installable"):
+                yield artifact
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('run_id', type=str)
+    parser.add_argument('--override-name', type=str, default=None)
+    options = derive_options_from_args(sys.argv[1:], parser)
+
+    secrets = Secrets.derive()
+    gh = GitHub(secrets.GITHUB_TOKEN, "swiftwasm/swiftwasm-build")
+    swift_gh = GitHub(secrets.GITHUB_TOKEN, "swiftwasm/swift")
+    swiftwasm_build_dir = os.path.join(
+        os.path.dirname(__file__), "..", "..", "swift")
+    os.chdir(swiftwasm_build_dir)
+    Distribution(gh, swift_gh, options.run_id, secrets).run(options)
+
+
+if __name__ == '__main__':
+    main()
