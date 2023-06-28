@@ -75,7 +75,8 @@ class DarwinToolchainPackaging:
                 "-c", f"Set DisplayName {display_name}", info_plist
             ])
 
-        display_name_short = os.environ.get("DARWIN_TOOLCHAIN_DISPLAY_NAME_SHORT")
+        display_name_short = os.environ.get(
+            "DARWIN_TOOLCHAIN_DISPLAY_NAME_SHORT")
         if display_name_short:
             subprocess.check_output([
                 "/usr/libexec/PlistBuddy",
@@ -395,6 +396,9 @@ class Distribution:
 
     def git_push_swift_source(self, options, tag_name):
         CloneAction(options).run()
+        status = subprocess.run([
+            'git', '-C', '../swift',
+            'fetch', 'swiftwasm', options.tag], check=True)
         status = subprocess.run([
             'git', '-C', '../swift',
             'tag', '--list', '--contains', tag_name]).returncode
