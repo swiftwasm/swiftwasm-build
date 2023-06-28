@@ -69,14 +69,14 @@ class DarwinToolchainPackaging:
     def update_info_plist(self, toolchain_dir: str):
         display_name = os.environ.get("DARWIN_TOOLCHAIN_DISPLAY_NAME")
         info_plist = f"{toolchain_dir}/Info.plist"
-        if display_name and display_name != "":
+        if display_name:
             subprocess.check_output([
                 "/usr/libexec/PlistBuddy",
                 "-c", f"Set DisplayName {display_name}", info_plist
             ])
 
         display_name_short = os.environ.get("DARWIN_TOOLCHAIN_DISPLAY_NAME_SHORT")
-        if display_name_short and display_name_short != "":
+        if display_name_short:
             subprocess.check_output([
                 "/usr/libexec/PlistBuddy",
                 "-c", f"Set ShortDisplayName {display_name_short}", info_plist
