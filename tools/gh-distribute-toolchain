@@ -62,8 +62,25 @@ class DarwinToolchainPackaging:
         self.secrets = secrets
 
     def package(self, toolchain_dir: str, tag_name: str, pkg_path: str):
+        self.update_info_plist(toolchain_dir)
         self.sign_darwin_toolchain(toolchain_dir)
         self.create_installer(toolchain_dir, pkg_path, tag_name)
+
+    def update_info_plist(self, toolchain_dir: str):
+        display_name = os.environ.get("DARWIN_TOOLCHAIN_DISPLAY_NAME")
+        info_plist = f"{toolchain_dir}/Info.plist"
+        if display_name and display_name != "":
+            subprocess.check_output([
+                "/usr/libexec/PlistBuddy",
+                "-c", f"Set DisplayName {display_name}", info_plist
+            ])
+
+        display_name_short = os.environ.get("DARWIN_TOOLCHAIN_DISPLAY_NAME_SHORT")
+        if display_name_short and display_name_short != "":
+            subprocess.check_output([
+                "/usr/libexec/PlistBuddy",
+                "-c", f"Set ShortDisplayName {display_name_short}", info_plist
+            ])
 
     def sign_darwin_toolchain(self, toolchain_dir: str):
         if self.secrets.DARWIN_TOOLCHAIN_APPLICATION_CERT is None:
@@ -164,6 +181,21 @@ class GitHub:
             "name": tag_name,
             "prerelease": True,
         })
+
+    def latest_success_run_id(self, workflow_name: str, branch: str):
+        url = ("https://api.github.com"
+               f"/repos/{self.repo}/actions/workflows/{workflow_name}"
+               f"/runs?branch={branch}")
+        run = self.json_request("GET", url)
+        workflow_runs = run["workflow_runs"]
+        workflow_runs = sorted(
+            workflow_runs, key=lambda run: run["run_number"], reverse=True)
+        for run in workflow_runs:
+            if "head_branch" not in run or run["head_branch"] != branch:
+                continue
+            if "conclusion" not in run or run["conclusion"] != "success":
+                continue
+            return run["id"]
 
     def download_artifact(self, artifact, path: str):
         curl_args = ["curl", "-L", "-o", path,
@@ -410,15 +442,20 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('run_id', type=str)
-    parser.add_argument('--override-name', type=str, default=None)
+    parser.add_argument(
+        '--override-name', type=str,
+        default=os.environ.get("GH_DISTRIBUTE_TOOLCHAIN_OVERRIDE_NAME"))
     options = derive_options_from_args(sys.argv[1:], parser)
 
     secrets = Secrets.derive()
     gh = GitHub(secrets.GITHUB_TOKEN, "swiftwasm/swiftwasm-build")
     swift_gh = GitHub(secrets.GITHUB_TOKEN, "swiftwasm/swift")
-    swiftwasm_build_dir = os.path.join(
-        os.path.dirname(__file__), "..", "..", "swift")
+    swiftwasm_build_dir = os.path.join(os.path.dirname(__file__), "..")
     os.chdir(swiftwasm_build_dir)
+    run_id = options.run_id
+    if run_id == "latest":
+        run_id = gh.latest_success_run_id(
+            workflow_name="build-toolchain.yml", branch="main")
     Distribution(gh, swift_gh, options.run_id, secrets).run(options)
 
 
