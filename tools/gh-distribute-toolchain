@@ -398,7 +398,7 @@ class Distribution:
         CloneAction(options).run()
         status = subprocess.run([
             'git', '-C', '../swift',
-            'fetch', 'swiftwasm', options.tag], check=True)
+            'fetch', 'upstream', options.tag], check=True)
         status = subprocess.run([
             'git', '-C', '../swift',
             'tag', '--list', '--contains', tag_name]).returncode

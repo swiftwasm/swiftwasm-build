@@ -27,6 +27,7 @@ jobs:
           repository: swiftwasm/swift
           path: swift
       - run: git -C swift remote rename origin swiftwasm
+      - run: git -C swift remote add upstream https://github.com/apple/swift.git
       - name: Setup environment variables
         run: |
           if [[ -n "${{ github.event.inputs.display-name }}" ]]; then
