@@ -394,6 +394,7 @@ class Distribution:
         return self.swift_github.create_prerelease(tag_name)
 
     def git_push_swift_source(self, options, tag_name):
+        CloneAction(options).run()
         status = subprocess.run([
             'git', '-C', '../swift',
             'tag', '--list', '--contains', tag_name]).returncode
@@ -403,7 +404,6 @@ class Distribution:
 
         subprocess.run(["git", "-C", "../swift", "checkout", options.tag],
                        check=True)
-        CloneAction(options).run()
         ApplyPatchesAction(options).run()
         subprocess.run(["git", "-C", "../swift", "tag", tag_name], check=True)
         fork_repo = 'git@github.com:swiftwasm/swift.git'
