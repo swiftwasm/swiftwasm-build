@@ -21,7 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: swiftwasm/swiftwasm-build
           path: swiftwasm-build
       - name: Setup environment variables
         run: |
@@ -58,6 +57,7 @@ jobs:
           DARWIN_TOOLCHAIN_INSTALLER_CERT_PASSWORD: ${{ secrets.DARWIN_TOOLCHAIN_INSTALLER_CERT_PASSWORD }}
 
       - run: ./tools/gh-distribute-toolchain --scheme ${{ inputs.scheme }} --verbose --skip-history ${{ inputs.run-id }}
+        working-directory: ./swiftwasm-build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDBOT_GITHUB_TOKEN: ${{ secrets.SWIFTWASM_BUILDBOT_TOKEN }}
