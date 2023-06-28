@@ -22,6 +22,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: swiftwasm/swiftwasm-build
+          path: swiftwasm-build
       - name: Setup environment variables
         run: |
           if [[ -n "${{ github.event.inputs.display-name }}" ]]; then
