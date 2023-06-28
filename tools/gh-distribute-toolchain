@@ -416,9 +416,6 @@ class Distribution:
         if status != 0:
             subprocess.run(['git', '-C', '../swift', 'remote',
                            'add', 'swiftwasm', fork_repo], check=True)
-        else:
-            subprocess.run(['git', '-C', '../swift', 'remote',
-                            'set-url', 'swiftwasm', fork_repo], check=True)
 
         subprocess.run(["git", "-C", "../swift",
                         "push", "swiftwasm", tag_name], check=True)
