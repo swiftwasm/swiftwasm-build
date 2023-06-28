@@ -48,7 +48,7 @@ jobs:
           DARWIN_TOOLCHAIN_INSTALLER_CERT_BASE64: ${{ secrets.DARWIN_TOOLCHAIN_INSTALLER_CERT_BASE64 }}
           DARWIN_TOOLCHAIN_INSTALLER_CERT_PASSWORD: ${{ secrets.DARWIN_TOOLCHAIN_INSTALLER_CERT_PASSWORD }}
 
-      - run: ./tools/gh-distribute-toolchain --scheme ${{ inputs.scheme }} --verbose ${{ inputs.run-id }}
+      - run: ./tools/gh-distribute-toolchain --scheme ${{ inputs.scheme }} --verbose --skip-history ${{ inputs.run-id }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILDBOT_GITHUB_TOKEN: ${{ secrets.SWIFTWASM_BUILDBOT_TOKEN }}
