@@ -81,7 +81,6 @@ jobs:
 
   build-toolchain:
     env:
-      TOOLCHAIN_CHANNEL: DEVELOPMENT
       DEVELOPER_DIR: /Applications/Xcode_14.2.app/Contents/Developer/
       # https://github.com/actions/cache/blob/main/tips-and-workarounds.md#cache-segment-restore-timeout
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 30
@@ -92,7 +91,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.build-matrix.outputs.entries) }}
 
-    name: Target ${{ matrix.target }}
+    name: Target ${{ matrix.scheme }}/${{ matrix.target }}
     timeout-minutes: 0
     runs-on: ${{ matrix.agent_query }}
     steps:
@@ -129,7 +128,7 @@ jobs:
       - name: Prepare sccache timestamp
         id: cache_key
         run: |
-          export SCCACHE_KEY_PREFIX="${{ matrix.target }}-${{ env.TOOLCHAIN_CHANNEL }}-sccache-v14-"
+          export SCCACHE_KEY_PREFIX="${{ matrix.target }}-${{ matrix.toolchain_channel }}-sccache-v14-"
           echo "SCCACHE_KEY_PREFIX=$SCCACHE_KEY_PREFIX" >> $GITHUB_OUTPUT
           echo "SCCACHE_KEY=$SCCACHE_KEY_PREFIX$(date +'%Y-%m-%d-%I-%M-%S')" >> $GITHUB_OUTPUT
 
@@ -172,13 +171,13 @@ jobs:
             --cap-add=SYS_PTRACE \
             --security-opt seccomp=unconfined \
             -dit \
-            -e TOOLCHAIN_CHANNEL=${{ env.TOOLCHAIN_CHANNEL }} \
+            -e TOOLCHAIN_CHANNEL=${{ matrix.toolchain_channel }} \
             -w /home/build-user/ \
             -v ${{ github.workspace }}:/source \
             -v oss-swift-package:/home/build-user \
             ${{ matrix.container }}
           docker exec swiftwasm-ci-buildbot /bin/bash -lc 'env; cp -r /source/* /home/build-user/; ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}'
-          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ env.TOOLCHAIN_CHANNEL }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
+          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
 
       - name: Extract build-cache from Docker container
         if: ${{ matrix.container != null && always() }}
@@ -203,7 +202,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.target }}-installable
-          path: swift-wasm-${{ env.TOOLCHAIN_CHANNEL }}-SNAPSHOT-${{ matrix.target }}.tar.gz
+          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz
 
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}
@@ -237,8 +236,8 @@ jobs:
       - name: Prepare E2E test
         run: |
           INSTALL_DIR=$(mktemp -d)
-          tar xf swift-wasm-$TOOLCHAIN_CHANNEL-SNAPSHOT-${{ matrix.target }}.tar.gz -C "$INSTALL_DIR"
-          echo "TOOLCHAIN=$(find "$INSTALL_DIR" -name "swift-wasm-$TOOLCHAIN_CHANNEL-*" -type d | head -n1)" >> $GITHUB_ENV
+          tar xf swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz -C "$INSTALL_DIR"
+          echo "TOOLCHAIN=$(find "$INSTALL_DIR" -name "swift-wasm-${{ matrix.toolchain_channel }}-*" -type d | head -n1)" >> $GITHUB_ENV
       - name: Build hello.wasm
         shell: bash
         if: ${{ matrix.build_hello_wasm }}

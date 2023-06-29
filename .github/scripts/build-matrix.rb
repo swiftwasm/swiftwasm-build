@@ -99,11 +99,12 @@ def main
     end
   end
 
-  schemes = ["main"]
+  schemes = ["main", "5.9"]
 
   matrix_entries = schemes.flat_map do |scheme|
     matrix_entries.map do |entry|
-      entry.merge("scheme": scheme)
+      toolchain_channel = scheme == "main" ? "DEVELOPMENT" : scheme
+      entry.merge("scheme": scheme, toolchain_channel: toolchain_channel)
     end
   end
 
