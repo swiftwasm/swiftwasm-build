@@ -1,0 +1,27 @@
+From 1fe2ed65dccc27b74a26b63a095dff51c303740c Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 07:40:05 +0000
+Subject: [PATCH] [test] Avoid building unnecessary targets when
+ cross-compiling non-Darwin platforms
+
+---
+ stdlib/private/CMakeLists.txt | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/stdlib/private/CMakeLists.txt b/stdlib/private/CMakeLists.txt
+index 704d96f9248..7b04ee4e39c 100644
+--- a/stdlib/private/CMakeLists.txt
++++ b/stdlib/private/CMakeLists.txt
+@@ -23,7 +23,8 @@ endif()
+ if(SWIFT_BUILD_SDK_OVERLAY)
+   add_subdirectory(OSLog)
+ 
+-  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
++  list_intersect("${SWIFT_APPLE_PLATFORMS}" "${SWIFT_SDKS}" building_darwin_sdks)
++  if(building_darwin_sdks)
+     add_subdirectory(StdlibUnittestFoundationExtras)
+   endif()
+   # Currently SwiftReflectionTest cannot be built on Windows, due to
+-- 
+2.40.0
+

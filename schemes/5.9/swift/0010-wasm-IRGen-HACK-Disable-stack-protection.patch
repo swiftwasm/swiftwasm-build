@@ -1,0 +1,29 @@
+From 1e2cd46db779d48895d74501e4098e71990b531e Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 07:21:31 +0000
+Subject: [PATCH] [wasm][IRGen] HACK: Disable stack protection
+
+This is a temporary workaround until we can update wasi-sdk to version
+17 or later, which includes stack protection support in wasi-libc.
+https://github.com/WebAssembly/wasi-libc/commit/8b7148f69ae241a2749b3defe4606da8143b72e0
+---
+ lib/IRGen/GenDecl.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/lib/IRGen/GenDecl.cpp b/lib/IRGen/GenDecl.cpp
+index 711c5bd05e1..8bd7592f734 100644
+--- a/lib/IRGen/GenDecl.cpp
++++ b/lib/IRGen/GenDecl.cpp
+@@ -3359,7 +3359,8 @@ llvm::CallBase *swift::irgen::emitCXXConstructorCall(
+ 
+ StackProtectorMode IRGenModule::shouldEmitStackProtector(SILFunction *f) {
+   const SILOptions &opts = IRGen.SIL.getOptions();
+-  return (opts.EnableStackProtection && f->needsStackProtection()) ?
++  // FIXME(katei): stack protection support will be added by https://github.com/WebAssembly/wasi-libc/pull/351
++  return (opts.EnableStackProtection && f->needsStackProtection() && Triple.getObjectFormat() != llvm::Triple::Wasm) ?
+     StackProtectorMode::StackProtector : StackProtectorMode::NoStackProtector;
+ }
+ 
+-- 
+2.40.0
+

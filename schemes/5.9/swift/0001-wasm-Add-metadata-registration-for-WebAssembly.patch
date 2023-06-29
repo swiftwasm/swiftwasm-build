@@ -1,0 +1,128 @@
+From 7ba73fc0c8360ff659eaf1bb140cf10303a0c779 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sun, 11 Jun 2023 11:44:24 +0000
+Subject: [PATCH] [wasm] Add metadata registration for WebAssembly
+
+This patch adds the metadata registration for the wasm targets, and also
+adds build support for it.
+---
+ stdlib/public/runtime/CMakeLists.txt          | 26 ++++++++++++++++---
+ .../{SwiftRT-ELF.cpp => SwiftRT-ELF-WASM.cpp} | 15 +++++++++--
+ 2 files changed, 35 insertions(+), 6 deletions(-)
+ rename stdlib/public/runtime/{SwiftRT-ELF.cpp => SwiftRT-ELF-WASM.cpp} (82%)
+
+diff --git a/stdlib/public/runtime/CMakeLists.txt b/stdlib/public/runtime/CMakeLists.txt
+index 3771d972d54..38de01cd2a8 100644
+--- a/stdlib/public/runtime/CMakeLists.txt
++++ b/stdlib/public/runtime/CMakeLists.txt
+@@ -88,7 +88,7 @@ set(swift_runtime_backtracing_sources
+ # Acknowledge that the following sources are known.
+ set(LLVM_OPTIONAL_SOURCES
+     SwiftRT-COFF.cpp
+-    SwiftRT-ELF.cpp
++    SwiftRT-ELF-WASM.cpp
+     ${swift_runtime_sources}
+     ${swift_runtime_objc_sources}
+     ${swift_runtime_leaks_sources}
+@@ -139,11 +139,14 @@ add_swift_target_library(swiftRuntime OBJECT_LIBRARY
+ 
+ set(ELFISH_SDKS)
+ set(COFF_SDKS)
++set(WASM_SDKS)
+ foreach(sdk ${SWIFT_SDKS})
+   if("${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "ELF")
+     list(APPEND ELFISH_SDKS ${sdk})
+   elseif("${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "COFF")
+     list(APPEND COFF_SDKS ${sdk})
++  elseif("${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "WASM")
++    list(APPEND WASM_SDKS ${sdk})
+   endif()
+ endforeach()
+ 
+@@ -152,7 +155,7 @@ endforeach()
+ # with LTO, force swift runtime to compile without LTO for Linux.
+ add_swift_target_library(swiftImageRegistrationObjectELF
+                   OBJECT_LIBRARY IS_STDLIB IS_STDLIB_CORE
+-                  SwiftRT-ELF.cpp
++                  SwiftRT-ELF-WASM.cpp
+                   C_COMPILE_FLAGS ${SWIFT_RUNTIME_CORE_CXX_FLAGS}
+                   C_COMPILE_FLAGS_LINUX -fno-lto
+                   LINK_FLAGS ${SWIFT_RUNTIME_CORE_LINK_FLAGS}
+@@ -170,17 +173,32 @@ add_swift_target_library(swiftImageRegistrationObjectCOFF
+                   SWIFT_COMPILE_FLAGS ${SWIFT_STANDARD_LIBRARY_SWIFT_FLAGS}
+                   INSTALL_IN_COMPONENT none)
+ 
++add_swift_target_library(swiftImageRegistrationObjectWASM
++                  OBJECT_LIBRARY IS_STDLIB IS_STDLIB_CORE
++                  SwiftRT-ELF-WASM.cpp
++                  C_COMPILE_FLAGS ${SWIFT_RUNTIME_CORE_CXX_FLAGS}
++                  LINK_FLAGS ${SWIFT_RUNTIME_CORE_LINK_FLAGS}
++                  TARGET_SDKS ${WASM_SDKS}
++                  SWIFT_COMPILE_FLAGS ${SWIFT_STANDARD_LIBRARY_SWIFT_FLAGS}
++                  INSTALL_IN_COMPONENT none)
++
+ foreach(sdk ${SWIFT_SDKS})
+   foreach(arch ${SWIFT_SDK_${sdk}_ARCHITECTURES})
+     set(arch_subdir "${SWIFT_SDK_${sdk}_LIB_SUBDIR}/${arch}")
+     set(arch_suffix "${SWIFT_SDK_${sdk}_LIB_SUBDIR}-${arch}")
+ 
+     if("${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "ELF" OR
+-       "${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "COFF")
++       "${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "COFF" OR
++       "${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "WASM")
+       # TODO(compnerd) switch to the generator expression when cmake is upgraded
+       # to a version which supports it.
+       # set(swiftrtObject "$<TARGET_OBJECTS:swiftImageRegistrationObject${SWIFT_SDK_${sdk}_OBJECT_FORMAT}-${arch_suffix}>")
+-      set(swiftrtObject ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/swiftImageRegistrationObject${SWIFT_SDK_${sdk}_OBJECT_FORMAT}-${arch_suffix}.dir/SwiftRT-${SWIFT_SDK_${sdk}_OBJECT_FORMAT}.cpp${CMAKE_C_OUTPUT_EXTENSION})
++      set(swiftrtSourceName SwiftRT-${SWIFT_SDK_${sdk}_OBJECT_FORMAT}.cpp)
++      if("${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "ELF" OR
++         "${SWIFT_SDK_${sdk}_OBJECT_FORMAT}" STREQUAL "WASM")
++       set(swiftrtSourceName SwiftRT-ELF-WASM.cpp)
++      endif()
++      set(swiftrtObject ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/swiftImageRegistrationObject${SWIFT_SDK_${sdk}_OBJECT_FORMAT}-${arch_suffix}.dir/${swiftrtSourceName}${CMAKE_C_OUTPUT_EXTENSION})
+ 
+       if(sdk STREQUAL WINDOWS)
+         set(extension .obj)
+diff --git a/stdlib/public/runtime/SwiftRT-ELF.cpp b/stdlib/public/runtime/SwiftRT-ELF-WASM.cpp
+similarity index 82%
+rename from stdlib/public/runtime/SwiftRT-ELF.cpp
+rename to stdlib/public/runtime/SwiftRT-ELF-WASM.cpp
+index 1b9bf3b9aa7..e68103a6a67 100644
+--- a/stdlib/public/runtime/SwiftRT-ELF.cpp
++++ b/stdlib/public/runtime/SwiftRT-ELF-WASM.cpp
+@@ -1,4 +1,4 @@
+-//===--- SwiftRT-ELF.cpp --------------------------------------------------===//
++//===--- SwiftRT-ELF-WASM.cpp ---------------------------------------------===//
+ //
+ // This source file is part of the Swift.org open source project
+ //
+@@ -16,14 +16,25 @@
+ #include <cstddef>
+ #include <new>
+ 
++#if defined(__ELF__)
+ extern "C" const char __dso_handle[];
++#elif defined(__wasm__)
++// NOTE: Multi images in a single process is not yet
++// stabilized in WebAssembly toolchain outside of Emscripten.
++static constexpr const void *__dso_handle = nullptr;
++#endif
+ 
+ // Create empty sections to ensure that the start/stop symbols are synthesized
+ // by the linker.  Otherwise, we may end up with undefined symbol references as
+ // the linker table section was never constructed.
++#if defined(__ELF__)
++# define DECLARE_EMPTY_METADATA_SECTION(name) __asm__("\t.section " #name ",\"a\"\n");
++#elif defined(__wasm__)
++# define DECLARE_EMPTY_METADATA_SECTION(name) __asm__("\t.section " #name ",\"\",@\n");
++#endif
+ 
+ #define DECLARE_SWIFT_SECTION(name)                                                          \
+-  __asm__("\t.section " #name ",\"a\"\n");                                                   \
++  DECLARE_EMPTY_METADATA_SECTION(name)                                                                \
+   __attribute__((__visibility__("hidden"),__aligned__(1))) extern const char __start_##name; \
+   __attribute__((__visibility__("hidden"),__aligned__(1))) extern const char __stop_##name;
+ 
+-- 
+2.40.0
+

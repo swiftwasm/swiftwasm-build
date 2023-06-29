@@ -1,0 +1,42 @@
+From c5df873f206905fcbc487d51df1943f90e8015c3 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 07:31:23 +0000
+Subject: [PATCH] [wasm][stdlib] Enable wasi-libc emulations to build stdlib
+
+But I'm not sure all of them are actually needed.
+---
+ stdlib/cmake/modules/AddSwiftStdlib.cmake | 2 +-
+ stdlib/cmake/modules/SwiftSource.cmake    | 4 ++++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/stdlib/cmake/modules/AddSwiftStdlib.cmake b/stdlib/cmake/modules/AddSwiftStdlib.cmake
+index f5a77c4c81a..6ef66c77883 100644
+--- a/stdlib/cmake/modules/AddSwiftStdlib.cmake
++++ b/stdlib/cmake/modules/AddSwiftStdlib.cmake
+@@ -323,7 +323,7 @@ function(_add_target_variant_c_compile_flags)
+   endif()
+ 
+   if("${CFLAGS_SDK}" STREQUAL "WASI")
+-    list(APPEND result "-D_WASI_EMULATED_MMAN" "-D_WASI_EMULATED_PROCESS_CLOCKS")
++    list(APPEND result "-D_WASI_EMULATED_MMAN" "-D_WASI_EMULATED_SIGNAL" "-D_WASI_EMULATED_PROCESS_CLOCKS")
+   endif()
+ 
+   if(NOT SWIFT_STDLIB_ENABLE_OBJC_INTEROP)
+diff --git a/stdlib/cmake/modules/SwiftSource.cmake b/stdlib/cmake/modules/SwiftSource.cmake
+index ac39a16dd67..9e7bd299e5b 100644
+--- a/stdlib/cmake/modules/SwiftSource.cmake
++++ b/stdlib/cmake/modules/SwiftSource.cmake
+@@ -244,6 +244,10 @@ function(_add_target_variant_swift_compile_flags
+         "-target" "${SWIFT_SDK_${sdk}_ARCH_${arch}_TRIPLE}")
+   endif()
+ 
++  if("${sdk}" STREQUAL "WASI")
++    list(APPEND result "-Xcc" "-D_WASI_EMULATED_MMAN" "-Xcc" "-D_WASI_EMULATED_SIGNAL" "-Xcc" "-D_WASI_EMULATED_PROCESS_CLOCKS")
++  endif()
++
+   if(NOT BUILD_STANDALONE)
+     list(APPEND result "-resource-dir" "${SWIFTLIB_DIR}")
+   endif()
+-- 
+2.40.0
+
