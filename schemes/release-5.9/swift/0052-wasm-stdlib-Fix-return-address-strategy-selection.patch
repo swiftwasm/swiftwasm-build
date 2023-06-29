@@ -1,0 +1,37 @@
+From 3198412db00b03e9131dcf3cbdfbe889a8665fd7 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sat, 10 Jun 2023 10:00:19 +0000
+Subject: [PATCH] [wasm][stdlib] Fix return-address strategy selection
+
+__GNUC__ can be defined on Wasm targets as well, so we need to check
+__wasm__ first.
+---
+ stdlib/public/runtime/Exclusivity.cpp | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/stdlib/public/runtime/Exclusivity.cpp b/stdlib/public/runtime/Exclusivity.cpp
+index e0cb4902c49..39a14d73298 100644
+--- a/stdlib/public/runtime/Exclusivity.cpp
++++ b/stdlib/public/runtime/Exclusivity.cpp
+@@ -37,14 +37,14 @@
+ #include <memory>
+ 
+ // Pick a return-address strategy
+-#if __GNUC__
++#if defined(__wasm__)
++// Wasm can't access call frame for security purposes
++#define get_return_address() ((void*) 0)
++#elif __GNUC__
+ #define get_return_address() __builtin_return_address(0)
+ #elif _MSC_VER
+ #include <intrin.h>
+ #define get_return_address() _ReturnAddress()
+-#elif defined(__wasm__)
+-// Wasm can't access call frame for security purposes
+-#define get_return_address() ((void*) 0)
+ #else
+ #error missing implementation for get_return_address
+ #define get_return_address() ((void*) 0)
+-- 
+2.40.0
+

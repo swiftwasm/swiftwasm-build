@@ -1,0 +1,83 @@
+From c994500d825bafa5fb5ccb3437980aeb4dd93e49 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 7 Jun 2023 16:24:46 +0000
+Subject: [PATCH] [Driver] Use WebAssembly toolchain for WASI target
+
+The toolchain was introduced in 710816d3e0ad55b98fac698072f5e1b5f55237d8
+but was not used. Test cases now use fake resource dir to lookup
+static-executable-args.lnk file, which is required by the toolchain but
+is not present when not building stdlib for WASI.
+---
+ lib/Driver/Driver.cpp                                         | 2 +-
+ .../lib/swift_static/wasi/static-executable-args.lnk          | 0
+ test/Driver/profiling.swift                                   | 4 ++--
+ test/Driver/sdk.swift                                         | 2 +-
+ test/Driver/wasm.swift                                        | 4 ++--
+ 5 files changed, 6 insertions(+), 6 deletions(-)
+ create mode 100644 test/Driver/Inputs/fake-resource-dir/lib/swift_static/wasi/static-executable-args.lnk
+
+diff --git a/lib/Driver/Driver.cpp b/lib/Driver/Driver.cpp
+index 0ebdffe28fb..32867832d38 100644
+--- a/lib/Driver/Driver.cpp
++++ b/lib/Driver/Driver.cpp
+@@ -375,7 +375,7 @@ Driver::buildToolChain(const llvm::opt::InputArgList &ArgList) {
+   case llvm::Triple::Haiku:
+     return std::make_unique<toolchains::GenericUnix>(*this, target);
+   case llvm::Triple::WASI:
+-    return std::make_unique<toolchains::GenericUnix>(*this, target);
++    return std::make_unique<toolchains::WebAssembly>(*this, target);
+   case llvm::Triple::UnknownOS:
+     return std::make_unique<toolchains::GenericUnix>(*this, target);
+   default:
+diff --git a/test/Driver/Inputs/fake-resource-dir/lib/swift_static/wasi/static-executable-args.lnk b/test/Driver/Inputs/fake-resource-dir/lib/swift_static/wasi/static-executable-args.lnk
+new file mode 100644
+index 00000000000..e69de29bb2d
+diff --git a/test/Driver/profiling.swift b/test/Driver/profiling.swift
+index f96cea46e33..45a9f84d12b 100644
+--- a/test/Driver/profiling.swift
++++ b/test/Driver/profiling.swift
+@@ -20,7 +20,7 @@
+ // RUN: %swiftc_driver -sdk "" -driver-print-jobs -profile-generate -target x86_64-unknown-linux-gnu %s | %FileCheck -check-prefix=CHECK -check-prefix=LINUX %s
+ // RUN: %swiftc_driver -sdk "" -driver-print-jobs -profile-generate -target x86_64-unknown-windows-msvc %s | %FileCheck -check-prefix=CHECK -check-prefix=WINDOWS %s
+ 
+-// RUN: %swiftc_driver -sdk "" -driver-print-jobs -profile-generate -target wasm32-unknown-wasi %s | %FileCheck -check-prefix CHECK -check-prefix WASI %s
++// RUN: %swiftc_driver -sdk "" -driver-print-jobs -profile-generate -target wasm32-unknown-wasi -resource-dir %S/Inputs/fake-resource-dir/lib/swift_static %s | %FileCheck -check-prefix CHECK -check-prefix WASI %s
+ 
+ // CHECK: swift
+ // CHECK: -profile-generate
+@@ -55,7 +55,7 @@
+ // WINDOWS: -lclang_rt.profile
+ 
+ // WASI: clang{{(\.exe)?"? }}
+-// WASI: lib{{(\\\\|/)}}swift{{(\\\\|/)}}clang{{(\\\\|/)}}lib{{(\\\\|/)}}wasi{{(\\\\|/)}}libclang_rt.profile-wasm32.a
++// WASI: lib{{(\\\\|/)}}{{swift|swift_static}}{{(\\\\|/)}}clang{{(\\\\|/)}}lib{{(\\\\|/)}}wasi{{(\\\\|/)}}libclang_rt.profile-wasm32.a
+ // WASI: -u__llvm_profile_runtime
+ 
+ // RUN: not %swiftc_driver -sdk "" -driver-print-jobs -profile-generate -profile-use=/dev/null %s 2>&1 | %FileCheck -check-prefix=MIX_GEN_USE %s
+diff --git a/test/Driver/sdk.swift b/test/Driver/sdk.swift
+index 98cc05c5516..8aba6e15f51 100644
+--- a/test/Driver/sdk.swift
++++ b/test/Driver/sdk.swift
+@@ -2,7 +2,7 @@
+ // RUN: %swiftc_driver -driver-print-jobs -target x86_64-unknown-linux-gnu    -g -sdk %S/../Inputs/clang-importer-sdk %s 2>&1 | %FileCheck %s --check-prefix LINUX
+ // RUN: %swiftc_driver -driver-print-jobs -target x86_64-unknown-freebsd      -g -sdk %S/../Inputs/clang-importer-sdk %s 2>&1 | %FileCheck %s --check-prefix FREEBSD
+ // RUN: %swiftc_driver -driver-print-jobs -target x86_64-unknown-windows-msvc -g -sdk %S/../Inputs/clang-importer-sdk %s 2>&1 | %FileCheck %s --check-prefix WINDOWS
+-// RUN: %swiftc_driver -driver-print-jobs -target wasm32-unknown-wasi         -g -sdk %S/../Inputs/clang-importer-sdk %s 2>&1 | %FileCheck %s --check-prefix WASI
++// RUN: %swiftc_driver -driver-print-jobs -target wasm32-unknown-wasi         -g -sdk %S/../Inputs/clang-importer-sdk -resource-dir %S/Inputs/fake-resource-dir/lib/swift_static %s 2>&1 | %FileCheck %s --check-prefix WASI
+ 
+ // RUN: env SDKROOT=%S/../Inputs/clang-importer-sdk %swiftc_driver_plain -target x86_64-apple-macosx10.9  -g -driver-print-jobs %s 2>&1 | %FileCheck %s --check-prefix OSX
+ // RUN: env SDKROOT=%S/../Inputs/clang-importer-sdk %swiftc_driver_plain -target x86_64-unknown-linux-gnu -g -driver-print-jobs %s 2>&1 | %FileCheck %s --check-prefix LINUX
+diff --git a/test/Driver/wasm.swift b/test/Driver/wasm.swift
+index 80de3cea5c6..04588954e85 100644
+--- a/test/Driver/wasm.swift
++++ b/test/Driver/wasm.swift
+@@ -1,4 +1,4 @@
+-// RUN: %swiftc_driver -driver-print-jobs -target wasm32-unknown-wasi -v %s 2>&1 | %FileCheck %s -check-prefix=CHECK-WASM
++// RUN: %swiftc_driver -driver-print-jobs -target wasm32-unknown-wasi -resource-dir %S/Inputs/fake-resource-dir/lib/swift_static -v %s 2>&1 | %FileCheck %s -check-prefix=CHECK-WASM
+ 
+ // CHECK-WASM: swift{{.*}} -frontend -c -primary-file {{.*}} -target wasm32-unknown-wasi -disable-objc-interop
+-// CHECK-WASM: clang{{.*}} -lswiftCore --target=wasm32-unknown-wasi -v {{.*}}-o
++// CHECK-WASM: clang{{.*}} -target wasm32-unknown-wasi {{.*}}static-executable-args.lnk{{.*}}-v {{.*}}-o
+-- 
+2.40.0
+
