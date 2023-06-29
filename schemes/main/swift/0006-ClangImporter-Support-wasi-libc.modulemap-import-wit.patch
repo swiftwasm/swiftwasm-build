@@ -1,30 +1,31 @@
-From a3ad76d8f0cc71efc0f86eaf945b805a806c6695 Mon Sep 17 00:00:00 2001
+From 297fcf0681be59ebd53867ce073cdac4475cfe09 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 10 Jun 2023 14:51:49 +0000
 Subject: [PATCH] [ClangImporter] Support wasi-libc.modulemap import with VFS
 
 ---
- lib/ClangImporter/ClangIncludePaths.cpp | 40 ++++++++++++++++++-------
- 1 file changed, 30 insertions(+), 10 deletions(-)
+ lib/ClangImporter/ClangIncludePaths.cpp | 41 +++++++++++++++++++------
+ 1 file changed, 31 insertions(+), 10 deletions(-)
 
 diff --git a/lib/ClangImporter/ClangIncludePaths.cpp b/lib/ClangImporter/ClangIncludePaths.cpp
-index 59afe4fbb33..bafcd3bc215 100644
+index 0dd1f446757..5d321d432c1 100644
 --- a/lib/ClangImporter/ClangIncludePaths.cpp
 +++ b/lib/ClangImporter/ClangIncludePaths.cpp
-@@ -91,6 +91,12 @@ static Optional<Path> getGlibcModuleMapPath(
-   return getActualModuleMapPath("glibc.modulemap", Opts, triple, vfs);
+@@ -101,6 +101,13 @@ static Optional<Path> getGlibcModuleMapPath(
+                                 /*isArchSpecific*/ true, vfs);
  }
  
 +static Optional<Path> getWASILibcModuleMapPath(
 +    SearchPathOptions &Opts, const llvm::Triple &triple,
 +    const llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> &vfs) {
-+  return getActualModuleMapPath("wasi-libc.modulemap", Opts, triple, vfs);
++  return getActualModuleMapPath("wasi-libc.modulemap", Opts, triple,
++                                /*isArchSpecific*/ true, vfs);
 +}
 +
  static Optional<Path> getLibStdCxxModuleMapPath(
      SearchPathOptions &opts, const llvm::Triple &triple,
      const llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> &vfs) {
-@@ -183,11 +189,32 @@ static bool shouldInjectGlibcModulemap(const llvm::Triple &triple) {
+@@ -195,11 +202,32 @@ static bool shouldInjectGlibcModulemap(const llvm::Triple &triple) {
           triple.isAndroid();
  }
  
@@ -58,7 +59,7 @@ index 59afe4fbb33..bafcd3bc215 100644
      return {};
  
    // Extract the Glibc path from Clang driver.
-@@ -213,24 +240,17 @@ static SmallVector<std::pair<std::string, std::string>, 2> getGlibcFileMapping(
+@@ -225,24 +253,17 @@ static SmallVector<std::pair<std::string, std::string>, 2> getGlibcFileMapping(
      return {};
    }
  
