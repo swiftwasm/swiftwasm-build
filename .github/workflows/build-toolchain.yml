@@ -155,7 +155,7 @@ jobs:
         if: ${{ steps.build-cache.outputs.cache-hit }}
 
       - run: ./swiftwasm-build/tools/build/install-build-sdk.sh ${{ matrix.scheme }}
-      - run: ./swiftwasm-build/tools/git-swift-workspace --skip-history --scheme ${{ matrix.scheme }}
+      - run: ./swiftwasm-build/tools/git-swift-workspace --skip-history --verbose --scheme ${{ matrix.scheme }}
 
       - name: Install Homebrew dependencies
         if: ${{ startsWith(matrix.build_os, 'macos-') }}
