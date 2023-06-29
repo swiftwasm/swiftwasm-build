@@ -89,5 +89,5 @@ After editing the source code, you need to rebuild the toolchain, and if you are
 The above build command does not run tests. If you want to run tests, run the following command:
 
 ```
-ninja -C ../target-build/swift-stdlib-wasi-wasm32 check-swift-wasi-wasm32-custom
+ninja -C ../build/WebAssembly/swift-stdlib-wasi-wasm32 check-swift-wasi-wasm32-custom
 ```
