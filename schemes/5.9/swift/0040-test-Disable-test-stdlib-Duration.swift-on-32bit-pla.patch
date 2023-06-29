@@ -21,7 +21,7 @@ index def1633b2e5..fb51dc3710e 100644
 +
  import StdlibUnittest
  
- var suite = TestSuite("StringIndexTests")
+ var suite = TestSuite("DurationTests")
 -- 
 2.40.0
 
