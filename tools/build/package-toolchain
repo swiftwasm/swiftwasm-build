@@ -110,9 +110,9 @@ class ArchiveTarballAction(Action):
         self.snapshot_info = snapshot_info
 
     def run(self):
-        print("=====> Creating tarball")
-
         tarball_path = os.path.join("..", self.snapshot_info.tarball_name)
+        print(f"=====> Creating tarball at {tarball_path}")
+
         dist_toolchain_dir = os.path.join("..", "build", "Packaging", "dist-toolchain")
         self.system("tar", "-C",  dist_toolchain_dir, "-czf", tarball_path, self.snapshot_info.toolchain_name)
 
