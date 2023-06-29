@@ -1,4 +1,5 @@
 {
+  "update-checkout-scheme": "release/5.9",
   "base-tag": "swift-5.9-DEVELOPMENT-SNAPSHOT-2023-06-17-a",
   "repos": {
     "swift-corelibs-foundation": "660624d0220c0efbef054f4919f9f01fd3866be1",
