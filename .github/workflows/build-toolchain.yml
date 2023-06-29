@@ -116,8 +116,8 @@ jobs:
             mkdir -p "$HOME"
             echo "HOME=$HOME" >> $GITHUB_ENV
           fi
-          git config --global user.name "SwiftWasm Buildbot"
-          git config --global user.email "hello@swiftwasm.org"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Prepare sccache timestamp
         id: cache_key
