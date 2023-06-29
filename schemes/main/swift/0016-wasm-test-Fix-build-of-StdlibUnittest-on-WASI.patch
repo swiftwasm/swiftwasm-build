@@ -1,4 +1,4 @@
-From 4d83bfcd0f66f92911be7d29ab4a61dac84f7ff6 Mon Sep 17 00:00:00 2001
+From 3e60ec015a53923fe52bb8b33349336608c8c777 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:53:38 +0000
 Subject: [PATCH] [wasm][test] Fix build of StdlibUnittest on WASI
@@ -8,16 +8,30 @@ threads/processes. So this patch disables interception support and
 subprocess spawning. The later patch will disable crash tests in each
 test case.
 ---
- .../private/StdlibUnittest/InterceptTraps.cpp |  6 +++---
- stdlib/private/StdlibUnittest/RaceTest.swift  |  2 ++
- .../StdlibUnittest/StdlibUnittest.swift       | 20 +++++++++++++++++--
- 3 files changed, 23 insertions(+), 5 deletions(-)
+ stdlib/private/StdlibUnittest/InterceptTraps.cpp   | 12 ++----------
+ stdlib/private/StdlibUnittest/RaceTest.swift       |  2 ++
+ stdlib/private/StdlibUnittest/StdlibUnittest.swift | 14 ++++++++++++--
+ 3 files changed, 16 insertions(+), 12 deletions(-)
 
 diff --git a/stdlib/private/StdlibUnittest/InterceptTraps.cpp b/stdlib/private/StdlibUnittest/InterceptTraps.cpp
-index 80c3fa59795..cf81e872556 100644
+index 80c3fa59795..363d37ea725 100644
 --- a/stdlib/private/StdlibUnittest/InterceptTraps.cpp
 +++ b/stdlib/private/StdlibUnittest/InterceptTraps.cpp
-@@ -50,8 +50,6 @@ static void CrashCatcher(int Sig) {
+@@ -10,12 +10,10 @@
+ //
+ //===----------------------------------------------------------------------===//
+ 
+-// No signals support on WASI yet, see https://github.com/WebAssembly/WASI/issues/166.
+-#if !defined(__wasi__)
+ #include <stdio.h>
+ #include <signal.h>
+ #include <string.h>
+-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
++#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__wasi__)
+ #include <unistd.h>
+ #endif
+ #if defined(_WIN32)
+@@ -50,8 +48,6 @@ static void CrashCatcher(int Sig) {
    _exit(0);
  }
  
@@ -26,17 +40,24 @@ index 80c3fa59795..cf81e872556 100644
  #if defined(_WIN32)
  static LONG WINAPI
  VectoredCrashHandler(PEXCEPTION_POINTERS ExceptionInfo) {
-@@ -92,6 +90,8 @@ void installTrapInterceptor() {
+@@ -74,9 +70,6 @@ void installTrapInterceptor() {
+   // Disable buffering on stdout so that everything is printed before crashing.
+   setbuf(stdout, 0);
+ 
+-// No signals support on WASI yet, see https://github.com/WebAssembly/WASI/issues/166.
+-#if !defined(__wasi__)
+-
+ #if defined(_WIN32)
+   _set_abort_behavior(0, _WRITE_ABORT_MSG);
+ #endif
+@@ -92,6 +85,5 @@ void installTrapInterceptor() {
    signal(SIGBUS,  CrashCatcher);
    signal(SIGSYS,  CrashCatcher);
  #endif
 -}
  
- #endif // !defined(__wasi__)
+-#endif // !defined(__wasi__)
 +}
-+
-+#endif // !defined(__wasi__)
-\ No newline at end of file
 diff --git a/stdlib/private/StdlibUnittest/RaceTest.swift b/stdlib/private/StdlibUnittest/RaceTest.swift
 index 008f17a5200..368f49d7000 100644
 --- a/stdlib/private/StdlibUnittest/RaceTest.swift
@@ -52,7 +73,7 @@ index 008f17a5200..368f49d7000 100644
  import Darwin
  #elseif canImport(Glibc)
 diff --git a/stdlib/private/StdlibUnittest/StdlibUnittest.swift b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
-index 9cb21b7d6d1..56aea542128 100644
+index 9cb21b7d6d1..cfbf74e819d 100644
 --- a/stdlib/private/StdlibUnittest/StdlibUnittest.swift
 +++ b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
 @@ -12,7 +12,9 @@
@@ -87,38 +108,7 @@ index 9cb21b7d6d1..56aea542128 100644
  extension String {
    /// Returns the lines in `self`.
    public var _lines : [String] {
-@@ -855,8 +865,10 @@ var _testSuiteNameToIndex: [String : Int] = [:]
- let _stdlibUnittestStreamPrefix = "__STDLIB_UNITTEST__"
- let _crashedPrefix = "CRASHED:"
- 
-+#if !os(WASI)
- @_silgen_name("installTrapInterceptor")
- func _installTrapInterceptor()
-+#endif
- 
- #if _runtime(_ObjC)
- @objc protocol _StdlibUnittestNSException {
-@@ -867,7 +879,9 @@ func _installTrapInterceptor()
- // Avoid serializing references to objc_setUncaughtExceptionHandler in SIL.
- @inline(never)
- func _childProcess() {
-+#if !os(WASI)
-   _installTrapInterceptor()
-+#endif
- 
- #if _runtime(_ObjC)
-   objc_setUncaughtExceptionHandler {
-@@ -923,7 +937,9 @@ func _childProcess() {
- @available(SwiftStdlib 5.1, *)
- @inline(never)
- func _childProcessAsync() async {
-+#if !os(WASI)
-   _installTrapInterceptor()
-+#endif
- 
- #if _runtime(_ObjC)
-   objc_setUncaughtExceptionHandler {
-@@ -1724,7 +1740,7 @@ public func runAllTests() {
+@@ -1724,7 +1734,7 @@ public func runAllTests() {
    if _isChildProcess {
      _childProcess()
    } else {
@@ -127,7 +117,7 @@ index 9cb21b7d6d1..56aea542128 100644
      var filter: String?
      var args = [String]()
      var i = 0
-@@ -1794,7 +1810,7 @@ public func runAllTestsAsync() async {
+@@ -1794,7 +1804,7 @@ public func runAllTestsAsync() async {
    if _isChildProcess {
      await _childProcessAsync()
    } else {
