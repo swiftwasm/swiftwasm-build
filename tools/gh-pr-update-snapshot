@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import json
+import subprocess
+import urllib.request
+
+def latest_build(swift_webroot):
+    latest_build_endpoint = f"{swift_webroot}/latest-build.yml"
+    with urllib.request.urlopen(latest_build_endpoint) as response:
+        yaml_content = response.read().decode('utf-8')
+        for line in yaml_content.splitlines():
+            if line.startswith("dir: "):
+                return line.split(" ")[1]
+    return None
+
+def open_pr_to_update_base_tag(scheme: str, base_tag: str, latest_tag: str):
+    subprocess.check_call(["git", "checkout", "-b", f"update-base-tag-{scheme}-{latest_tag}", "main"])
+    subprocess.check_call(["sed", "-i", f"s/{base_tag}/{latest_tag}/g", f"schemes/{scheme}/manifest.json"])
+    subprocess.check_call(["git", "add", f"schemes/{scheme}/manifest.json"])
+    subprocess.check_call(["git", "commit", "-m", f"Update base tag for {scheme} to {latest_tag}"])
+    subprocess.check_call(["git", "push", "origin", f"update-base-tag-{scheme}-{latest_tag}"])
+    subprocess.check_call(["gh", "pr", "create", "--title", f"Update base tag for {scheme} to {latest_tag}", "--body", f"Update base tag for {scheme} to {latest_tag}", "--base", "main", "--head", f"update-base-tag-{scheme}-{latest_tag}"])
+    subprocess.check_call(["git", "checkout", "-"])
+
+def check_latest_build(scheme: str):
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    scheme_manifest = os.path.join(repo_root, "schemes", scheme, "manifest.json")
+    with open(scheme_manifest) as f:
+        manifest = json.load(f)
+    swift_webroot = f"https://download.swift.org/{manifest['swift-org-download-channel']}/ubuntu2204"
+    base_tag = manifest["base-tag"]
+    latest_tag = latest_build(swift_webroot)
+    if base_tag != latest_tag:
+        open_pr_to_update_base_tag(scheme, base_tag, latest_tag)
+
+def main():
+    check_latest_build("main")
+
+if __name__ == '__main__':
+    main()
