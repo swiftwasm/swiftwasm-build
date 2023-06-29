@@ -1,4 +1,4 @@
-From c280b47c86434d33512b8c48c1868777971dbad2 Mon Sep 17 00:00:00 2001
+From 77f85831ce3025717f349cd5e28fd290e8bdf114 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:50:16 +0000
 Subject: [PATCH] [wasm][cmake] Add WASI specific stdlib dependencies
@@ -7,51 +7,25 @@ Currently WASI target doesn't support SwiftPrivateThreadExtras, so we
 need to remove it from the common dependencies. Also WASI target has its
 own libc module WASILibc, so we need to add it as well as other libc modules.
 ---
- stdlib/private/StdlibUnittest/CMakeLists.txt  | 27 ++++++++++---------
- stdlib/private/SwiftPrivate/CMakeLists.txt    |  1 +
- .../SwiftPrivateLibcExtras/CMakeLists.txt     |  1 +
- .../SwiftPrivateThreadExtras/CMakeLists.txt   |  1 +
- stdlib/public/Differentiation/CMakeLists.txt  |  1 +
- 5 files changed, 18 insertions(+), 13 deletions(-)
+ stdlib/private/StdlibUnittest/CMakeLists.txt           | 1 +
+ stdlib/private/SwiftPrivate/CMakeLists.txt             | 1 +
+ stdlib/private/SwiftPrivateLibcExtras/CMakeLists.txt   | 1 +
+ stdlib/private/SwiftPrivateThreadExtras/CMakeLists.txt | 1 +
+ stdlib/public/Differentiation/CMakeLists.txt           | 1 +
+ 5 files changed, 5 insertions(+)
 
 diff --git a/stdlib/private/StdlibUnittest/CMakeLists.txt b/stdlib/private/StdlibUnittest/CMakeLists.txt
-index a8a3f17b60b..714cca193cf 100644
+index a8a3f17b60b..574b4aeea36 100644
 --- a/stdlib/private/StdlibUnittest/CMakeLists.txt
 +++ b/stdlib/private/StdlibUnittest/CMakeLists.txt
-@@ -49,19 +49,20 @@ add_swift_target_library(swiftStdlibUnittest ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES}
-   TestHelpers.swift
-   TypeIndexed.swift
- 
--  SWIFT_MODULE_DEPENDS SwiftPrivate SwiftPrivateThreadExtras SwiftPrivateLibcExtras ${swift_stdlib_unittest_modules}
--  SWIFT_MODULE_DEPENDS_IOS Darwin
--  SWIFT_MODULE_DEPENDS_OSX Darwin
--  SWIFT_MODULE_DEPENDS_TVOS Darwin
--  SWIFT_MODULE_DEPENDS_WATCHOS Darwin
--  SWIFT_MODULE_DEPENDS_MACCATALYST Darwin
--  SWIFT_MODULE_DEPENDS_FREESTANDING "${SWIFT_FREESTANDING_TEST_DEPENDENCIES}"
--  SWIFT_MODULE_DEPENDS_LINUX Glibc
--  SWIFT_MODULE_DEPENDS_FREEBSD Glibc
--  SWIFT_MODULE_DEPENDS_OPENBSD Glibc
--  SWIFT_MODULE_DEPENDS_CYGWIN Glibc
--  SWIFT_MODULE_DEPENDS_HAIKU Glibc
--  SWIFT_MODULE_DEPENDS_WINDOWS CRT WinSDK
-+  SWIFT_MODULE_DEPENDS SwiftPrivate SwiftPrivateLibcExtras ${swift_stdlib_unittest_modules}
-+  SWIFT_MODULE_DEPENDS_IOS Darwin SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_OSX Darwin SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_TVOS Darwin SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_WATCHOS Darwin SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_MACCATALYST Darwin SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_FREESTANDING "${SWIFT_FREESTANDING_TEST_DEPENDENCIES}" SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_LINUX Glibc SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_FREEBSD Glibc SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_OPENBSD Glibc SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_CYGWIN Glibc SwiftPrivateThreadExtras
-+  SWIFT_MODULE_DEPENDS_HAIKU Glibc SwiftPrivateThreadExtras
+@@ -61,6 +61,7 @@ add_swift_target_library(swiftStdlibUnittest ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES}
+   SWIFT_MODULE_DEPENDS_OPENBSD Glibc
+   SWIFT_MODULE_DEPENDS_CYGWIN Glibc
+   SWIFT_MODULE_DEPENDS_HAIKU Glibc
 +  SWIFT_MODULE_DEPENDS_WASI WASILibc
-+  SWIFT_MODULE_DEPENDS_WINDOWS CRT WinSDK SwiftPrivateThreadExtras
+   SWIFT_MODULE_DEPENDS_WINDOWS CRT WinSDK
    C_COMPILE_FLAGS -I${SWIFT_SOURCE_DIR}/stdlib/include
    SWIFT_COMPILE_FLAGS ${swift_stdlib_unittest_compile_flags} ${SWIFT_STANDARD_LIBRARY_SWIFT_FLAGS}
-   INSTALL_IN_COMPONENT stdlib-experimental
 diff --git a/stdlib/private/SwiftPrivate/CMakeLists.txt b/stdlib/private/SwiftPrivate/CMakeLists.txt
 index a1fc412a156..f1e7d461d0e 100644
 --- a/stdlib/private/SwiftPrivate/CMakeLists.txt
