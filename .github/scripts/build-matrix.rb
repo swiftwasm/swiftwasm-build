@@ -99,11 +99,17 @@ def main
     end
   end
 
-  schemes = ["main", "5.9"]
+  schemes = ["main", "release-5.9"]
 
   matrix_entries = schemes.flat_map do |scheme|
+    if scheme == "main"
+      toolchain_channel = "DEVELOPMENT"
+    elsif scheme.start_with?("release-")
+      toolchain_channel = scheme.sub("release-", "")
+    else
+      raise "Unknown scheme: #{scheme}"
+    end
     matrix_entries.map do |entry|
-      toolchain_channel = scheme == "main" ? "DEVELOPMENT" : scheme
       entry.merge("scheme": scheme, toolchain_channel: toolchain_channel)
     end
   end
