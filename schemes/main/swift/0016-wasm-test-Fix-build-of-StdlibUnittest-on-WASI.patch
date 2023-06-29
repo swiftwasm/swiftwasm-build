@@ -1,4 +1,4 @@
-From 3e60ec015a53923fe52bb8b33349336608c8c777 Mon Sep 17 00:00:00 2001
+From 75f7971a35691d0e296818bd9951c146cf202335 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:53:38 +0000
 Subject: [PATCH] [wasm][test] Fix build of StdlibUnittest on WASI
@@ -9,9 +9,8 @@ subprocess spawning. The later patch will disable crash tests in each
 test case.
 ---
  stdlib/private/StdlibUnittest/InterceptTraps.cpp   | 12 ++----------
- stdlib/private/StdlibUnittest/RaceTest.swift       |  2 ++
- stdlib/private/StdlibUnittest/StdlibUnittest.swift | 14 ++++++++++++--
- 3 files changed, 16 insertions(+), 12 deletions(-)
+ stdlib/private/StdlibUnittest/StdlibUnittest.swift | 12 ++++++++++--
+ 2 files changed, 12 insertions(+), 12 deletions(-)
 
 diff --git a/stdlib/private/StdlibUnittest/InterceptTraps.cpp b/stdlib/private/StdlibUnittest/InterceptTraps.cpp
 index 80c3fa59795..363d37ea725 100644
@@ -58,35 +57,11 @@ index 80c3fa59795..363d37ea725 100644
  
 -#endif // !defined(__wasi__)
 +}
-diff --git a/stdlib/private/StdlibUnittest/RaceTest.swift b/stdlib/private/StdlibUnittest/RaceTest.swift
-index 008f17a5200..368f49d7000 100644
---- a/stdlib/private/StdlibUnittest/RaceTest.swift
-+++ b/stdlib/private/StdlibUnittest/RaceTest.swift
-@@ -38,7 +38,9 @@
- 
- import SwiftPrivate
- import SwiftPrivateLibcExtras
-+#if !os(WASI)
- import SwiftPrivateThreadExtras
-+#endif
- #if canImport(Darwin)
- import Darwin
- #elseif canImport(Glibc)
 diff --git a/stdlib/private/StdlibUnittest/StdlibUnittest.swift b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
-index 9cb21b7d6d1..cfbf74e819d 100644
+index 9cb21b7d6d1..71762d59988 100644
 --- a/stdlib/private/StdlibUnittest/StdlibUnittest.swift
 +++ b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
-@@ -12,7 +12,9 @@
- 
- 
- import SwiftPrivate
-+#if !os(WASI)
- import SwiftPrivateThreadExtras
-+#endif
- import SwiftPrivateLibcExtras
- 
- #if canImport(Darwin)
-@@ -22,6 +24,8 @@ import Foundation
+@@ -22,6 +22,8 @@ import Foundation
  import Darwin
  #elseif canImport(Glibc)
  import Glibc
@@ -95,7 +70,7 @@ index 9cb21b7d6d1..cfbf74e819d 100644
  #elseif os(Windows)
  import CRT
  import WinSDK
-@@ -35,6 +39,12 @@ import ObjectiveC
+@@ -35,6 +37,12 @@ import ObjectiveC
  import _Concurrency
  #endif
  
@@ -108,7 +83,7 @@ index 9cb21b7d6d1..cfbf74e819d 100644
  extension String {
    /// Returns the lines in `self`.
    public var _lines : [String] {
-@@ -1724,7 +1734,7 @@ public func runAllTests() {
+@@ -1724,7 +1732,7 @@ public func runAllTests() {
    if _isChildProcess {
      _childProcess()
    } else {
@@ -117,7 +92,7 @@ index 9cb21b7d6d1..cfbf74e819d 100644
      var filter: String?
      var args = [String]()
      var i = 0
-@@ -1794,7 +1804,7 @@ public func runAllTestsAsync() async {
+@@ -1794,7 +1802,7 @@ public func runAllTestsAsync() async {
    if _isChildProcess {
      await _childProcessAsync()
    } else {
