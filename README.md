@@ -25,3 +25,7 @@ See [SwiftWasm book](https://book.swiftwasm.org/contribution-guide/how-to-build-
 - `tools/git-swift-workspace` - A tool to check out the Swift repositories and apply patches.
 - `tools/git-swift-update-patch` - A tool to help daily patch maintenance.
 - `tools/build` - Scheme agnostic build scripts.
+
+## Contributing
+
+See [docs/upstreaming.md](docs/upstreaming.md) for more details.

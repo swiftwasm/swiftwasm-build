@@ -10,6 +10,10 @@ We had been maintaining a fork of [`apple/swift`](https://github.com/apple/swift
 
 Most of our patches are ready to be upstreamed, but some of them marked as `HACK` are not ready yet.
 
+## Getting started with Swift compiler development
+
+If you are new to Swift compiler development, please read [Getting Started with Swift Development](https://github.com/apple/swift/blob/main/docs/HowToGuides/GettingStarted.md)
+
 ## Upstreaming Process
 
 1. Check if the patch is already upstreamed or not. Some patches are already upstreamed but nightly snapshot tag can be not updated yet.
