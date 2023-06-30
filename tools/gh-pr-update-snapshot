@@ -26,8 +26,15 @@ def replace_file_content(path: str, target: str, replacement: str):
         file.write(filedata)
 
 
-def open_pr_to_update_base_tag(scheme: str, base_tag: str, latest_tag: str):
+def open_pr_to_update_base_tag(scheme: str, base_tag: str, latest_tag: str,
+                               interactive: bool):
     branch = f"update-base-tag/{scheme}-{latest_tag}"
+
+    status = subprocess.run(["git", "rev-parse", "--verify", branch], stdout=subprocess.DEVNULL)
+    if status.returncode == 0:
+        print(f"Branch {branch} already exists, skipping")
+        return
+
     subprocess.check_call(["git", "checkout", "-b", branch, "main"])
 
     replace_file_content(f"schemes/{scheme}/manifest.json",
@@ -49,17 +56,18 @@ def open_pr_to_update_base_tag(scheme: str, base_tag: str, latest_tag: str):
             "blob/main/tools/gh-pr-update-snapshot)")
 
     subprocess.check_call([
-        "gh", "pr", "create", "--web",
+        "gh", "pr", "create",
         "--title", f"Update base tag for {scheme} to {latest_tag}",
         "--body", body,
-        "--base", "main", "--head", branch])
+        "--base", "main", "--head", branch] + (
+            ["--web"] if interactive else []))
     subprocess.check_call(["git", "checkout", "-"])
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def check_latest_build(scheme: str):
+def check_latest_build(scheme: str, interactive: bool):
     scheme_manifest = os.path.join(
         REPO_ROOT, "schemes", scheme, "manifest.json")
     with open(scheme_manifest) as f:
@@ -70,12 +78,19 @@ def check_latest_build(scheme: str):
     base_tag = manifest["base-tag"]
     latest_tag = latest_build(swift_webroot)
     if base_tag != latest_tag:
-        open_pr_to_update_base_tag(scheme, base_tag, latest_tag)
+        open_pr_to_update_base_tag(scheme, base_tag, latest_tag, interactive)
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--no-interactive", action="store_true", default=False)
+
+    args = parser.parse_args()
+
     for scheme in os.listdir(os.path.join(REPO_ROOT, "schemes")):
-        check_latest_build(scheme)
+        check_latest_build(scheme, not args.no_interactive)
 
 
 if __name__ == '__main__':
