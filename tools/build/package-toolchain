@@ -122,7 +122,7 @@ def derive_toolchain_channel(scheme: str) -> str:
     if scheme == "main":
         return "DEVELOPMENT"
     elif scheme.startswith(release_scheme_prefix):
-        return scheme.removeprefix(release_scheme_prefix)
+        return scheme[len(release_scheme_prefix):]
     else:
         raise Exception(f"Unknown scheme {scheme} to derive toolchain_channel")
 
