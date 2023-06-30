@@ -116,9 +116,20 @@ class ArchiveTarballAction(Action):
         dist_toolchain_dir = os.path.join("..", "build", "Packaging", "dist-toolchain")
         self.system("tar", "-C",  dist_toolchain_dir, "-czf", tarball_path, self.snapshot_info.toolchain_name)
 
-def derive_snapshot_info(daily_snapshot) -> SnapshotInfo:
+
+def derive_toolchain_channel(scheme: str) -> str:
+    release_scheme_prefix = "release-"
+    if scheme == "main":
+        return "DEVELOPMENT"
+    elif scheme.startswith(release_scheme_prefix):
+        return scheme.removeprefix(release_scheme_prefix)
+    else:
+        raise Exception(f"Unknown scheme {scheme} to derive toolchain_channel")
+
+
+def derive_snapshot_info(daily_snapshot: bool, scheme: str) -> SnapshotInfo:
     import datetime
-    toolchain_channel = os.environ.get("TOOLCHAIN_CHANNEL", "DEVELOPMENT")
+    toolchain_channel = derive_toolchain_channel(scheme)
     now = datetime.datetime.utcnow()
     if daily_snapshot:
         toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{now.year}-{now.month}-{now.day}-a"
@@ -128,6 +139,7 @@ def derive_snapshot_info(daily_snapshot) -> SnapshotInfo:
     os_suffix = "macos" if platform_info.full_name == "osx" else platform_info.full_name
     tarball_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}.tar.gz"
     return SnapshotInfo(now.year, now.month, now.day, toolchain_name, tarball_name, daily_snapshot)
+
 
 def main():
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')

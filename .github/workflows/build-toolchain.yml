@@ -171,7 +171,6 @@ jobs:
             --cap-add=SYS_PTRACE \
             --security-opt seccomp=unconfined \
             -dit \
-            -e TOOLCHAIN_CHANNEL=${{ matrix.toolchain_channel }} \
             -w /home/build-user/ \
             -v ${{ github.workspace }}:/source \
             -v oss-swift-package:/home/build-user \
