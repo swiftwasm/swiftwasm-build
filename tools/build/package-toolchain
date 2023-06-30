@@ -132,7 +132,7 @@ def derive_snapshot_info(daily_snapshot: bool, scheme: str) -> SnapshotInfo:
     toolchain_channel = derive_toolchain_channel(scheme)
     now = datetime.datetime.utcnow()
     if daily_snapshot:
-        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{now.year}-{now.month}-{now.day}-a"
+        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{now.year:04d}-{now.month:02d}-{now.day:02d}-a"
     else:
         toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT"
     platform_info = PlatformInfo.derive()
