@@ -1,0 +1,79 @@
+From ca29c51c7aa5e73d8a841a2895083110c5680efa Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sun, 11 Jun 2023 12:12:52 +0000
+Subject: [PATCH] [Concurrency] Fix calling convention mismatch in AsyncStream
+
+Functions defined in AsyncStream.cpp are called from Swift with swiftcc
+but are defined with the C calling convention.
+---
+ stdlib/public/BackDeployConcurrency/AsyncStream.cpp | 5 +++++
+ stdlib/public/Concurrency/AsyncStream.cpp           | 5 +++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/stdlib/public/BackDeployConcurrency/AsyncStream.cpp b/stdlib/public/BackDeployConcurrency/AsyncStream.cpp
+index 389ebd3d738..57031e53d0e 100644
+--- a/stdlib/public/BackDeployConcurrency/AsyncStream.cpp
++++ b/stdlib/public/BackDeployConcurrency/AsyncStream.cpp
+@@ -12,10 +12,12 @@
+ 
+ #include <new>
+ 
++#include "swift/Runtime/Config.h"
+ #include "swift/Threading/Mutex.h"
+ 
+ namespace swift {
+ // return the size in words for the given mutex primitive
++SWIFT_CC(swift)
+ extern "C"
+ size_t _swift_async_stream_lock_size() {
+   size_t words = sizeof(Mutex) / sizeof(void *);
+@@ -23,11 +25,14 @@ size_t _swift_async_stream_lock_size() {
+   return words;
+ }
+ 
++SWIFT_CC(swift)
+ extern "C" void _swift_async_stream_lock_init(Mutex &lock) {
+   new (&lock) Mutex();
+ }
+ 
++SWIFT_CC(swift)
+ extern "C" void _swift_async_stream_lock_lock(Mutex &lock) { lock.lock(); }
+ 
++SWIFT_CC(swift)
+ extern "C" void _swift_async_stream_lock_unlock(Mutex &lock) { lock.unlock(); }
+ }
+diff --git a/stdlib/public/Concurrency/AsyncStream.cpp b/stdlib/public/Concurrency/AsyncStream.cpp
+index 389ebd3d738..57031e53d0e 100644
+--- a/stdlib/public/Concurrency/AsyncStream.cpp
++++ b/stdlib/public/Concurrency/AsyncStream.cpp
+@@ -12,10 +12,12 @@
+ 
+ #include <new>
+ 
++#include "swift/Runtime/Config.h"
+ #include "swift/Threading/Mutex.h"
+ 
+ namespace swift {
+ // return the size in words for the given mutex primitive
++SWIFT_CC(swift)
+ extern "C"
+ size_t _swift_async_stream_lock_size() {
+   size_t words = sizeof(Mutex) / sizeof(void *);
+@@ -23,11 +25,14 @@ size_t _swift_async_stream_lock_size() {
+   return words;
+ }
+ 
++SWIFT_CC(swift)
+ extern "C" void _swift_async_stream_lock_init(Mutex &lock) {
+   new (&lock) Mutex();
+ }
+ 
++SWIFT_CC(swift)
+ extern "C" void _swift_async_stream_lock_lock(Mutex &lock) { lock.lock(); }
+ 
++SWIFT_CC(swift)
+ extern "C" void _swift_async_stream_lock_unlock(Mutex &lock) { lock.unlock(); }
+ }
+-- 
+2.40.0
+

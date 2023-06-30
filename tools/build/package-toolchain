@@ -110,18 +110,29 @@ class ArchiveTarballAction(Action):
         self.snapshot_info = snapshot_info
 
     def run(self):
-        print("=====> Creating tarball")
-
         tarball_path = os.path.join("..", self.snapshot_info.tarball_name)
+        print(f"=====> Creating tarball at {tarball_path}")
+
         dist_toolchain_dir = os.path.join("..", "build", "Packaging", "dist-toolchain")
         self.system("tar", "-C",  dist_toolchain_dir, "-czf", tarball_path, self.snapshot_info.toolchain_name)
 
-def derive_snapshot_info(daily_snapshot) -> SnapshotInfo:
+
+def derive_toolchain_channel(scheme: str) -> str:
+    release_scheme_prefix = "release-"
+    if scheme == "main":
+        return "DEVELOPMENT"
+    elif scheme.startswith(release_scheme_prefix):
+        return scheme[len(release_scheme_prefix):]
+    else:
+        raise Exception(f"Unknown scheme {scheme} to derive toolchain_channel")
+
+
+def derive_snapshot_info(daily_snapshot: bool, scheme: str) -> SnapshotInfo:
     import datetime
-    toolchain_channel = os.environ.get("TOOLCHAIN_CHANNEL", "DEVELOPMENT")
+    toolchain_channel = derive_toolchain_channel(scheme)
     now = datetime.datetime.utcnow()
     if daily_snapshot:
-        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{now.year}-{now.month}-{now.day}-a"
+        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{now.year:04d}-{now.month:02d}-{now.day:02d}-a"
     else:
         toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT"
     platform_info = PlatformInfo.derive()
@@ -129,11 +140,12 @@ def derive_snapshot_info(daily_snapshot) -> SnapshotInfo:
     tarball_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}.tar.gz"
     return SnapshotInfo(now.year, now.month, now.day, toolchain_name, tarball_name, daily_snapshot)
 
+
 def main():
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
     options = derive_options_from_args(sys.argv[1:], parser)
-    snapshot_info = derive_snapshot_info(options.daily_snapshot)
+    snapshot_info = derive_snapshot_info(options.daily_snapshot, options.scheme)
     actions = [DownloadBaseSnapshotAction(options), PackageAction(options, snapshot_info)]
     if os.uname().sysname == "Darwin":
         actions.append(DarwinInfoPlistAction(options, snapshot_info))

@@ -1,0 +1,36 @@
+From 50dc045f1f0fb9a1a041e1b49c443e86b7cf0aba Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 08:56:16 +0000
+Subject: [PATCH] [test][static-stdlib] Test with swift_static when building
+ only static stdlib
+
+This patch makes the test suite use `lib/swift_static` instead of
+`lib/swift` when building only static stdlib.
+---
+ test/CMakeLists.txt | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/test/CMakeLists.txt b/test/CMakeLists.txt
+index bf326c97a9b..7157254daef 100644
+--- a/test/CMakeLists.txt
++++ b/test/CMakeLists.txt
+@@ -150,8 +150,14 @@ if(NOT SWIFT_INCLUDE_TOOLS)
+       )
+   endif()
+   if(SWIFT_BUILD_STDLIB)
+-    list(APPEND SWIFT_LIT_ARGS
+-         "--param" "test_resource_dir=${SWIFTLIB_DIR}")
++    # if building only static stdlib, prefer static lib.
++    if(NOT SWIFT_BUILD_DYNAMIC_STDLIB AND SWIFT_BUILD_STATIC_STDLIB)
++      list(APPEND SWIFT_LIT_ARGS
++           "--param" "test_resource_dir=${SWIFTSTATICLIB_DIR}")
++    else()
++      list(APPEND SWIFT_LIT_ARGS
++           "--param" "test_resource_dir=${SWIFTLIB_DIR}")
++    endif()
+   endif()
+ endif()
+ 
+-- 
+2.40.0
+

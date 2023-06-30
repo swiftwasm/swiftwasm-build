@@ -1,0 +1,27 @@
+From 9e9b9ce24086942c2a13176a5e128b8b395724f5 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 26 May 2023 16:25:14 +0000
+Subject: [PATCH] [test] Disable test/stdlib/Duration.swift on 32bit platforms
+
+Because Int128 operations are not supported on 32bit platforms.
+---
+ test/stdlib/Duration.swift | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/test/stdlib/Duration.swift b/test/stdlib/Duration.swift
+index def1633b2e5..fb51dc3710e 100644
+--- a/test/stdlib/Duration.swift
++++ b/test/stdlib/Duration.swift
+@@ -1,6 +1,9 @@
+ // RUN: %target-run-simple-swift
+ // REQUIRES: executable_test
+ 
++// Int128 operations are not supported on 32bit platforms. See `dividingFullWidth` in IntegerTypes.swift.gyb
++// UNSUPPORTED: PTRSIZE=32
++
+ import StdlibUnittest
+ 
+ var suite = TestSuite("DurationTests")
+-- 
+2.40.0
+

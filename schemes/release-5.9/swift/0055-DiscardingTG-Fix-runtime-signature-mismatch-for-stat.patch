@@ -1,0 +1,31 @@
+From 0ceab44032bbca37f64347bf5c054d7a7a0449a0 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 30 May 2023 16:04:01 +0000
+Subject: [PATCH] [DiscardingTG] Fix runtime signature mismatch for statically
+ known -> Void closure
+
+Since https://github.com/apple/swift/pull/65613, DiscardingTG started to
+accept `() -> Void` instead of `() -> T`, but it also changed the number
+of arguments accepted by the closure from 3 to 2. So it should use
+`non_future_adapter` instead of `future_adapter` to avoid runtime signature
+mismatch.
+---
+ stdlib/public/Concurrency/Task.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/stdlib/public/Concurrency/Task.cpp b/stdlib/public/Concurrency/Task.cpp
+index 1d4d57d40b0..89250c81e82 100644
+--- a/stdlib/public/Concurrency/Task.cpp
++++ b/stdlib/public/Concurrency/Task.cpp
+@@ -832,7 +832,7 @@ static AsyncTaskAndContext swift_task_create_commonImpl(
+   //  the async context to get at the parameters.
+   //  See e.g. FutureAsyncContextPrefix.
+ 
+-  if (!futureResultType) {
++  if (!futureResultType || taskCreateFlags.isDiscardingTask()) {
+     auto asyncContextPrefix = reinterpret_cast<AsyncContextPrefix *>(
+         reinterpret_cast<char *>(allocation) + headerSize -
+         sizeof(AsyncContextPrefix));
+-- 
+2.40.0
+

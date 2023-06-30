@@ -38,8 +38,10 @@ class CloneAction(Action):
 
 class UpdateCheckoutAction(Action):
     def run(self):
-        print('=====> Updating checkout for scheme {} with tag {}'.format(self.options.scheme, self.options.tag))
-        args = ['../swift/utils/update-checkout', '--clone', '--scheme', self.options.scheme, '--tag', self.options.tag]
+        print('=====> Updating checkout for scheme {} with tag {}'.format(self.options.update_checkout_scheme, self.options.tag))
+        args = ['../swift/utils/update-checkout', '--clone',
+                '--scheme', self.options.update_checkout_scheme,
+                '--tag', self.options.tag]
         if self.options.skip_history:
             args += ['--skip-history']
         self.system(*args)
@@ -143,5 +145,8 @@ def derive_options_from_args(argv, parser: argparse.ArgumentParser):
             raise Exception('Missing --tag option and no default tag for scheme {}'.format(options.scheme))
 
     options.repos = manifest['repos'] or {}
+    options.update_checkout_scheme = options.scheme
+    if 'update-checkout-scheme' in manifest:
+        options.update_checkout_scheme = manifest['update-checkout-scheme']
     options.swift_org_download_channel = manifest['swift-org-download-channel']
     return options

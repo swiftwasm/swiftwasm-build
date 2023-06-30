@@ -1,0 +1,42 @@
+From e7e65c36bfc6e8f2092c9eff82fcd6434264b401 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 08:15:30 +0000
+Subject: [PATCH] [wasm][stdlib] Add static-stdlib-args.lnk generation for WASI
+
+But static-stdlib-args.lnk is actually not used by WebAssembly driver
+toolchain now because we don't support non-executable linking for now.
+---
+ stdlib/public/runtime/CMakeLists.txt | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/stdlib/public/runtime/CMakeLists.txt b/stdlib/public/runtime/CMakeLists.txt
+index 2207762573d..3d85e1071b3 100644
+--- a/stdlib/public/runtime/CMakeLists.txt
++++ b/stdlib/public/runtime/CMakeLists.txt
+@@ -296,6 +296,23 @@ ${concurrency_libs}
+                                  DESTINATION "lib/swift_static/${lowercase_sdk}"
+                                  COMPONENT stdlib)
+     elseif("${sdk}" STREQUAL "WASI")
++      set(linkfile "${lowercase_sdk}/static-stdlib-args.lnk")
++      file(WRITE "${SWIFTSTATICLIB_DIR}/${linkfile}" "
++-ldl
++-latomic
++-lswiftWasiPthread
++-lswiftCore
++-licuuc
++-licudata
++-lstdc++
++-lm
++-Xlinker --exclude-libs
++-Xlinker ALL")
++
++      swift_install_in_component(FILES "${SWIFTSTATICLIB_DIR}/${linkfile}"
++                                DESTINATION "lib/swift_static/${lowercase_sdk}"
++                                COMPONENT stdlib)
++
+       set(swift_icu_libs_wasi_list)
+       set(icu_modules UC I18N DATA)
+       foreach(module IN LISTS icu_modules)
+-- 
+2.40.0
+

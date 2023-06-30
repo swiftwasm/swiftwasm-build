@@ -1,0 +1,27 @@
+From 4dd3ed4497749cd1bf642349326b2cfedd502d8b Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sun, 11 Jun 2023 12:16:07 +0000
+Subject: [PATCH] [Concurrency] Fix signature mismatch of _startTaskOnMainActor
+
+The function is defined in Task.cpp with a void return type, but
+referenced in Task.swift with an pointer return type.
+---
+ stdlib/public/Concurrency/Task.swift | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/stdlib/public/Concurrency/Task.swift b/stdlib/public/Concurrency/Task.swift
+index 6988cbde736..33913b92794 100644
+--- a/stdlib/public/Concurrency/Task.swift
++++ b/stdlib/public/Concurrency/Task.swift
+@@ -933,7 +933,7 @@ extension UnsafeCurrentTask: Equatable {
+ func _getCurrentAsyncTask() -> Builtin.NativeObject?
+ 
+ @_silgen_name("swift_task_startOnMainActor")
+-fileprivate func _startTaskOnMainActor(_ task: Builtin.NativeObject) -> Builtin.NativeObject?
++fileprivate func _startTaskOnMainActor(_ task: Builtin.NativeObject)
+ 
+ @available(SwiftStdlib 5.1, *)
+ @_silgen_name("swift_task_getJobFlags")
+-- 
+2.40.0
+

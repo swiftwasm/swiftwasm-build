@@ -1,0 +1,26 @@
+From 8e18ba0e5648510b9591a7c429558a69cc39179a Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 08:55:22 +0000
+Subject: [PATCH] [wasm][test] Recognize WASI as a supported SDK in test build
+
+---
+ test/CMakeLists.txt | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/test/CMakeLists.txt b/test/CMakeLists.txt
+index cbbfdeffcbe..bf326c97a9b 100644
+--- a/test/CMakeLists.txt
++++ b/test/CMakeLists.txt
+@@ -109,7 +109,8 @@ function(get_test_dependencies SDK result_var_name)
+      ("${SDK}" STREQUAL "OPENBSD") OR
+      ("${SDK}" STREQUAL "ANDROID") OR
+      ("${SDK}" STREQUAL "WINDOWS") OR
+-     ("${SDK}" STREQUAL "HAIKU"))
++     ("${SDK}" STREQUAL "HAIKU") OR
++     ("${SDK}" STREQUAL "WASI"))
+     # No extra dependencies.
+   else()
+     message(FATAL_ERROR "Unknown SDK: ${SDK}")
+-- 
+2.40.0
+
