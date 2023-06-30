@@ -145,7 +145,7 @@ def main():
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
     options = derive_options_from_args(sys.argv[1:], parser)
-    snapshot_info = derive_snapshot_info(options.daily_snapshot)
+    snapshot_info = derive_snapshot_info(options.daily_snapshot, options.scheme)
     actions = [DownloadBaseSnapshotAction(options), PackageAction(options, snapshot_info)]
     if os.uname().sysname == "Darwin":
         actions.append(DarwinInfoPlistAction(options, snapshot_info))
