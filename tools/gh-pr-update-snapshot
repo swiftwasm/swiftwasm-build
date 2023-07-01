@@ -30,7 +30,8 @@ def open_pr_to_update_base_tag(scheme: str, base_tag: str, latest_tag: str,
                                interactive: bool):
     branch = f"update-base-tag/{scheme}-{latest_tag}"
 
-    status = subprocess.run(["git", "rev-parse", "--verify", branch], stdout=subprocess.DEVNULL)
+    status = subprocess.run(
+        ["git", "rev-parse", "--verify", branch], stdout=subprocess.DEVNULL)
     if status.returncode == 0:
         print(f"Branch {branch} already exists, skipping")
         return
