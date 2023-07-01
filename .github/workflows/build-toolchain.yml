@@ -166,8 +166,9 @@ jobs:
         if: ${{ matrix.container != null }}
         timeout-minutes: 300 # Exit before 6 hours limit to allow cache upload
         run: |
+          docker container rm --force swiftwasm-ci-buildbot
+          docker volume rm --force oss-swift-package
           docker volume create oss-swift-package
-          docker rm --force swiftwasm-ci-buildbot
           docker run --name swiftwasm-ci-buildbot \
             --security-opt=no-new-privileges \
             --cap-add=SYS_PTRACE \
