@@ -170,6 +170,12 @@ class GitHub:
                f"/repos/{self.repo}/actions/runs/{run_id}/artifacts")
         return self.json_request("GET", url)
 
+    def revision_at_run(self, run_id: str):
+        url = ("https://api.github.com"
+               f"/repos/{self.repo}/actions/runs/{run_id}")
+        response = self.json_request("GET", url)
+        return response["head_sha"]
+
     def get_release(self, tag_name: str):
         url = ("https://api.github.com"
                f"/repos/{self.repo}/releases/tags/{tag_name}")
@@ -395,10 +401,33 @@ class Distribution:
         return self.swift_github.create_prerelease(tag_name)
 
     def git_push_swift_source(self, options, tag_name):
-        CloneAction(options).run()
-        status = subprocess.run([
-            'git', '-C', '../swift',
-            'fetch', 'upstream', 'tag', options.tag, '--no-tags'], check=True)
+        build_repo = "https://github.com/swiftwasm/swiftwasm-build.git"
+        build_rev = self.github.revision_at_run(self.run_id)
+
+        def effect_run(args, **kwargs):
+            if options.dry_run:
+                print(" ".join(args))
+                return
+            return subprocess.run(args, **kwargs)
+
+        checkout_dir = os.path.join(self.distribution_dir, "checkout")
+        os.makedirs(checkout_dir, exist_ok=True)
+        build_repo_dir = os.path.join(checkout_dir, "swiftwasm-build")
+        if not os.path.exists(build_repo_dir):
+            subprocess.run(["git", "clone", build_repo,
+                           build_repo_dir], check=True)
+
+        subprocess.run(["git", "-C", build_repo_dir,
+                       "fetch", "origin"], check=True)
+        subprocess.run(["git", "-C", build_repo_dir,
+                       "checkout", build_rev], check=True)
+
+        # Checkout swift repository and apply patches at the build revision
+        git_swift_workspace = os.path.join(
+            build_repo_dir, "tools", "git-swift-workspace")
+        subprocess.run([git_swift_workspace, "--scheme",
+                       options.scheme], check=True)
+
         status = subprocess.run([
             'git', '-C', '../swift',
             'tag', '--list', '--contains', tag_name]).returncode
@@ -406,19 +435,16 @@ class Distribution:
             print(f"Tag {tag_name} already exists")
             return
 
-        subprocess.run(["git", "-C", "../swift", "checkout", options.tag],
-                       check=True)
-        ApplyPatchesAction(options).run()
-        subprocess.run(["git", "-C", "../swift", "tag", tag_name], check=True)
+        effect_run(["git", "-C", "../swift", "tag", tag_name], check=True)
         fork_repo = 'git@github.com:swiftwasm/swift.git'
         status = subprocess.run(['git', '-C', '../swift',
                                  'remote', 'get-url', 'swiftwasm']).returncode
         if status != 0:
-            subprocess.run(['git', '-C', '../swift', 'remote',
-                           'add', 'swiftwasm', fork_repo], check=True)
+            effect_run(['git', '-C', '../swift', 'remote',
+                        'add', 'swiftwasm', fork_repo], check=True)
 
-        subprocess.run(["git", "-C", "../swift",
-                        "push", "swiftwasm", tag_name], check=True)
+        effect_run(["git", "-C", "../swift",
+                    "push", "swiftwasm", tag_name], check=True)
 
     def upload_to_release(self, artifact_path, release):
         name = os.path.basename(artifact_path)
