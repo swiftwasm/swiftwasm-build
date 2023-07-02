@@ -266,13 +266,17 @@ class Distribution:
         release = None
         tag_name = options.override_name
         for artifact in self.toolchain_aritfacts():
+            platform_suffix, scheme = self.derive_platform_suffix(artifact)
+            if options.scheme != scheme:
+                # Skip unrelated artifact
+                continue
+
             artifact_path = self.download_and_unpack(artifact)
             if release is None:
                 if tag_name is None:
                     tag_name = self.guess_tag_name(artifact_path)
                 release = self.create_tag_and_prerelease(tag_name, options)
 
-            platform_suffix = self.derive_platform_suffix(artifact)
             package = self.package_artifact(
                 artifact_path, tag_name, platform_suffix)
             self.upload_to_release(package, release)
@@ -280,20 +284,26 @@ class Distribution:
     def guess_tag_name(self, path):
         return os.path.basename(path)
 
-    def derive_platform_suffix(self, artifact):
+    def derive_platform_suffix_and_scheme(self, artifact):
         """
         Returns platform suffix derived from the artifact name.
         e.g. macos_x86_64
         """
 
-        # artifact name: <platform-suffix>-installable
+        # latest artifact name: <platform-suffix>-<scheme>-installable
+        # legacy artifact name: <platform-suffix>-installable
         name: str = artifact["name"]
         artifact_suffix = "-installable"
         if not name.endswith(artifact_suffix):
             raise Exception((f"Unexpected artifact name {name}"
                              f", expected to have \"{artifact_suffix}\""
                              " suffix"))
-        return name.removesuffix(artifact_suffix)
+        components = name.split("-")
+        if len(components) == 3:
+            return [components[0], components[1]]
+        else:
+            # Assume legacy representation only used for the main scheme
+            return [components[0], "main"]
 
     def download_and_unpack(self, artifact):
         zip_tarball = self.download_artifact(artifact)
