@@ -60,10 +60,11 @@ class DarwinToolchainPackaging:
     def __init__(self, secrets: Secrets):
         self.secrets = secrets
 
-    def package(self, toolchain_dir: str, tag_name: str, pkg_path: str):
+    def package(self, toolchain_dir: str, tag_name: str, pkg_path: str,
+                swift_source_dir: str):
         self.update_info_plist(toolchain_dir)
         self.sign_darwin_toolchain(toolchain_dir)
-        self.create_installer(toolchain_dir, pkg_path, tag_name)
+        self.create_installer(toolchain_dir, pkg_path, tag_name, swift_source_dir)
 
     def update_info_plist(self, toolchain_dir: str):
         display_name = os.environ.get("DARWIN_TOOLCHAIN_DISPLAY_NAME")
@@ -103,7 +104,7 @@ class DarwinToolchainPackaging:
         subprocess.run(codesign_args + [toolchain_dir], check=True)
 
     def create_installer(self, toolchain_dir: str, pkg_path: str,
-                         tag_name: str):
+                         tag_name: str, swift_source_dir: str):
         toolchain_name = tag_name
         toolchain_installer_package = pkg_path
         toolchain_install_location = (
@@ -260,6 +261,8 @@ class Distribution:
             os.path.dirname(REPO_ROOT), "build", "Distribution")
         self.artifacts_dir = os.path.join(
             self.distribution_dir, "artifacts", self.run_id)
+        self.checkout_dir = os.path.join(
+            self.distribution_dir, "checkout")
 
     def run(self, options):
         release = None
@@ -341,8 +344,9 @@ class Distribution:
                 artifacts_path, f"{tag_name}-{platform_suffix}.pkg")
             if os.path.exists(pkg_path):
                 return pkg_path
+            swift_source_dir = os.path.join(self.checkout_dir, "swift")
             DarwinToolchainPackaging(self.secrets).package(
-                artifact_path, tag_name, pkg_path)
+                artifact_path, tag_name, pkg_path, swift_source_dir)
             return pkg_path
         else:
             tarball_path = os.path.join(
@@ -420,9 +424,8 @@ class Distribution:
                 return
             return subprocess.run(args, **kwargs)
 
-        checkout_dir = os.path.join(self.distribution_dir, "checkout")
-        os.makedirs(checkout_dir, exist_ok=True)
-        build_repo_dir = os.path.join(checkout_dir, "swiftwasm-build")
+        os.makedirs(self.checkout_dir, exist_ok=True)
+        build_repo_dir = os.path.join(self.checkout_dir, "swiftwasm-build")
         if not os.path.exists(build_repo_dir):
             subprocess.run(["git", "clone", build_repo,
                            build_repo_dir], check=True)
@@ -438,22 +441,23 @@ class Distribution:
         subprocess.run([git_swift_workspace, "--scheme",
                        options.scheme], check=True)
 
+        swift_repo_dir = os.path.join(self.checkout_dir, "swift")
         status = subprocess.run([
-            'git', '-C', '../swift',
+            'git', '-C', swift_repo_dir,
             'tag', '--list', '--contains', tag_name]).returncode
         if status == 0:
             print(f"Tag {tag_name} already exists")
             return
 
-        effect_run(["git", "-C", "../swift", "tag", tag_name], check=True)
+        effect_run(["git", "-C", swift_repo_dir, "tag", tag_name], check=True)
         fork_repo = 'git@github.com:swiftwasm/swift.git'
-        status = subprocess.run(['git', '-C', '../swift',
+        status = subprocess.run(['git', '-C', swift_repo_dir,
                                  'remote', 'get-url', 'swiftwasm']).returncode
         if status != 0:
-            effect_run(['git', '-C', '../swift', 'remote',
+            effect_run(['git', '-C', swift_repo_dir, 'remote',
                         'add', 'swiftwasm', fork_repo], check=True)
 
-        effect_run(["git", "-C", "../swift",
+        effect_run(["git", "-C", swift_repo_dir,
                     "push", "swiftwasm", tag_name], check=True)
 
     def upload_to_release(self, artifact_path, release):
