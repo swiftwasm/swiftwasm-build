@@ -403,15 +403,16 @@ class Distribution:
         return path
 
     def create_tag_and_prerelease(self, tag_name, options):
-        print(f"Creating tag for {tag_name}...")
-        self.git_push_swift_source(options, tag_name)
         try:
             # If release already exists, use it
             release = self.swift_github.get_release(tag_name)
             print(f"Use existing prerelease for {tag_name}...")
             return release
         except Exception:
-            print(f"Creating prerelease for {tag_name}...")
+            pass
+        print(f"Creating tag for {tag_name}...")
+        self.git_push_swift_source(options, tag_name)
+        print(f"Creating prerelease for {tag_name}...")
         return self.swift_github.create_prerelease(tag_name)
 
     def git_push_swift_source(self, options, tag_name):
@@ -442,6 +443,17 @@ class Distribution:
                        options.scheme], check=True)
 
         swift_repo_dir = os.path.join(self.checkout_dir, "swift")
+
+        fork_repo = 'git@github.com:swiftwasm/swift.git'
+        status = subprocess.run(['git', '-C', swift_repo_dir,
+                                 'remote', 'get-url', 'swiftwasm']).returncode
+        if status != 0:
+            effect_run(['git', '-C', swift_repo_dir, 'remote',
+                        'add', 'swiftwasm', fork_repo], check=True)
+
+        subprocess.run(['git', '-C', swift_repo_dir,
+                        'fetch', 'swiftwasm', 'tag', tag_name, '--no-tags'], check=True)
+
         status = subprocess.run([
             'git', '-C', swift_repo_dir,
             'tag', '--list', '--contains', tag_name]).returncode
@@ -450,13 +462,6 @@ class Distribution:
             return
 
         effect_run(["git", "-C", swift_repo_dir, "tag", tag_name], check=True)
-        fork_repo = 'git@github.com:swiftwasm/swift.git'
-        status = subprocess.run(['git', '-C', swift_repo_dir,
-                                 'remote', 'get-url', 'swiftwasm']).returncode
-        if status != 0:
-            effect_run(['git', '-C', swift_repo_dir, 'remote',
-                        'add', 'swiftwasm', fork_repo], check=True)
-
         effect_run(["git", "-C", swift_repo_dir,
                     "push", "swiftwasm", tag_name], check=True)
 
