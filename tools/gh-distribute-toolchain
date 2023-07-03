@@ -120,15 +120,14 @@ class DarwinToolchainPackaging:
             f"{toolchain_dir}/Info.plist"
         ]).decode("utf-8")
 
-        swift_source = "../swift"
         subprocess.run([
-            f"{swift_source}/utils/toolchain-installer", toolchain_dir,
+            f"{swift_source_dir}/utils/toolchain-installer", toolchain_dir,
             toolchain_bundle_identifier,
             self.secrets.DARWIN_TOOLCHAIN_INSTALLER_CERT,
             toolchain_installer_package,
             toolchain_install_location,
             toolchain_version,
-            f"{swift_source}/utils/darwin-installer-scripts"
+            f"{swift_source_dir}/utils/darwin-installer-scripts"
         ], check=True)
 
         subprocess.run([
