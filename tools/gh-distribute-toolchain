@@ -11,7 +11,6 @@ import subprocess
 import tarfile
 from dataclasses import dataclass
 from typing import Optional
-from build.build_support.actions import CloneAction, ApplyPatchesAction
 from build.build_support.actions import derive_options_from_args, REPO_ROOT
 
 
@@ -266,7 +265,8 @@ class Distribution:
         release = None
         tag_name = options.override_name
         for artifact in self.toolchain_aritfacts():
-            platform_suffix, scheme = self.derive_platform_suffix(artifact)
+            platform_suffix, scheme = self.derive_platform_suffix_and_scheme(
+                artifact)
             if options.scheme != scheme:
                 # Skip unrelated artifact
                 continue
@@ -493,7 +493,8 @@ def main():
     if run_id == "latest":
         run_id = gh.latest_success_run_id(
             workflow_name="build-toolchain.yml", branch="main")
-    Distribution(gh, swift_gh, options.run_id, secrets).run(options)
+        run_id = str(run_id)
+    Distribution(gh, swift_gh, run_id, secrets).run(options)
 
 
 if __name__ == '__main__':
