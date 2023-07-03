@@ -404,6 +404,8 @@ class Distribution:
         return path
 
     def create_tag_and_prerelease(self, tag_name, options):
+        print(f"Creating tag for {tag_name}...")
+        self.git_push_swift_source(options, tag_name)
         try:
             # If release already exists, use it
             release = self.swift_github.get_release(tag_name)
@@ -411,8 +413,6 @@ class Distribution:
             return release
         except Exception:
             pass
-        print(f"Creating tag for {tag_name}...")
-        self.git_push_swift_source(options, tag_name)
         print(f"Creating prerelease for {tag_name}...")
         return self.swift_github.create_prerelease(tag_name)
 
