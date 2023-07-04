@@ -13,4 +13,4 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - run: ./tools/gh-pr-update-snapshot --no-interactive
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SWIFTWASM_BOT_GITHUB_TOKEN }}
