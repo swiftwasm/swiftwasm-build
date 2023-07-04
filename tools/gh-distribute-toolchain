@@ -452,8 +452,9 @@ class Distribution:
             effect_run(['git', '-C', swift_repo_dir, 'remote',
                         'add', 'swiftwasm', fork_repo], check=True)
 
+        # Fetch the tag from the fork. This can fail if the tag doesn't exist
         subprocess.run(['git', '-C', swift_repo_dir,
-                        'fetch', 'swiftwasm', 'tag', tag_name, '--no-tags'], check=True)
+                        'fetch', 'swiftwasm', 'tag', tag_name, '--no-tags'])
 
         status = subprocess.run([
             'git', '-C', swift_repo_dir,
