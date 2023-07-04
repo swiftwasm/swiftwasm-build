@@ -1,0 +1,59 @@
+# Release workflow for the toolchain
+
+We are publishing two types of our toolchain binaries to [GitHub Releases](https://github.com/swiftwasm/swift/releases), one is nightly snapshot release, and the other one is officially versioned release.
+
+## Nightly snapshot release
+
+We are publishing nightly snapshot releases if we have any new changes in the toolchain. The release is usually triggered by [the CI workflow](https://github.com/swiftwasm/swift/blob/swiftwasm-distribution/.github/workflows/nightly-distribution.yml) every midnight in GMT.
+
+We can also trigger the release manually by running the following command:
+
+```bash
+$ gh workflow run manual-distribution.yml --repo swiftwasm/swift -f scheme=main -f run-id=latest
+```
+
+## Officially versioned release
+
+We usually publish a versioned release once the upstream officially releases a new version of Swift.
+
+> **Note**
+> The upstream usually releases a new version in March and September every year and cut a new release branch for the next version in March and November.
+
+The release process starts when the upstream cuts a new release branch and the first snapshot for the release branch is published.
+We are usually doing the following steps:
+
+1. Create a new release scheme in [swiftwasm-build's `./schemes` directory](https://github.com/swiftwasm/swiftwasm-build/tree/main/schemes) by copying the patches from `main` scheme at the moment.
+    ```console
+    $ cp -r schemes/main schemes/release-5.x
+    $ vim schemes/release-5.x/manifest.json # Update the fields for the new release
+    ```
+2. Update CI configuration to build the new release scheme:
+    - [`.github/workflows/scripts/build-matrix.rb`](https://github.com/swiftwasm/swiftwasm-build/blob/acc92ffba46e92cbcea5aaef2ca2042dee88c637/.github/scripts/build-matrix.rb#L102)
+    - [`.github/workflows/nightly-distribution.yml`](https://github.com/swiftwasm/swift/blob/0895044e2ba31ccd1aade8068088b1fd3137fffb/.github/workflows/nightly-distribution.yml#L8-L11)
+
+Once the upstream publishes their official release, we are doing the following steps:
+
+1. Quality assurance of our latest release candidate snapshot toolchain
+    1. Check core libraries and tools we are maintaining (e.g. [JavaScriptKit](https://github.com/swiftwasm/JavaScriptKit)) work properly with the toolchain
+    2. Collect feedback from the community by asking them to try a release candidate snapshot.
+2. Once we are ready to release, trigger GitHub Actions workflow by running the following command:
+
+    ```console
+    $ gh workflow run manual-distribution.yml -f scheme=5.9 -f run-id=<replace-run-id> -f toolchain_name=swift-wasm-5.9.0-RELEASE -f display_name="Swift for WebAssembly 5.9.0 Release $(date +'%Y-%m-%d')" -f display_name_short="Swift for WebAssembly 5.9.0 Release"
+    ```
+
+    Please replace `5.9` with the version number you are releasing and `replace-run-id` with the run ID of [the GitHub Actions workflow in `swiftwasm/swiftwasm-build`](https://github.com/swiftwasm/swiftwasm-build/actions/workflows/build-toolchain.yml)
+
+3. Once the workflow is finished, the release will be published to [GitHub Releases](https://github.com/swiftwasm/swift/releases)
+4. Release a new version of [JavaScriptKit](https://github.com/swiftwasm/JavaScriptKit)
+5. Release a new version of [carton](https://github.com/swiftwasm/carton)
+6. Push a new version of [switwasm-docker](https://github.com/swiftwasm/swiftwasm-docker)
+7. Push a new version of [swiftwasm-action](https://github.com/swiftwasm/swiftwasm-action)
+8. Update the setup guide in [book.swiftwasm.org](https://github.com/swiftwasm/swiftwasm-book/blob/main/src/getting-started/setup.md)
+9. Create an announcement blog post on [blog.swiftwasm.org](https://github.com/swiftwasm/blog.swiftwasm.org)
+
+
+### Past releases
+
+- https://github.com/swiftwasm/swift/issues/5362
+- https://github.com/swiftwasm/swift/issues/4903
