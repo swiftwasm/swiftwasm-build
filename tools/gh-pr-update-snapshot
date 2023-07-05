@@ -73,9 +73,13 @@ def check_latest_build(scheme: str, interactive: bool):
         REPO_ROOT, "schemes", scheme, "manifest.json")
     with open(scheme_manifest) as f:
         manifest = json.load(f)
+    channel = manifest['swift-org-download-channel']
+    if channel.endswith("-release"):
+        # Skip fixed release channels because they don't have latest-build.yml
+        return
+
     swift_webroot = (
-        "https://download.swift.org"
-        f"/{manifest['swift-org-download-channel']}/ubuntu2204")
+        f"https://download.swift.org/{channel}/ubuntu2204")
     base_tag = manifest["base-tag"]
     latest_tag = latest_build(swift_webroot)
     if base_tag != latest_tag:
