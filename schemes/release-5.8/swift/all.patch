@@ -1,14 +1,143 @@
-From 0dcbeaf4e894ae4bee683bf51fd3530837ea80d1 Mon Sep 17 00:00:00 2001
+From 47a703a2005c74bb22be8eb17e95331ddc4238f3 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:06:08 +0000
 Subject: [PATCH] [wasm] All SwiftWasm patches
 
 Co-authored-by: Max Desiatov <max@desiatov.com>
 Co-authored-by: Zhuowei Zhang <zhuoweizhang@yahoo.com>
-
 ---
- test/Concurrency/Runtime/cancellation_handler.swift | 2 ++
- 1 file changed, 2 insertions(+)
+ .github/FUNDING.yml                           |  12 +
+ .github/PULL_REQUEST_TEMPLATE.md              |  17 --
+ .github/pull.yml                              |  52 ++++
+ .github/scripts/build-matrix.rb               | 112 ++++++++
+ .github/workflows/build-toolchain.yml         | 256 +++++++++++++++++
+ .github/workflows/manual-distribution.yml     |  82 ++++++
+ .github/workflows/nightly-distribution.yml    |  64 +++++
+ CMakeLists.txt                                |   5 +
+ README.md                                     |  20 ++
+ cmake/caches/Runtime-WASI-wasm32.cmake        |   9 +
+ cmake/modules/AddSwift.cmake                  |   2 +
+ include/swift/IRGen/Linking.h                 |   9 +
+ include/swift/Runtime/HeapObject.h            |   3 +
+ lib/ClangImporter/ClangImporter.cpp           |  47 ++++
+ lib/ClangImporter/ImportType.cpp              |   2 +-
+ lib/ClangImporter/MappedTypes.def             |   1 +
+ lib/Driver/CMakeLists.txt                     |   1 +
+ lib/Driver/Driver.cpp                         |  14 +-
+ lib/Driver/ToolChains.cpp                     |  22 +-
+ lib/Driver/WebAssemblyToolChains.cpp          |   4 +
+ lib/DriverTool/autolink_extract_main.cpp      |  30 --
+ lib/IRGen/GenDecl.cpp                         |   9 +-
+ lib/IRGen/GenKeyPath.cpp                      |  10 +-
+ lib/IRGen/GenMeta.cpp                         |   2 +-
+ lib/IRGen/IRGen.cpp                           |   4 +-
+ lib/IRGen/IRGenFunction.cpp                   |   1 +
+ lib/IRGen/MetadataRequest.cpp                 |   6 +-
+ lib/SIL/Verifier/SILVerifier.cpp              |  10 +-
+ lib/SILGen/SILGenBuiltin.cpp                  |  29 +-
+ lib/SILGen/SILGenExpr.cpp                     |  39 ++-
+ .../SILCombiner/SILCombinerApplyVisitors.cpp  |  14 +
+ lib/SILOptimizer/Utils/KeyPathProjector.cpp   |  17 +-
+ stdlib/cmake/modules/AddSwiftStdlib.cmake     |   8 +-
+ stdlib/cmake/modules/SwiftSource.cmake        |   8 +
+ stdlib/private/CMakeLists.txt                 |   9 +-
+ stdlib/private/StdlibUnittest/CMakeLists.txt  |  25 +-
+ .../private/StdlibUnittest/InterceptTraps.cpp |   6 +-
+ stdlib/private/StdlibUnittest/RaceTest.swift  |   2 +
+ .../StdlibUnittest/StdlibUnittest.swift       |  20 +-
+ stdlib/private/SwiftPrivate/CMakeLists.txt    |   1 +
+ stdlib/private/SwiftPrivate/IO.swift          |  10 +-
+ .../SwiftPrivateLibcExtras/CMakeLists.txt     |   1 +
+ .../SwiftPrivateThreadExtras/CMakeLists.txt   |   1 +
+ .../SwiftPrivateThreadExtras.swift            |   2 +-
+ stdlib/public/CMakeLists.txt                  |   4 +
+ stdlib/public/Concurrency/AsyncStream.cpp     |   6 +-
+ stdlib/public/Concurrency/TaskGroup.cpp       |   4 +
+ stdlib/public/Differentiation/CMakeLists.txt  |   1 +
+ stdlib/public/Platform/CMakeLists.txt         |  85 ++++++
+ stdlib/public/Platform/SwiftWASILibc.h.gyb    | 112 ++++++++
+ stdlib/public/Platform/WASI.swift.gyb         |  98 +++++++
+ stdlib/public/Platform/wasi.modulemap.gyb     |  26 ++
+ .../SwiftShims/swift/shims/HeapObject.h       |   8 +
+ stdlib/public/WASI/CMakeLists.txt             |   4 +
+ stdlib/public/WASI/Pthread.cpp                | 153 +++++++++++
+ stdlib/public/runtime/CMakeLists.txt          | 124 ++++++++-
+ stdlib/public/runtime/Demangle.cpp            |   1 +
+ .../public/runtime/EnvironmentVariables.cpp   |   1 +
+ stdlib/public/runtime/Exclusivity.cpp         |   4 +-
+ stdlib/public/runtime/Heap.cpp                |   5 +-
+ stdlib/public/runtime/HeapObject.cpp          |   7 +
+ stdlib/public/runtime/Numeric.cpp             |   2 +
+ .../runtime/RuntimeInvocationsTracking.cpp    |  16 +-
+ .../runtime/RuntimeInvocationsTracking.h      |  18 +-
+ stdlib/public/runtime/SwiftRT-WASM.cpp        |  79 ++++++
+ stdlib/public/stubs/Random.cpp                |   1 +
+ .../BytecodeLayouts.cpp                       |  10 +-
+ .../BytecodeLayouts.h                         |   3 +
+ test/AutolinkExtract/empty.swift              |   1 +
+ test/AutolinkExtract/empty_archive.swift      |   1 +
+ test/AutolinkExtract/import.swift             |   3 +
+ test/AutolinkExtract/import_archive.swift     |   3 +
+ test/CMakeLists.txt                           |  13 +-
+ .../Runtime/checked_continuation.swift        |   4 +-
+ .../Runtime/continuation_validation.swift     |   1 +
+ test/DebugInfo/modulecache.swift              |   2 +-
+ test/Driver/profiling.swift                   |   1 +
+ test/lit.cfg                                  |  43 ++-
+ test/stdlib/Error.swift                       |   2 +
+ test/stdlib/FloatingPointIR.swift             |   3 +
+ test/stdlib/PrintStruct.swift                 |   5 +-
+ test/stdlib/StringAPI.swift                   |   2 +
+ test/stdlib/StringAPICString.swift            |  17 ++
+ test/stdlib/TemporaryAllocation.swift         |   4 +
+ test/stdlib/UnsafePointer.swift.gyb           |   2 +
+ test/stdlib/UnsafeRawPointer.swift            |   4 +
+ utils/build-script                            |   1 -
+ utils/build-script-impl                       |  21 +-
+ .../build_swift/driver_arguments.py           |   2 +-
+ utils/darwin-installer-scripts/postinstall    |   2 +-
+ .../host_specific_configuration.py            |   6 +
+ .../swift_build_support/products/llvm.py      |   7 +
+ .../swift_build_support/products/swift.py     |  16 +-
+ .../update-checkout-config.json               |  96 ++++++-
+ utils/webassembly/build-foundation.sh         |  33 +++
+ utils/webassembly/build-presets.ini           |  72 +++++
+ utils/webassembly/build-toolchain.sh          | 258 ++++++++++++++++++
+ utils/webassembly/build-xctest.sh             |  25 ++
+ utils/webassembly/ci.sh                       |  15 +
+ utils/webassembly/compiler-rt-cache.cmake     |  13 +
+ .../distribute-latest-toolchain.sh            | 235 ++++++++++++++++
+ utils/webassembly/install-build-sdk.sh        |  47 ++++
+ ...disable_part_modules_for_cxx_interop.patch |  75 +++++
+ utils/webassembly/static-executable-args.lnk  |  12 +
+ utils/webassembly/toolchain-wasi.cmake        |  26 ++
+ utils/webassembly/wasm-run.py                 |  54 ++++
+ 106 files changed, 2742 insertions(+), 155 deletions(-)
+ create mode 100644 .github/FUNDING.yml
+ delete mode 100644 .github/PULL_REQUEST_TEMPLATE.md
+ create mode 100644 .github/pull.yml
+ create mode 100644 .github/scripts/build-matrix.rb
+ create mode 100644 .github/workflows/build-toolchain.yml
+ create mode 100644 .github/workflows/manual-distribution.yml
+ create mode 100644 .github/workflows/nightly-distribution.yml
+ create mode 100644 stdlib/public/Platform/SwiftWASILibc.h.gyb
+ create mode 100644 stdlib/public/Platform/WASI.swift.gyb
+ create mode 100644 stdlib/public/Platform/wasi.modulemap.gyb
+ create mode 100644 stdlib/public/WASI/CMakeLists.txt
+ create mode 100644 stdlib/public/WASI/Pthread.cpp
+ create mode 100644 stdlib/public/runtime/SwiftRT-WASM.cpp
+ create mode 100755 utils/webassembly/build-foundation.sh
+ create mode 100644 utils/webassembly/build-presets.ini
+ create mode 100755 utils/webassembly/build-toolchain.sh
+ create mode 100755 utils/webassembly/build-xctest.sh
+ create mode 100755 utils/webassembly/ci.sh
+ create mode 100644 utils/webassembly/compiler-rt-cache.cmake
+ create mode 100755 utils/webassembly/distribute-latest-toolchain.sh
+ create mode 100755 utils/webassembly/install-build-sdk.sh
+ create mode 100644 utils/webassembly/patches/wasi-sysroot/disable_part_modules_for_cxx_interop.patch
+ create mode 100644 utils/webassembly/static-executable-args.lnk
+ create mode 100644 utils/webassembly/toolchain-wasi.cmake
+ create mode 100755 utils/webassembly/wasm-run.py
 
 diff --git a/.github/FUNDING.yml b/.github/FUNDING.yml
 new file mode 100644
@@ -648,7 +777,7 @@ index 00000000000..ea6744d3702
 +          DARWIN_TOOLCHAIN_NOTARIZE_PASSWORD: ${{ secrets.DARWIN_TOOLCHAIN_NOTARIZE_PASSWORD }}
 +          DARWIN_TOOLCHAIN_NOTARIZE_TEAM_ID: ${{ secrets.DARWIN_TOOLCHAIN_NOTARIZE_TEAM_ID }}
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index b6d35ff781d..f70ae3d0356 100644
+index 8f8b08c2335..26601e0171d 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -515,6 +515,11 @@ option(SWIFT_STDLIB_ENABLE_OBJC_INTEROP
@@ -989,7 +1118,7 @@ index 52c9a2cb06d..61a296b1e8d 100644
    // options.
    if (job.getKind() == LinkKind::Executable && context.OI.SelectedSanitizers) {
 diff --git a/lib/DriverTool/autolink_extract_main.cpp b/lib/DriverTool/autolink_extract_main.cpp
-index 1f2538e1ac6..4008341b026 100644
+index 3d6b7fdb8a2..3f6f78774fa 100644
 --- a/lib/DriverTool/autolink_extract_main.cpp
 +++ b/lib/DriverTool/autolink_extract_main.cpp
 @@ -153,36 +153,6 @@ extractLinkerFlagsFromObjectFile(const llvm::object::ObjectFile *ObjectFile,
@@ -1168,6 +1297,34 @@ index 74a126596ae..18f9ef8995f 100644
      stringAddr = subIGF.Builder.CreateIntToPtr(stringAddr, IGM.Int8PtrTy);
  
      llvm::CallInst *call;
+diff --git a/lib/SIL/Verifier/SILVerifier.cpp b/lib/SIL/Verifier/SILVerifier.cpp
+index 55fca29e8bc..29eec3a55bf 100644
+--- a/lib/SIL/Verifier/SILVerifier.cpp
++++ b/lib/SIL/Verifier/SILVerifier.cpp
+@@ -292,8 +292,9 @@ void verifyKeyPathComponent(SILModule &M,
+                 SILFunctionTypeRepresentation::Thin,
+               "getter should be a thin function");
+       
+-      require(substGetterType->getNumParameters() == 1 + hasIndices,
+-              "getter should have one parameter");
++      // FIXME(katei): Disabled for now. Will be replaced by keypath cc
++      // require(substGetterType->getNumParameters() == 1 + hasIndices,
++      //         "getter should have one parameter");
+       auto baseParam = substGetterType->getParameters()[0];
+       require(baseParam.getConvention() == normalArgConvention,
+               "getter base parameter should have normal arg convention");
+@@ -344,8 +345,9 @@ void verifyKeyPathComponent(SILModule &M,
+                 SILFunctionTypeRepresentation::Thin,
+               "setter should be a thin function");
+       
+-      require(substSetterType->getNumParameters() == 2 + hasIndices,
+-              "setter should have two parameters");
++      // FIXME(katei): Disabled for now. Will be replaced by keypath cc
++      // require(substSetterType->getNumParameters() == 2 + hasIndices,
++      //         "setter should have two parameters");
+ 
+       auto newValueParam = substSetterType->getParameters()[0];
+       // TODO: This should probably be unconditionally +1 when we
 diff --git a/lib/SILGen/SILGenBuiltin.cpp b/lib/SILGen/SILGenBuiltin.cpp
 index 249a8a2e379..5ca4b031469 100644
 --- a/lib/SILGen/SILGenBuiltin.cpp
@@ -1321,6 +1478,38 @@ index c93158b6ede..7f2b3914095 100644
    auto &C = SGM.getASTContext();
    auto unsafeRawPointerTy = C.getUnsafeRawPointerType()->getCanonicalType();
    auto boolTy = C.getBoolType()->getCanonicalType();
+diff --git a/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp b/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
+index 1f989e3ae2a..da2b006c0ca 100644
+--- a/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
++++ b/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
+@@ -504,6 +504,13 @@ bool SILCombiner::tryOptimizeKeypathKVCString(ApplyInst *AI,
+ }
+ 
+ bool SILCombiner::tryOptimizeKeypath(ApplyInst *AI) {
++  // FIXME(katei): Disable for WebAssembly for now because
++  // KeyPath cc is unstable and KeyPathProjector hask violates
++  // some assert assumptions
++  SILModule &M = AI->getModule();
++  if (M.getASTContext().LangOpts.Target.isOSBinFormatWasm())
++    return false;
++
+   if (SILFunction *callee = AI->getReferencedFunctionOrNull()) {
+     return tryOptimizeKeypathApplication(AI, callee);
+   }
+@@ -549,6 +556,13 @@ bool SILCombiner::tryOptimizeKeypath(ApplyInst *AI) {
+ ///   %addr = struct_element_addr/ref_element_addr %root_object
+ ///   // use %inout_addr
+ bool SILCombiner::tryOptimizeInoutKeypath(BeginApplyInst *AI) {
++  // FIXME(katei): Disable for WebAssembly for now because
++  // KeyPath cc is unstable and KeyPathProjector hask violates
++  // some assert assumptions
++  SILModule &M = AI->getModule();
++  if (M.getASTContext().LangOpts.Target.isOSBinFormatWasm())
++    return false;
++
+   // Disable in OSSA because KeyPathProjector is not fully ported
+   if (AI->getFunction()->hasOwnership())
+     return false;
 diff --git a/lib/SILOptimizer/Utils/KeyPathProjector.cpp b/lib/SILOptimizer/Utils/KeyPathProjector.cpp
 index 6051ae07d3e..f66ed98396c 100644
 --- a/lib/SILOptimizer/Utils/KeyPathProjector.cpp
@@ -3023,7 +3212,7 @@ index f96cea46e33..0140cb13891 100644
  // RUN: %swiftc_driver -sdk "" -driver-print-jobs -profile-generate -target arm64-apple-tvos9.0 -resource-dir %S/Inputs/fake-resource-dir-old/lib/swift/ %s | %FileCheck -check-prefix=CHECK -check-prefix=tvOS %s
  
 diff --git a/test/lit.cfg b/test/lit.cfg
-index a69dbd974e1..2bf9e0f1a53 100644
+index 259c7772be1..c6f22a9388e 100644
 --- a/test/lit.cfg
 +++ b/test/lit.cfg
 @@ -341,7 +341,6 @@ config.swift_demangle_yamldump = inferSwiftBinary('swift-demangle-yamldump')
@@ -3034,7 +3223,7 @@ index a69dbd974e1..2bf9e0f1a53 100644
  config.wasm_ld = inferSwiftBinary('wasm-ld')
  
  config.swift_utils = make_path(config.swift_src_root, 'utils')
-@@ -1673,6 +1672,32 @@ elif run_os == 'wasi':
+@@ -1679,6 +1678,32 @@ elif run_os == 'wasi':
      config.target_sdk_name = "wasi"
      config.target_runtime = "native"
  
@@ -3067,7 +3256,7 @@ index a69dbd974e1..2bf9e0f1a53 100644
      config.target_swift_autolink_extract = inferSwiftBinary("swift-autolink-extract")
  
      config.target_build_swift = ' '.join([
-@@ -1680,12 +1705,12 @@ elif run_os == 'wasi':
+@@ -1686,12 +1711,12 @@ elif run_os == 'wasi':
          '-target', config.variant_triple,
          '-Xcc', '--sysroot=%s' % config.variant_sdk,
          '-Xclang-linker', '--sysroot=%s' % config.variant_sdk,
@@ -3082,7 +3271,7 @@ index a69dbd974e1..2bf9e0f1a53 100644
          % (config.target_build_swift))
      config.target_add_rpath = ''
      config.target_swift_frontend = ' '.join([
-@@ -1696,16 +1721,24 @@ elif run_os == 'wasi':
+@@ -1702,16 +1727,24 @@ elif run_os == 'wasi':
          config.swift_test_options, config.swift_frontend_test_options])
      subst_target_swift_frontend_mock_sdk = config.target_swift_frontend
      subst_target_swift_frontend_mock_sdk_after = ""
@@ -3108,7 +3297,7 @@ index a69dbd974e1..2bf9e0f1a53 100644
      config.target_swift_ide_test = (
          '%s -target %s %s %s %s' %
          (config.swift_ide_test, config.variant_triple, config.resource_dir_opt,
-@@ -2113,7 +2146,7 @@ if run_vendor != 'apple':
+@@ -2119,7 +2152,7 @@ if run_vendor != 'apple':
  
  if 'remote_run_host' in lit_config.params:
      configure_remote_run()
@@ -3393,7 +3582,7 @@ index dcbc3915489..737a820ce64 100755
      """
      Return targets for the Swift stdlib, based on the build machine.
 diff --git a/utils/build-script-impl b/utils/build-script-impl
-index 8cefe8eddb2..ef395caa1b6 100755
+index d8a7b6d5951..de8882ddb65 100755
 --- a/utils/build-script-impl
 +++ b/utils/build-script-impl
 @@ -116,12 +116,16 @@ KNOWN_SETTINGS=(
@@ -4633,3 +4822,6 @@ index 00000000000..ec4e429f3ad
 +
 +if __name__ == "__main__":
 +    main()
+-- 
+2.40.0
+
