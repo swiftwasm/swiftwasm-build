@@ -80,7 +80,7 @@ class CheckoutCorelibsAction(Action):
         print('=====> Checking out swift-corelibs for scheme {}'.format(self.options.scheme))
         for repo, rev in self.options.repos.items():
             fork_repo = f'https://github.com/swiftwasm/{repo}.git'
-            status = subprocess.run(['git', '-C', f'../{repo}', 'remote', 'get-url', 'swiftwasm']).returncode
+            status = subprocess.run(['git', '-C', f'../{repo}', 'remote', 'get-url', 'swiftwasm'], stderr=subprocess.PIPE).returncode
             if status != 0:
                 self.system('git', '-C', f'../{repo}', 'remote', 'add', 'swiftwasm', fork_repo)
             print(f'Checking out {repo} at {rev}')
