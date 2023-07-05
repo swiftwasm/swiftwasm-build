@@ -72,12 +72,28 @@ BASE_MATRIX_ENTRIES = [
   }
 ]
 
+def affected_schemes(changes, schemes)
+  schemes.select do |scheme|
+    prefixes = [
+      "schemes/#{scheme}/",
+      "tools/build/",
+      "tools/git-swift-workspace",
+    ]
+    changes.any? do |change|
+      prefixes.any? { |prefix| change.start_with?(prefix) }
+    end
+  end
+end
+
 def main
   options = {}
   OptionParser.new do |opts|
     opts.banner = "Usage: build-matrix.rb [options]"
     opts.on("--runner [JSON FILE]", "Path to runner data file") do |v|
       options[:runner] = v
+    end
+    opts.on("--changes [JSON FILE]", "Path to list of changed files") do |v|
+      options[:changes] = v
     end
   end.parse!
 
@@ -99,7 +115,14 @@ def main
     end
   end
 
-  schemes = ["main", "release-5.9"]
+  schemes_dir = File.expand_path("../../../schemes", __FILE__)
+  schemes = Dir.glob("#{schemes_dir}/*/manifest.json").map do |path|
+    File.basename(File.dirname(path))
+  end
+
+  if options[:changes]
+    schemes = affected_schemes(JSON.parse(File.read(options[:changes])), schemes)
+  end
 
   matrix_entries = schemes.flat_map do |scheme|
     if scheme == "main"
