@@ -5,11 +5,13 @@ This repository contains the patches, build scripts, and CI configuration for th
 ## Building the toolchain
 
 ```
+$ mkdir swiftwasm-source
+$ cd swiftwasm-source
 $ git clone https://github.com/swiftwasm/swiftwasm-build
 $ cd swiftwasm-build
 # Install WebAssembly specific dependencies into ../build-sdk
 $ ./tools/build/install-build-sdk.sh main
-# Checkout the Swift repositories and apply patches
+# Checkout the Swift repositories in the parent directory (swiftwasm-source) and apply patches
 $ ./tools/git-swift-workspace --scheme main
 # Build the toolchain (this will take a while)
 $ ./tools/build/build-toolchain.sh
