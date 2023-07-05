@@ -1,4 +1,4 @@
-From 47a703a2005c74bb22be8eb17e95331ddc4238f3 Mon Sep 17 00:00:00 2001
+From 9a9ffdad99a0089598e636c113b0e6e14c1d069f Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:06:08 +0000
 Subject: [PATCH] [wasm] All SwiftWasm patches
@@ -4764,7 +4764,7 @@ index 00000000000..aee54bab179
 +set(CMAKE_CXX_COMPILER_WORKS ON)
 diff --git a/utils/webassembly/wasm-run.py b/utils/webassembly/wasm-run.py
 new file mode 100755
-index 00000000000..ec4e429f3ad
+index 00000000000..e59f95ebf3c
 --- /dev/null
 +++ b/utils/webassembly/wasm-run.py
 @@ -0,0 +1,54 @@
@@ -4781,7 +4781,7 @@ index 00000000000..ec4e429f3ad
 +                for key, value in local_env.items() if key.startswith(prefix))
 +
 +
-+class WasmerRunner(object):
++class WasmtimeRunner(object):
 +    def __init__(self):
 +        pass
 +
@@ -4794,7 +4794,7 @@ index 00000000000..ec4e429f3ad
 +            subprocess.check_call(command)
 +
 +    def invocation(self, args):
-+        command = ["wasmer", "run", "--singlepass"]
++        command = ["wasmtime", "run"]
 +        envs = collect_wasm_env()
 +        for key in envs:
 +            command.append("--env")
@@ -4816,7 +4816,7 @@ index 00000000000..ec4e429f3ad
 +                        help='the command to run', metavar='command...')
 +
 +    args = parser.parse_args()
-+    runner = WasmerRunner()
++    runner = WasmtimeRunner()
 +    runner.run(args)
 +
 +
