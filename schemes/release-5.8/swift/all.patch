@@ -1,4 +1,4 @@
-From 9a9ffdad99a0089598e636c113b0e6e14c1d069f Mon Sep 17 00:00:00 2001
+From 24181c4eaeb2c27f9d61c5fa6954d0cac1458c98 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:06:08 +0000
 Subject: [PATCH] [wasm] All SwiftWasm patches
@@ -27,6 +27,7 @@ Co-authored-by: Zhuowei Zhang <zhuoweizhang@yahoo.com>
  lib/Driver/ToolChains.cpp                     |  22 +-
  lib/Driver/WebAssemblyToolChains.cpp          |   4 +
  lib/DriverTool/autolink_extract_main.cpp      |  30 --
+ lib/FrontendTool/TBD.cpp                      |   9 +
  lib/IRGen/GenDecl.cpp                         |   9 +-
  lib/IRGen/GenKeyPath.cpp                      |  10 +-
  lib/IRGen/GenMeta.cpp                         |   2 +-
@@ -112,7 +113,7 @@ Co-authored-by: Zhuowei Zhang <zhuoweizhang@yahoo.com>
  utils/webassembly/static-executable-args.lnk  |  12 +
  utils/webassembly/toolchain-wasi.cmake        |  26 ++
  utils/webassembly/wasm-run.py                 |  54 ++++
- 106 files changed, 2742 insertions(+), 155 deletions(-)
+ 107 files changed, 2751 insertions(+), 155 deletions(-)
  create mode 100644 .github/FUNDING.yml
  delete mode 100644 .github/PULL_REQUEST_TEMPLATE.md
  create mode 100644 .github/pull.yml
@@ -1158,6 +1159,26 @@ index 3d6b7fdb8a2..3f6f78774fa 100644
  /// Look inside the binary 'Bin' and append any linker flags found in its
  /// ".swift1_autolink_entries" section to 'LinkerFlags'. If 'Bin' is an archive,
  /// recursively look inside all children within the archive. Return 'true' if
+diff --git a/lib/FrontendTool/TBD.cpp b/lib/FrontendTool/TBD.cpp
+index b490687c4bb..35f7ae06e07 100644
+--- a/lib/FrontendTool/TBD.cpp
++++ b/lib/FrontendTool/TBD.cpp
+@@ -75,6 +75,15 @@ static bool isSymbolIgnored(const StringRef& name,
+     }
+   }
+ 
++  if (llvm::Triple(IRModule.getTargetTriple()).isWasm()) {
++    // `__main_void`, which is called by `_start` in crt1.o, is artificially
++    // aliased in IR module when `main` doesn't take any params.
++    // This alias will be hidden after https://reviews.llvm.org/D75277
++    if (name == "__main_void") {
++      return true;
++    }
++  }
++
+   return false;
+ }
+ 
 diff --git a/lib/IRGen/GenDecl.cpp b/lib/IRGen/GenDecl.cpp
 index 4e5e9e46404..a860cbc148b 100644
 --- a/lib/IRGen/GenDecl.cpp
