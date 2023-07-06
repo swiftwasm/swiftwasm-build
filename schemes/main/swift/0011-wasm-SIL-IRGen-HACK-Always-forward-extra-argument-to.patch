@@ -1,4 +1,4 @@
-From e548bae3c5796d3f0aa83cdd21f414387342c065 Mon Sep 17 00:00:00 2001
+From 353cefa8c6151c84c11f305a9dbbaf15821e37da Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:25:35 +0000
 Subject: [PATCH] [wasm][SIL/IRGen] HACK: Always forward extra argument to
@@ -16,7 +16,7 @@ patch will be replaced by https://github.com/apple/swift/pull/66273
  5 files changed, 77 insertions(+), 10 deletions(-)
 
 diff --git a/lib/IRGen/GenKeyPath.cpp b/lib/IRGen/GenKeyPath.cpp
-index 6f8a676bef6..93b59497d36 100644
+index d23a53e822c..dfd37ec2830 100644
 --- a/lib/IRGen/GenKeyPath.cpp
 +++ b/lib/IRGen/GenKeyPath.cpp
 @@ -224,7 +224,8 @@ getAccessorForComputedComponent(IRGenModule &IGM,
@@ -41,7 +41,7 @@ index 6f8a676bef6..93b59497d36 100644
      auto fnPtr =
          FunctionPointer::forDirect(IGM, accessorFn, /*secondaryValue*/ nullptr,
 diff --git a/lib/SIL/Verifier/SILVerifier.cpp b/lib/SIL/Verifier/SILVerifier.cpp
-index 4cedea8007d..c761c37740f 100644
+index ebd0cf404d6..33eb2e820d0 100644
 --- a/lib/SIL/Verifier/SILVerifier.cpp
 +++ b/lib/SIL/Verifier/SILVerifier.cpp
 @@ -299,8 +299,9 @@ void verifyKeyPathComponent(SILModule &M,
@@ -69,10 +69,10 @@ index 4cedea8007d..c761c37740f 100644
        auto newValueParam = substSetterType->getParameters()[0];
        // TODO: This should probably be unconditionally +1 when we
 diff --git a/lib/SILGen/SILGenExpr.cpp b/lib/SILGen/SILGenExpr.cpp
-index 6fb3c14dcde..49536a15fbd 100644
+index 1db2a8da1a3..e7dfabbe050 100644
 --- a/lib/SILGen/SILGenExpr.cpp
 +++ b/lib/SILGen/SILGenExpr.cpp
-@@ -2994,6 +2994,7 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+@@ -2995,6 +2995,7 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
      }
    }
  
@@ -80,7 +80,7 @@ index 6fb3c14dcde..49536a15fbd 100644
    auto genericSig =
        genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
                   : nullptr;
-@@ -3002,6 +3003,14 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+@@ -3003,6 +3004,14 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
      genericEnv = nullptr;
    }
  
@@ -95,7 +95,7 @@ index 6fb3c14dcde..49536a15fbd 100644
    // Build the signature of the thunk as expected by the keypath runtime.
    auto signature = [&]() {
      CanType loweredBaseTy, loweredPropTy;
-@@ -3017,7 +3026,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+@@ -3018,7 +3027,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
      SmallVector<SILParameterInfo, 2> params;
      params.push_back({loweredBaseTy, paramConvention});
      auto &C = SGM.getASTContext();
@@ -105,7 +105,7 @@ index 6fb3c14dcde..49536a15fbd 100644
        params.push_back({C.getUnsafeRawPointerType()->getCanonicalType(),
                          ParameterConvention::Direct_Unowned});
      
-@@ -3080,7 +3090,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+@@ -3078,7 +3088,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
    }
    auto baseArg = entry->createFunctionArgument(baseArgTy);
    SILValue indexPtrArg;
@@ -115,7 +115,7 @@ index 6fb3c14dcde..49536a15fbd 100644
      auto indexArgTy = signature->getParameters()[1].getSILStorageType(
          SGM.M, signature, subSGF.F.getTypeExpansionContext());
      indexPtrArg = entry->createFunctionArgument(indexArgTy);
-@@ -3169,6 +3180,7 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3167,6 +3178,7 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
      }
    }
  
@@ -123,7 +123,7 @@ index 6fb3c14dcde..49536a15fbd 100644
    auto genericSig =
        genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
                   : nullptr;
-@@ -3177,6 +3189,14 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3175,6 +3187,14 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
      genericEnv = nullptr;
    }
  
@@ -138,7 +138,7 @@ index 6fb3c14dcde..49536a15fbd 100644
    // Build the signature of the thunk as expected by the keypath runtime.
    auto signature = [&]() {
      CanType loweredBaseTy, loweredPropTy;
-@@ -3202,7 +3222,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3200,7 +3220,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
                          ? ParameterConvention::Indirect_Inout
                          : paramConvention});
      // indexes
@@ -147,8 +147,8 @@ index 6fb3c14dcde..49536a15fbd 100644
 +    if (!indexes.empty() || C.LangOpts.Target.isOSBinFormatWasm())
        params.push_back({C.getUnsafeRawPointerType()->getCanonicalType(),
                          ParameterConvention::Direct_Unowned});
-     
-@@ -3259,7 +3280,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+ 
+@@ -3254,7 +3275,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
    auto baseArg = entry->createFunctionArgument(baseArgTy);
    SILValue indexPtrArg;
    
@@ -158,7 +158,7 @@ index 6fb3c14dcde..49536a15fbd 100644
      auto indexArgTy = signature->getParameters()[2].getSILStorageType(
          SGM.M, signature, subSGF.getTypeExpansionContext());
      indexPtrArg = entry->createFunctionArgument(indexArgTy);
-@@ -3350,6 +3372,7 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
+@@ -3344,6 +3366,7 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
      return;
    }
  
@@ -166,7 +166,7 @@ index 6fb3c14dcde..49536a15fbd 100644
    auto genericSig =
        genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
                   : nullptr;
-@@ -3359,6 +3382,14 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
+@@ -3353,6 +3376,14 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
      genericEnv = nullptr;
    }
  
@@ -182,7 +182,7 @@ index 6fb3c14dcde..49536a15fbd 100644
    auto unsafeRawPointerTy = C.getUnsafeRawPointerType()->getCanonicalType();
    auto boolTy = C.getBoolType()->getCanonicalType();
 diff --git a/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp b/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
-index 085e548eb7e..fc411208ced 100644
+index 6bf48c3d7f1..9b89e9d78e4 100644
 --- a/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
 +++ b/lib/SILOptimizer/SILCombiner/SILCombinerApplyVisitors.cpp
 @@ -505,6 +505,13 @@ bool SILCombiner::tryOptimizeKeypathKVCString(ApplyInst *AI,
@@ -214,7 +214,7 @@ index 085e548eb7e..fc411208ced 100644
    if (AI->getFunction()->hasOwnership())
      return false;
 diff --git a/lib/SILOptimizer/Utils/KeyPathProjector.cpp b/lib/SILOptimizer/Utils/KeyPathProjector.cpp
-index 6051ae07d3e..f66ed98396c 100644
+index 073ba49a563..6950ab4ae10 100644
 --- a/lib/SILOptimizer/Utils/KeyPathProjector.cpp
 +++ b/lib/SILOptimizer/Utils/KeyPathProjector.cpp
 @@ -233,7 +233,22 @@ public:
