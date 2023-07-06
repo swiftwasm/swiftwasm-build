@@ -188,7 +188,7 @@ class GitHub:
             "prerelease": True,
         })
 
-    def latest_success_run_id(self, workflow_name: str, branch: str):
+    def workflow_runs(self, workflow_name: str, branch: str):
         url = ("https://api.github.com"
                f"/repos/{self.repo}/actions/workflows/{workflow_name}"
                f"/runs?branch={branch}")
@@ -196,12 +196,7 @@ class GitHub:
         workflow_runs = run["workflow_runs"]
         workflow_runs = sorted(
             workflow_runs, key=lambda run: run["run_number"], reverse=True)
-        for run in workflow_runs:
-            if "head_branch" not in run or run["head_branch"] != branch:
-                continue
-            if "conclusion" not in run or run["conclusion"] != "success":
-                continue
-            return run["id"]
+        return workflow_runs
 
     def download_artifact(self, artifact, path: str):
         curl_args = ["curl", "-L", "-o", path,
@@ -267,8 +262,8 @@ class Distribution:
         release = None
         tag_name = options.override_name
         for artifact in self.toolchain_aritfacts():
-            platform_suffix, scheme = self.derive_platform_suffix_and_scheme(
-                artifact)
+            platform_suffix, scheme = derive_platform_suffix_and_scheme(
+                artifact["name"])
             if options.scheme != scheme:
                 # Skip unrelated artifact
                 continue
@@ -285,29 +280,6 @@ class Distribution:
 
     def guess_tag_name(self, path):
         return os.path.basename(path)
-
-    def derive_platform_suffix_and_scheme(self, artifact):
-        """
-        Returns platform suffix derived from the artifact name.
-        e.g. macos_x86_64
-        """
-
-        # latest artifact name: <platform-suffix>-<scheme>-installable
-        # legacy artifact name: <platform-suffix>-installable
-        # Note that <scheme> can contain '-'.
-        name: str = artifact["name"]
-        artifact_suffix = "-installable"
-        if not name.endswith(artifact_suffix):
-            raise Exception((f"Unexpected artifact name {name}"
-                             f", expected to have \"{artifact_suffix}\""
-                             " suffix"))
-        components = name.split("-")
-        if len(components) >= 3:
-            scheme = "-".join(components[1:-1])
-            return [components[0], scheme]
-        else:
-            # Assume legacy representation only used for the main scheme
-            return [components[0], "main"]
 
     def download_and_unpack(self, artifact):
         zip_tarball = self.download_artifact(artifact)
@@ -486,6 +458,51 @@ class Distribution:
                 yield artifact
 
 
+def derive_platform_suffix_and_scheme(artifact_name: str):
+    """
+    Returns platform suffix derived from the artifact name.
+    e.g. macos_x86_64
+    """
+
+    # latest artifact name: <platform-suffix>-<scheme>-installable
+    # legacy artifact name: <platform-suffix>-installable
+    # Note that <scheme> can contain '-'.
+    name: str = artifact_name
+    artifact_suffix = "-installable"
+    if not name.endswith(artifact_suffix):
+        raise Exception((f"Unexpected artifact name {name}"
+                         f", expected to have \"{artifact_suffix}\""
+                         " suffix"))
+    components = name.split("-")
+    if len(components) >= 3:
+        scheme = "-".join(components[1:-1])
+        return [components[0], scheme]
+    else:
+        # Assume legacy representation only used for the main scheme
+        return [components[0], "main"]
+
+def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: str):
+    """
+    Find the latest successful run ID for the given workflow name and branch,
+    also containing a toolchain artifact built for the given scheme
+    """
+    for run in gh.workflow_runs(workflow_name, branch):
+        if "head_branch" not in run or run["head_branch"] != branch:
+            continue
+        if "conclusion" not in run or run["conclusion"] != "success":
+            continue
+        artifacts = gh.list_artifacts(run["id"])
+        if not artifacts["artifacts"]:
+            continue
+        for artifact in artifacts["artifacts"]:
+            artifact_name = artifact["name"]
+            if not artifact_name.endswith("-installable"):
+                continue
+            _, artifact_scheme = derive_platform_suffix_and_scheme(artifact_name)
+            if artifact_scheme == scheme:
+                return run["id"]
+    raise Exception(f"Could not find a successful run for {workflow_name} on {branch} branch with scheme {scheme}")
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
@@ -502,8 +519,8 @@ def main():
     os.chdir(swiftwasm_build_dir)
     run_id = options.run_id
     if run_id == "latest":
-        run_id = gh.latest_success_run_id(
-            workflow_name="build-toolchain.yml", branch="main")
+        run_id = latest_success_run_id(
+            gh, workflow_name="build-toolchain.yml", branch="main", scheme=options.scheme)
         run_id = str(run_id)
     Distribution(gh, swift_gh, run_id, secrets).run(options)
 
