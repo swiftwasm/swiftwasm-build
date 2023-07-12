@@ -1,4 +1,4 @@
-From 75f7971a35691d0e296818bd9951c146cf202335 Mon Sep 17 00:00:00 2001
+From 3545d43fadb84a1e9a2b561a877a2a7d79e011fd Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:53:38 +0000
 Subject: [PATCH] [wasm][test] Fix build of StdlibUnittest on WASI
@@ -58,19 +58,19 @@ index 80c3fa59795..363d37ea725 100644
 -#endif // !defined(__wasi__)
 +}
 diff --git a/stdlib/private/StdlibUnittest/StdlibUnittest.swift b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
-index 9cb21b7d6d1..71762d59988 100644
+index 48c74cd46db..19d266b3e91 100644
 --- a/stdlib/private/StdlibUnittest/StdlibUnittest.swift
 +++ b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
-@@ -22,6 +22,8 @@ import Foundation
- import Darwin
- #elseif canImport(Glibc)
+@@ -24,6 +24,8 @@ import Darwin
  import Glibc
+ #elseif canImport(Musl)
+ import Musl
 +#elseif os(WASI)
 +import WASILibc
  #elseif os(Windows)
  import CRT
  import WinSDK
-@@ -35,6 +37,12 @@ import ObjectiveC
+@@ -37,6 +39,12 @@ import ObjectiveC
  import _Concurrency
  #endif
  
@@ -83,7 +83,7 @@ index 9cb21b7d6d1..71762d59988 100644
  extension String {
    /// Returns the lines in `self`.
    public var _lines : [String] {
-@@ -1724,7 +1732,7 @@ public func runAllTests() {
+@@ -1726,7 +1734,7 @@ public func runAllTests() {
    if _isChildProcess {
      _childProcess()
    } else {
@@ -92,7 +92,7 @@ index 9cb21b7d6d1..71762d59988 100644
      var filter: String?
      var args = [String]()
      var i = 0
-@@ -1794,7 +1802,7 @@ public func runAllTestsAsync() async {
+@@ -1796,7 +1804,7 @@ public func runAllTestsAsync() async {
    if _isChildProcess {
      await _childProcessAsync()
    } else {

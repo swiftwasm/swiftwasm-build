@@ -1,4 +1,4 @@
-From 26f663c23b280c4b7a1213fb374cbbe77347a753 Mon Sep 17 00:00:00 2001
+From b75bc1794b2fba56b46eda55a676c4e6db14d6ac Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Jun 2023 17:58:49 +0000
 Subject: [PATCH] [wasm][build] Add WASILibc module and its build support
@@ -19,12 +19,12 @@ because wasi-libc is actually based on musl libc.
  create mode 100644 stdlib/public/Platform/wasi-libc.modulemap.gyb
 
 diff --git a/stdlib/public/Platform/CMakeLists.txt b/stdlib/public/Platform/CMakeLists.txt
-index f478206d6a2..6dbfee2f253 100644
+index cff574c8932..fcd7cbd8a4b 100644
 --- a/stdlib/public/Platform/CMakeLists.txt
 +++ b/stdlib/public/Platform/CMakeLists.txt
-@@ -98,6 +98,23 @@ add_swift_target_library(swiftGlibc ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES} IS_SDK_O
-     INSTALL_IN_COMPONENT sdk-overlay
-     DEPENDS glibc_modulemap)
+@@ -114,6 +114,23 @@ add_swift_target_library(swiftMusl ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES} IS_SDK_OV
+     TARGET_SDKS MUSL
+     INSTALL_IN_COMPONENT sdk-overlay)
  
 +add_swift_target_library(swiftWASILibc ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES} IS_SDK_OVERLAY
 +    ${swift_platform_sources}
@@ -46,7 +46,7 @@ index f478206d6a2..6dbfee2f253 100644
  add_swift_target_library(swiftCRT ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES} IS_SDK_OVERLAY
      ucrt.swift
      ${swift_platform_sources}
-@@ -117,23 +134,31 @@ add_swift_target_library(swiftCRT ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES} IS_SDK_OVE
+@@ -133,23 +150,31 @@ add_swift_target_library(swiftCRT ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES} IS_SDK_OVE
  
  set(glibc_modulemap_target_list)
  foreach(sdk ${SWIFT_SDKS})
@@ -87,7 +87,7 @@ index f478206d6a2..6dbfee2f253 100644
  
      # Configure the module map based on the target. Each platform needs to
      # reference different headers, based on what's available in their glibc.
-@@ -147,10 +172,10 @@ foreach(sdk ${SWIFT_SDKS})
+@@ -163,10 +188,10 @@ foreach(sdk ${SWIFT_SDKS})
  
      list(APPEND glibc_modulemap_target_list ${glibc_modulemap_target})
  
@@ -101,7 +101,7 @@ index f478206d6a2..6dbfee2f253 100644
          OUTPUT "${glibc_header_out}"
          FLAGS "-DCMAKE_SDK=${sdk}")
      list(APPEND glibc_modulemap_target_list ${glibc_header_target})
-@@ -181,7 +206,7 @@ foreach(sdk ${SWIFT_SDKS})
+@@ -197,7 +222,7 @@ foreach(sdk ${SWIFT_SDKS})
      # prefix. This is the one we'll install instead.
      if(NOT "${SWIFT_SDK_${SWIFT_HOST_VARIANT_SDK}_ARCH_${arch}_PATH}" STREQUAL "/" AND
         NOT (${sdk} STREQUAL ANDROID AND NOT "${SWIFT_ANDROID_NATIVE_SYSROOT}" STREQUAL ""))
