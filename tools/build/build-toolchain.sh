@@ -23,7 +23,6 @@ case $(uname -s) in
 esac
 
 OPTIONS_BUILD_HOST_TOOLCHAIN=1
-OPTIONS_DAILY_SNAPSHOT=0
 
 while [ $# -ne 0 ]; do
   case "$1" in
