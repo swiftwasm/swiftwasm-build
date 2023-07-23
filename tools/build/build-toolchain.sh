@@ -9,11 +9,9 @@ WASI_SYSROOT_PATH="$BUILD_SDK_PATH/wasi-sysroot"
 
 case $(uname -s) in
   Darwin)
-    HOST_PRESET=webassembly-host-install
     HOST_SUFFIX=macosx-$(uname -m)
   ;;
   Linux)
-    HOST_PRESET=webassembly-linux-host-install
     HOST_SUFFIX=linux-$(uname -m)
   ;;
   *)
@@ -23,7 +21,6 @@ case $(uname -s) in
 esac
 
 OPTIONS_BUILD_HOST_TOOLCHAIN=1
-OPTIONS_DAILY_SNAPSHOT=0
 
 while [ $# -ne 0 ]; do
   case "$1" in
@@ -51,7 +48,7 @@ build_host_toolchain() {
   env SWIFT_BUILD_ROOT="$HOST_BUILD_ROOT" \
     "$SOURCE_PATH/swift/utils/build-script" \
     --preset-file="$TOOLS_BUILD_PATH/build-presets.ini" \
-    --preset=$HOST_PRESET \
+    --preset=webassembly-host-install \
     --build-dir="$HOST_BUILD_DIR" \
     HOST_ARCHITECTURE="$(uname -m)" \
     INSTALL_DESTDIR="$HOST_TOOLCHAIN_DESTDIR"
