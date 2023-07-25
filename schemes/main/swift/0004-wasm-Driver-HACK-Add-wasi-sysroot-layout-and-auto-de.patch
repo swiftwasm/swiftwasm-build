@@ -1,4 +1,4 @@
-From d94bf36aa8c6240b4595f6e8692b0f10d71ff12f Mon Sep 17 00:00:00 2001
+From c111cb8190740ab33c4b01cf11dd96d04cbd2a9b Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:11:04 +0000
 Subject: [PATCH] [wasm][Driver] HACK: Add wasi-sysroot layout and
@@ -17,10 +17,10 @@ directly.
  2 files changed, 9 insertions(+), 1 deletion(-)
 
 diff --git a/lib/Driver/Driver.cpp b/lib/Driver/Driver.cpp
-index 32867832d38..1bfce29afcd 100644
+index 04f9684eb85..56e0d8cec43 100644
 --- a/lib/Driver/Driver.cpp
 +++ b/lib/Driver/Driver.cpp
-@@ -1797,6 +1797,13 @@ void Driver::buildOutputInfo(const ToolChain &TC, const DerivedArgList &Args,
+@@ -1794,6 +1794,13 @@ void Driver::buildOutputInfo(const ToolChain &TC, const DerivedArgList &Args,
            });
          }
        }

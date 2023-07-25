@@ -1,4 +1,4 @@
-From 660a3ba31d96e72da99d0b5a39c5da41164cd65c Mon Sep 17 00:00:00 2001
+From e9c372538dcd21510542e3bf13fde103c45fdff6 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 10 Jun 2023 14:51:49 +0000
 Subject: [PATCH] [ClangImporter] Support wasi-libc.modulemap import with VFS
