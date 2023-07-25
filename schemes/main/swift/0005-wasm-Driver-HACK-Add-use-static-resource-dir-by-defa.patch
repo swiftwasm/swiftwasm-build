@@ -1,4 +1,4 @@
-From 5519a5680e5bd4cb3616a025f085415c57cda60b Mon Sep 17 00:00:00 2001
+From e1d250974581f863dc32bc555351d7cd164654b3 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:17:38 +0000
 Subject: [PATCH] [wasm][Driver] HACK: Add `-use-static-resource-dir` by
@@ -14,10 +14,10 @@ in the driver invocation. But it is a convenient change for users.
  2 files changed, 19 insertions(+), 3 deletions(-)
 
 diff --git a/lib/Driver/Driver.cpp b/lib/Driver/Driver.cpp
-index 1bfce29afcd..9044e4adebb 100644
+index 56e0d8cec43..20c8571ff07 100644
 --- a/lib/Driver/Driver.cpp
 +++ b/lib/Driver/Driver.cpp
-@@ -2404,7 +2404,8 @@ bool Driver::handleImmediateArgs(const ArgList &Args, const ToolChain &TC) {
+@@ -2402,7 +2402,8 @@ bool Driver::handleImmediateArgs(const ArgList &Args, const ToolChain &TC) {
      if (Args.hasFlag(options::OPT_static_executable,
                       options::OPT_no_static_executable, false) ||
          Args.hasFlag(options::OPT_static_stdlib, options::OPT_no_static_stdlib,

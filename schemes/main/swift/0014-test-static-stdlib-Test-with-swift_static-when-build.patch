@@ -1,4 +1,4 @@
-From 50dc045f1f0fb9a1a041e1b49c443e86b7cf0aba Mon Sep 17 00:00:00 2001
+From 1e215c2f83ac1f7c730cb0a761b09872fc90ae9b Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:56:16 +0000
 Subject: [PATCH] [test][static-stdlib] Test with swift_static when building
@@ -11,10 +11,10 @@ This patch makes the test suite use `lib/swift_static` instead of
  1 file changed, 8 insertions(+), 2 deletions(-)
 
 diff --git a/test/CMakeLists.txt b/test/CMakeLists.txt
-index bf326c97a9b..7157254daef 100644
+index 65368c8b8ce..61521a3856a 100644
 --- a/test/CMakeLists.txt
 +++ b/test/CMakeLists.txt
-@@ -150,8 +150,14 @@ if(NOT SWIFT_INCLUDE_TOOLS)
+@@ -152,8 +152,14 @@ if(NOT SWIFT_INCLUDE_TOOLS)
        )
    endif()
    if(SWIFT_BUILD_STDLIB)

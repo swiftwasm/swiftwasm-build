@@ -1,4 +1,4 @@
-From 57b43a1fe6ae212de2a23ebd40b24740a5b55cdf Mon Sep 17 00:00:00 2001
+From d1ac338df6be5d993dadb73d3832d4d0668067e8 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 10 Jun 2023 12:57:10 +0000
 Subject: [PATCH] [build] Replace glibc specific naming in libc-like modulemap
