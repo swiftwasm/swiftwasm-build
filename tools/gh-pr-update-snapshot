@@ -59,6 +59,7 @@ def open_pr_to_update_base_tag(scheme: str, base_tag: str, latest_tag: str,
     subprocess.check_call([
         "gh", "pr", "create",
         "--title", f"Update base tag for {scheme} to {latest_tag}",
+        "--label", "downstreaming",
         "--body", body,
         "--base", "main", "--head", branch] + (
             ["--web"] if interactive else []))
