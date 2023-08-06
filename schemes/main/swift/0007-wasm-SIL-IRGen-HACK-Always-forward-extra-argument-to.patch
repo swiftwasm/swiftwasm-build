@@ -1,4 +1,4 @@
-From d76476bf1e632c3d5f8b748cbfb028ed70c8513c Mon Sep 17 00:00:00 2001
+From 4f84234b8ca23a37b32ef5666489e6cbe400c7d6 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:25:35 +0000
 Subject: [PATCH] [wasm][SIL/IRGen] HACK: Always forward extra argument to
@@ -41,7 +41,7 @@ index d23a53e822c..dfd37ec2830 100644
      auto fnPtr =
          FunctionPointer::forDirect(IGM, accessorFn, /*secondaryValue*/ nullptr,
 diff --git a/lib/SIL/Verifier/SILVerifier.cpp b/lib/SIL/Verifier/SILVerifier.cpp
-index 820b47576cf..c447ec7be63 100644
+index 0bf3941d6a3..9ef2761cfed 100644
 --- a/lib/SIL/Verifier/SILVerifier.cpp
 +++ b/lib/SIL/Verifier/SILVerifier.cpp
 @@ -304,8 +304,9 @@ void verifyKeyPathComponent(SILModule &M,
@@ -69,7 +69,7 @@ index 820b47576cf..c447ec7be63 100644
        auto newValueParam = substSetterType->getParameters()[0];
        // TODO: This should probably be unconditionally +1 when we
 diff --git a/lib/SILGen/SILGenExpr.cpp b/lib/SILGen/SILGenExpr.cpp
-index 4b9248183d3..08efff320a4 100644
+index d09f4974b7b..71d63a34f3d 100644
 --- a/lib/SILGen/SILGenExpr.cpp
 +++ b/lib/SILGen/SILGenExpr.cpp
 @@ -2987,6 +2987,7 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
@@ -112,10 +112,10 @@ index 4b9248183d3..08efff320a4 100644
 -  if (!indexes.empty()) {
 +  // Always take indexes parameter to match callee and caller signature on WebAssembly
 +  if (!indexes.empty() || Target.isOSBinFormatWasm()) {
-     auto indexArgTy = signature->getParameters()[1].getSILStorageType(
-         SGM.M, signature, subSGF.F.getTypeExpansionContext());
-     indexPtrArg = entry->createFunctionArgument(indexArgTy);
-@@ -3159,6 +3170,7 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+     auto indexArgTy =
+         subSGF.silConv.getSILType(signature->getParameters()[1], signature,
+                                   subSGF.F.getTypeExpansionContext());
+@@ -3160,6 +3171,7 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
      }
    }
  
@@ -123,7 +123,7 @@ index 4b9248183d3..08efff320a4 100644
    auto genericSig =
        genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
                   : nullptr;
-@@ -3167,6 +3179,14 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3168,6 +3180,14 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
      genericEnv = nullptr;
    }
  
@@ -138,7 +138,7 @@ index 4b9248183d3..08efff320a4 100644
    // Build the signature of the thunk as expected by the keypath runtime.
    auto signature = [&]() {
      CanType loweredBaseTy, loweredPropTy;
-@@ -3192,7 +3212,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3193,7 +3213,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
                          ? ParameterConvention::Indirect_Inout
                          : paramConvention});
      // indexes
@@ -148,17 +148,17 @@ index 4b9248183d3..08efff320a4 100644
        params.push_back({C.getUnsafeRawPointerType()->getCanonicalType(),
                          ParameterConvention::Direct_Unowned});
  
-@@ -3246,7 +3267,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3249,7 +3270,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
    auto baseArg = entry->createFunctionArgument(baseArgTy);
    SILValue indexPtrArg;
    
 -  if (!indexes.empty()) {
 +  // Always take indexes parameter to match callee and caller signature on WebAssembly
 +  if (!indexes.empty() || Target.isOSBinFormatWasm()) {
-     auto indexArgTy = signature->getParameters()[2].getSILStorageType(
-         SGM.M, signature, subSGF.getTypeExpansionContext());
-     indexPtrArg = entry->createFunctionArgument(indexArgTy);
-@@ -3336,6 +3358,7 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
+     auto indexArgTy =
+         subSGF.silConv.getSILType(signature->getParameters()[2], signature,
+                                   subSGF.getTypeExpansionContext());
+@@ -3342,6 +3364,7 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
      return;
    }
  
@@ -166,7 +166,7 @@ index 4b9248183d3..08efff320a4 100644
    auto genericSig =
        genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
                   : nullptr;
-@@ -3345,6 +3368,14 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
+@@ -3351,6 +3374,14 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
      genericEnv = nullptr;
    }
  

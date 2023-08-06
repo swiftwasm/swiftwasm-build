@@ -1,4 +1,4 @@
-From 98a188879dae33eccadfab1bd661c1d03f0e1bc7 Mon Sep 17 00:00:00 2001
+From be417141009e42c3191a715465c4f60d48a18860 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:27:38 +0000
 Subject: [PATCH] [wasm][test] HACK: Disable os_stdlib tests due to no dynamic
@@ -9,10 +9,10 @@ Subject: [PATCH] [wasm][test] HACK: Disable os_stdlib tests due to no dynamic
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/test/lit.cfg b/test/lit.cfg
-index 80abad2fb6a..ee26afc1a50 100644
+index acc64536990..90a25334f7d 100644
 --- a/test/lit.cfg
 +++ b/test/lit.cfg
-@@ -2286,7 +2286,7 @@ if run_vendor != 'apple':
+@@ -2281,7 +2281,7 @@ if run_vendor != 'apple':
  
  if 'remote_run_host' in lit_config.params:
      configure_remote_run()
