@@ -1,4 +1,4 @@
-From e9c372538dcd21510542e3bf13fde103c45fdff6 Mon Sep 17 00:00:00 2001
+From a11041f37625d9b81b6ff03b8b523967b9bc55ed Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 10 Jun 2023 14:51:49 +0000
 Subject: [PATCH] [ClangImporter] Support wasi-libc.modulemap import with VFS
@@ -8,7 +8,7 @@ Subject: [PATCH] [ClangImporter] Support wasi-libc.modulemap import with VFS
  1 file changed, 31 insertions(+), 10 deletions(-)
 
 diff --git a/lib/ClangImporter/ClangIncludePaths.cpp b/lib/ClangImporter/ClangIncludePaths.cpp
-index 841058708c7..483c97afb2a 100644
+index 697c53b91c1..8faf184a472 100644
 --- a/lib/ClangImporter/ClangIncludePaths.cpp
 +++ b/lib/ClangImporter/ClangIncludePaths.cpp
 @@ -101,6 +101,13 @@ static llvm::Optional<Path> getGlibcModuleMapPath(

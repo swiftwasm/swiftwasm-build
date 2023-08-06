@@ -1,4 +1,4 @@
-From 174775133d06632ae7390f48f7cd099835be3293 Mon Sep 17 00:00:00 2001
+From 4f84234b8ca23a37b32ef5666489e6cbe400c7d6 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:25:35 +0000
 Subject: [PATCH] [wasm][SIL/IRGen] HACK: Always forward extra argument to
