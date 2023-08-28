@@ -38,7 +38,7 @@ def open_pr_to_update_base_tag(scheme: str, base_tag: str, latest_tag: str,
         return
 
     status = subprocess.run(
-        ["git", "ls-remote", "--heads", "origin", branch],
+        ["git", "ls-remote", "--exit-code", "--heads", "origin", branch],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if status.returncode == 0:
         print(f"Branch {branch} already exists on remote, skipping")
