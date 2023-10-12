@@ -1,5 +1,5 @@
 {
-  "base-tag": "swift-DEVELOPMENT-SNAPSHOT-2023-08-03-a",
+  "base-tag": "swift-DEVELOPMENT-SNAPSHOT-2023-10-11-a",
   "repos": {
     "swift-corelibs-foundation": "660624d0220c0efbef054f4919f9f01fd3866be1",
     "swift-corelibs-xctest": "77bc9f5386ee8a2a4e8da5ac30e846b451d101b6"
