@@ -1,4 +1,4 @@
-From 7ba73fc0c8360ff659eaf1bb140cf10303a0c779 Mon Sep 17 00:00:00 2001
+From a910b7224bc35c478d0b1575cb03ab165a1d83cf Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 11 Jun 2023 11:44:24 +0000
 Subject: [PATCH] [wasm] Add metadata registration for WebAssembly
@@ -9,13 +9,13 @@ adds build support for it.
  stdlib/public/runtime/CMakeLists.txt          | 26 ++++++++++++++++---
  .../{SwiftRT-ELF.cpp => SwiftRT-ELF-WASM.cpp} | 15 +++++++++--
  2 files changed, 35 insertions(+), 6 deletions(-)
- rename stdlib/public/runtime/{SwiftRT-ELF.cpp => SwiftRT-ELF-WASM.cpp} (82%)
+ rename stdlib/public/runtime/{SwiftRT-ELF.cpp => SwiftRT-ELF-WASM.cpp} (85%)
 
 diff --git a/stdlib/public/runtime/CMakeLists.txt b/stdlib/public/runtime/CMakeLists.txt
-index 3771d972d54..38de01cd2a8 100644
+index f80eb0cd7a2..33dfd594b7b 100644
 --- a/stdlib/public/runtime/CMakeLists.txt
 +++ b/stdlib/public/runtime/CMakeLists.txt
-@@ -88,7 +88,7 @@ set(swift_runtime_backtracing_sources
+@@ -93,7 +93,7 @@ set(swift_runtime_backtracing_sources
  # Acknowledge that the following sources are known.
  set(LLVM_OPTIONAL_SOURCES
      SwiftRT-COFF.cpp
@@ -24,7 +24,7 @@ index 3771d972d54..38de01cd2a8 100644
      ${swift_runtime_sources}
      ${swift_runtime_objc_sources}
      ${swift_runtime_leaks_sources}
-@@ -139,11 +139,14 @@ add_swift_target_library(swiftRuntime OBJECT_LIBRARY
+@@ -147,11 +147,14 @@ add_swift_target_library(swiftRuntime OBJECT_LIBRARY
  
  set(ELFISH_SDKS)
  set(COFF_SDKS)
@@ -39,16 +39,16 @@ index 3771d972d54..38de01cd2a8 100644
    endif()
  endforeach()
  
-@@ -152,7 +155,7 @@ endforeach()
+@@ -160,7 +163,7 @@ endforeach()
  # with LTO, force swift runtime to compile without LTO for Linux.
  add_swift_target_library(swiftImageRegistrationObjectELF
                    OBJECT_LIBRARY IS_STDLIB IS_STDLIB_CORE
 -                  SwiftRT-ELF.cpp
 +                  SwiftRT-ELF-WASM.cpp
-                   C_COMPILE_FLAGS ${SWIFT_RUNTIME_CORE_CXX_FLAGS}
-                   C_COMPILE_FLAGS_LINUX -fno-lto
-                   LINK_FLAGS ${SWIFT_RUNTIME_CORE_LINK_FLAGS}
-@@ -170,17 +173,32 @@ add_swift_target_library(swiftImageRegistrationObjectCOFF
+                   C_COMPILE_FLAGS
+                     ${SWIFT_RUNTIME_CORE_CXX_FLAGS}
+                     ${swift_enable_backtracing}
+@@ -182,17 +185,32 @@ add_swift_target_library(swiftImageRegistrationObjectCOFF
                    SWIFT_COMPILE_FLAGS ${SWIFT_STANDARD_LIBRARY_SWIFT_FLAGS}
                    INSTALL_IN_COMPONENT none)
  
@@ -84,10 +84,10 @@ index 3771d972d54..38de01cd2a8 100644
        if(sdk STREQUAL WINDOWS)
          set(extension .obj)
 diff --git a/stdlib/public/runtime/SwiftRT-ELF.cpp b/stdlib/public/runtime/SwiftRT-ELF-WASM.cpp
-similarity index 82%
+similarity index 85%
 rename from stdlib/public/runtime/SwiftRT-ELF.cpp
 rename to stdlib/public/runtime/SwiftRT-ELF-WASM.cpp
-index 1b9bf3b9aa7..e68103a6a67 100644
+index 64d62f3de09..4ee737c8352 100644
 --- a/stdlib/public/runtime/SwiftRT-ELF.cpp
 +++ b/stdlib/public/runtime/SwiftRT-ELF-WASM.cpp
 @@ -1,4 +1,4 @@
@@ -96,7 +96,7 @@ index 1b9bf3b9aa7..e68103a6a67 100644
  //
  // This source file is part of the Swift.org open source project
  //
-@@ -16,14 +16,25 @@
+@@ -17,7 +17,13 @@
  #include <cstddef>
  #include <new>
  
@@ -108,6 +108,9 @@ index 1b9bf3b9aa7..e68103a6a67 100644
 +static constexpr const void *__dso_handle = nullptr;
 +#endif
  
+ #if SWIFT_ENABLE_BACKTRACING
+ // Drag in a symbol from the backtracer, to force the static linker to include
+@@ -29,9 +35,14 @@ static const void *__backtraceRef __attribute__((used))
  // Create empty sections to ensure that the start/stop symbols are synthesized
  // by the linker.  Otherwise, we may end up with undefined symbol references as
  // the linker table section was never constructed.
@@ -119,7 +122,7 @@ index 1b9bf3b9aa7..e68103a6a67 100644
  
  #define DECLARE_SWIFT_SECTION(name)                                                          \
 -  __asm__("\t.section " #name ",\"a\"\n");                                                   \
-+  DECLARE_EMPTY_METADATA_SECTION(name)                                                                \
++  DECLARE_EMPTY_METADATA_SECTION(name)                                                       \
    __attribute__((__visibility__("hidden"),__aligned__(1))) extern const char __start_##name; \
    __attribute__((__visibility__("hidden"),__aligned__(1))) extern const char __stop_##name;
  
