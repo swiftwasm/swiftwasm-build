@@ -1,0 +1,41 @@
+From b42bf448f82ff197b742f7d85a4e15dba72037e7 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sun, 29 Oct 2023 23:27:31 +0000
+Subject: [PATCH] [lit] Repair tests for stdlib-only build
+
+`config.host_triple` can be None when no host tools are built
+
+This is based on 21d57e887ad1f2d319b8e89af90d2732d50ecf55 in main branch
+---
+ test/lit.cfg | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/test/lit.cfg b/test/lit.cfg
+index 8a955f0da88..c989777dfd5 100644
+--- a/test/lit.cfg
++++ b/test/lit.cfg
+@@ -566,8 +566,10 @@ else:
+         )
+     )
+     # Parse the host triple.
+-    (host_cpu, host_vendor, host_os, host_vers) = re.match('([^-]+)-([^-]+)-([^0-9-]+)(.*)', config.host_triple).groups()
+-    toolchain_lib_dir = make_path(config.swift_lib_dir, 'swift', host_os)
++    toolchain_lib_dir = None
++    if config.host_triple:
++        (host_cpu, host_vendor, host_os, host_vers) = re.match('([^-]+)-([^-]+)-([^0-9-]+)(.*)', config.host_triple).groups()
++        toolchain_lib_dir = make_path(config.swift_lib_dir, 'swift', host_os)
+     config.host_build_swift = (
+         "%s -target %s -g %s -I %s -L %s %s" % (
+             config.swiftc_driver,
+@@ -575,7 +577,7 @@ else:
+             '' if kIsWindows else '-no-toolchain-stdlib-rpath',
+             config.swift_build_lib_dir,
+             config.swift_build_lib_dir,
+-            '' if kIsWindows else '-Xlinker -rpath -Xlinker {}'.format(toolchain_lib_dir)
++            '' if kIsWindows or toolchain_lib_dir is None else '-Xlinker -rpath -Xlinker {}'.format(toolchain_lib_dir)
+         )
+     )
+ 
+-- 
+2.40.0
+
