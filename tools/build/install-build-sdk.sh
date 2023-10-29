@@ -6,7 +6,7 @@ SOURCE_PATH="$( cd "$(dirname "$0")/../../../" && pwd  )"
 TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
 SCHEME="${1:?"scheme is not specified"}"
-PATCHES="$(cd "$(dirname "$0")/../../schemes/$SCHEME" && pwd)"
+SCHEME_DIR="$(cd "$(dirname "$0")/../../schemes/$SCHEME" && pwd)"
 
 install_libxml2() {
   LIBXML2_URL="https://github.com/swiftwasm/libxml2-wasm/releases/download/1.0.0/libxml2-wasm32-unknown-wasi.tar.gz"
@@ -23,12 +23,16 @@ install_icu() {
 }
 
 install_wasi-sysroot() {
-  WASI_SYSROOT_URL="https://github.com/swiftwasm/wasi-sdk-build/releases/download/wasi-sdk-14%2Bswiftwasm-2022-03-13/wasi-sysroot.tar.gz"
+  
+  local WASI_SYSROOT_URL
+  WASI_SYSROOT_URL="$(python3 -c 'import sys, json; print(json.load(sys.stdin)["wasi-sysroot"])' < "$SCHEME_DIR/manifest.json")"
 
   curl -L "$WASI_SYSROOT_URL" | tar xz
 
   mv "wasi-sysroot" "$BUILD_SDK_PATH/wasi-sysroot"
-  patch -p1 -d "$BUILD_SDK_PATH/wasi-sysroot" < "$PATCHES/wasi-sysroot"/*.patch
+  if [ -d "$SCHEME_DIR/wasi-sysroot" ]; then
+    patch -p1 -d "$BUILD_SDK_PATH/wasi-sysroot" < "$SCHEME_DIR/wasi-sysroot"/*.patch
+  fi
 }
 
 workdir=$(mktemp -d)
