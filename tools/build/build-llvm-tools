@@ -63,10 +63,13 @@ class BuildLLVMTools:
         cmake_options = []
         if 'wasm-ld' in self.tools:
             cmake_options.append('-DLLVM_ENABLE_PROJECTS=lld')
+        clang_bin_dir = self.toolchain_path / 'usr' / 'bin'
         subprocess.check_call([
             'cmake',
             '-G', 'Ninja',
             '-DCMAKE_BUILD_TYPE=Release',
+            '-DCMAKE_C_COMPILER=' + str(clang_bin_dir / 'clang'),
+            '-DCMAKE_CXX_COMPILER=' + str(clang_bin_dir / 'clang++'),
             '-DLLVM_TARGETS_TO_BUILD=WebAssembly',
             '-DCMAKE_INSTALL_PREFIX=' + str(self.toolchain_path),
             '-DLLVM_TOOLCHAIN_TOOLS=' + ';'.join(self.tools),
