@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+
+import sys
+import argparse
+from build_support.actions import ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
+
+
+def main():
+    parser = argparse.ArgumentParser(description='A script to install base toolchain')
+    options = derive_options_from_args(sys.argv[1:], parser)
+    actions = [DownloadBaseSnapshotAction(options)]
+    ActionRunner(actions).run()
+
+
+if __name__ == '__main__':
+    main()

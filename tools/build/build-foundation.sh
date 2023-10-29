@@ -1,7 +1,11 @@
 #!/bin/bash
 set -ex
 DESTINATION_TOOLCHAIN=$1
-WASI_SYSROOT_PATH=$2
+LLVM_BIN_DIR=$2
+CLANG_BIN_DIR=$3
+SWIFT_BIN_DIR=$4
+WASI_SYSROOT_PATH=$5
+
 SOURCE_PATH="$(cd "$(dirname $0)/../../.." && pwd)"
 TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
@@ -15,10 +19,11 @@ cd $FOUNDATION_BUILD
 cmake -G Ninja \
   -DCMAKE_BUILD_TYPE="Release" \
   -DCMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
-  -DCMAKE_Swift_COMPILER="$DESTINATION_TOOLCHAIN/usr/bin/swiftc" \
+  -DCMAKE_Swift_COMPILER="$SWIFT_BIN_DIR/swiftc" \
   -DCMAKE_STAGING_PREFIX="$DESTINATION_TOOLCHAIN/usr" \
   -DCMAKE_TOOLCHAIN_FILE="$TOOLS_BUILD_PATH/toolchain-wasi.cmake" \
-  -DLLVM_BIN="$DESTINATION_TOOLCHAIN/usr/bin" \
+  -DLLVM_BIN="$LLVM_BIN_DIR" \
+  -DCLANG_BIN="$CLANG_BIN_DIR" \
   -DICU_ROOT="$BUILD_SDK_PATH/icu" \
   -DLIBXML2_INCLUDE_DIR="$LIBXML2_PATH/include/libxml2" \
   -DLIBXML2_LIBRARY="$LIBXML2_PATH/lib" \
@@ -27,7 +32,7 @@ cmake -G Ninja \
   -DBUILD_TOOLS=OFF \
   -DHAS_LIBDISPATCH_API=OFF \
   -DCMAKE_Swift_COMPILER_FORCED=ON \
-  -DCMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH" \
+  -DCMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static" \
   "${SOURCE_PATH}/swift-corelibs-foundation"
   
 ninja

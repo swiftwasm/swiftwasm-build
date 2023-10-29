@@ -1,7 +1,11 @@
 #!/bin/bash
 set -ex
 DESTINATION_TOOLCHAIN=$1
-WASI_SYSROOT_PATH=$2
+LLVM_BIN_DIR=$2
+CLANG_BIN_DIR=$3
+SWIFT_BIN_DIR=$4
+WASI_SYSROOT_PATH=$5
+
 SOURCE_PATH="$(cd "$(dirname $0)/../../.." && pwd)"
 TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 
@@ -13,11 +17,13 @@ cd $BUILD_DIR
 cmake -G Ninja \
   -DCMAKE_BUILD_TYPE="Release" \
   -DCMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
-  -DCMAKE_Swift_COMPILER="$DESTINATION_TOOLCHAIN/usr/bin/swiftc" \
+  -DCMAKE_Swift_COMPILER="$SWIFT_BIN_DIR/swiftc" \
   -DCMAKE_TOOLCHAIN_FILE="$TOOLS_BUILD_PATH/toolchain-wasi.cmake" \
-  -DLLVM_BIN="$DESTINATION_TOOLCHAIN/usr/bin" \
+  -DLLVM_BIN="$LLVM_BIN_DIR" \
+  -DCLANG_BIN="$CLANG_BIN_DIR" \
   -DBUILD_SHARED_LIBS=OFF \
   -DCMAKE_Swift_COMPILER_FORCED=ON \
+  -DCMAKE_Swift_FLAGS="-resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static" \
   -DSWIFT_FOUNDATION_PATH=$DESTINATION_TOOLCHAIN/usr/lib/swift_static/wasi/wasm32 \
   "${SOURCE_PATH}/swift-corelibs-xctest"
   
