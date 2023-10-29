@@ -6,7 +6,10 @@ BASE_MATRIX_ENTRIES = [
     "build_os": "ubuntu-18.04",
     "agent_query": "ubuntu-20.04",
     "target": "ubuntu18.04_x86_64",
-    "container": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04",
+    "containers": {
+      "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04",
+      "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04@sha256:c996b1fe2babba4e468a6422d9fbe1a9e080e4745c5cb933e4eeaed0a5a95840",
+    },
     "run_stdlib_test": true,
     "run_full_test": false,
     "run_e2e_test": true,
@@ -18,7 +21,10 @@ BASE_MATRIX_ENTRIES = [
     "build_os": "ubuntu-20.04",
     "agent_query": "ubuntu-20.04",
     "target": "ubuntu20.04_x86_64",
-    "container": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
+    "containers": {
+      "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
+      "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:61d40c32e63abbebb35fa682d78991e0cb9b186f280ba42adec89443905af2f4",
+    },
     "run_stdlib_test": true,
     "run_full_test": false,
     "run_e2e_test": true,
@@ -30,7 +36,10 @@ BASE_MATRIX_ENTRIES = [
     "build_os": "ubuntu-22.04",
     "agent_query": "ubuntu-22.04",
     "target": "ubuntu22.04_x86_64",
-    "container": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
+    "containers": {
+      "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
+      "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04@sha256:a55c1ab110d3ef8b1605234245803b5917484990d0b3a00077f9957ae386da97",
+    },
     "run_stdlib_test": true,
     "run_full_test": false,
     "run_e2e_test": true,
@@ -42,7 +51,10 @@ BASE_MATRIX_ENTRIES = [
     "build_os": "amazon-linux-2",
     "agent_query": "ubuntu-22.04",
     "target": "amazonlinux2_x86_64",
-    "container": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2",
+    "containers": {
+      "main": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2",
+      "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:5aa7643df1a0d2ea43d86e1dfa603848760deb6efba50349bd00fee9395d0ded",
+    },
     "run_stdlib_test": false,
     "run_full_test": false,
     "run_e2e_test": false,
@@ -105,7 +117,10 @@ def main
         "build_os": "ubuntu-20.04",
         "agent_query": label,
         "target": "ubuntu20.04_aarch64",
-        "container": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
+        "containers": {
+          "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
+          "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:61d40c32e63abbebb35fa682d78991e0cb9b186f280ba42adec89443905af2f4",
+        },
         "run_stdlib_test": false,
         "run_full_test": false,
         "run_e2e_test": false,
@@ -133,7 +148,10 @@ def main
       raise "Unknown scheme: #{scheme}"
     end
     matrix_entries.map do |entry|
-      entry.merge("scheme": scheme, toolchain_channel: toolchain_channel)
+      container = if containers = entry[:containers]
+        containers[scheme.to_sym] || containers[:main]
+      end
+      entry.merge("scheme": scheme, toolchain_channel: toolchain_channel, container: container)
     end
   end
 
