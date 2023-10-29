@@ -55,6 +55,10 @@ class ApplyPatchesAction(Action):
 
     def run(self):
         patches_dir = os.path.join('schemes', self.options.scheme, self.repo)
+        if not os.path.exists(patches_dir):
+            print("=====> No patches for scheme {} for repo {}".format(self.options.scheme, self.repo))
+            return
+
         patches = [os.path.join(patches_dir, path) for path in os.listdir(patches_dir)]
         patches.sort()
         print('=====> Applying {} patches for scheme {}'.format(len(patches), self.options.scheme))
