@@ -59,6 +59,7 @@ build_host_toolchain() {
 build_target_toolchain() {
 
   local COMPILER_RT_BUILD_DIR="$TARGET_BUILD_ROOT/compiler-rt-wasi-wasm32"
+  local CLANG_VERSION="$(basename "$($HOST_BUILD_DIR/llvm-$HOST_SUFFIX/bin/clang -print-resource-dir)")"
   cmake -B "$COMPILER_RT_BUILD_DIR" \
     -D CMAKE_TOOLCHAIN_FILE="$TOOLS_BUILD_PATH/compiler-rt-cache.cmake" \
     -D CMAKE_BUILD_TYPE=Release \
@@ -68,7 +69,7 @@ build_target_toolchain() {
     -D CMAKE_AR="$HOST_BUILD_DIR/llvm-$HOST_SUFFIX/bin/llvm-ar" \
     -D CMAKE_C_COMPILER_LAUNCHER="$(which sccache)" \
     -D CMAKE_CXX_COMPILER_LAUNCHER="$(which sccache)" \
-    -D CMAKE_INSTALL_PREFIX="$TARGET_TOOLCHAIN_DESTDIR/usr/lib/clang/13.0.0/" \
+    -D CMAKE_INSTALL_PREFIX="$TARGET_TOOLCHAIN_DESTDIR/usr/lib/clang/$CLANG_VERSION/" \
     -D CMAKE_SYSROOT="${WASI_SYSROOT_PATH}" \
     -G Ninja \
     -S "$SOURCE_PATH/llvm-project/compiler-rt"
