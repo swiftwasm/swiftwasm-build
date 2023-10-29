@@ -47,29 +47,35 @@ class UpdateCheckoutAction(Action):
         self.system(*args)
 
 class ApplyPatchesAction(Action):
+
+    def __init__(self, options, repo: str):
+        super().__init__(options)
+        self.repo = repo
+        self.repo_dir = f'../{repo}'
+
     def run(self):
-        patches_dir = os.path.join('schemes', self.options.scheme, 'swift')
+        patches_dir = os.path.join('schemes', self.options.scheme, self.repo)
         patches = [os.path.join(patches_dir, path) for path in os.listdir(patches_dir)]
         patches.sort()
         print('=====> Applying {} patches for scheme {}'.format(len(patches), self.options.scheme))
 
         # If the repository is not clean, abort
-        status = subprocess.run(['git', '-C', '../swift', 'status', '--porcelain']).returncode
+        status = subprocess.run(['git', '-C', self.repo_dir, 'status', '--porcelain']).returncode
         if status != 0:
             raise Exception('Repository is not clean. Please commit or stash your changes.')
 
         staging_branch = self.compute_unique_branch_name('swiftwasm-staging/{}'.format(self.options.tag))
-        self.system('git', '-C', '../swift', 'switch', '-c', staging_branch)
+        self.system('git', '-C', self.repo_dir, 'switch', '-c', staging_branch)
         for patch in patches:
             repo_root_dirname = pathlib.Path(".").resolve().name
             relative_path = os.path.join("..", repo_root_dirname, patch)
-            self.system('git', '-C', '../swift', 'am', '--keep-non-patch', str(relative_path))
+            self.system('git', '-C', self.repo_dir, 'am', '--keep-non-patch', str(relative_path))
 
     def compute_unique_branch_name(self, basename):
         name = basename
         suffix = 0
         while True:
-            result = subprocess.run(['git', '-C', '../swift', 'branch', '--list', name], stdout=subprocess.PIPE)
+            result = subprocess.run(['git', '-C', self.repo_dir, 'branch', '--list', name], stdout=subprocess.PIPE)
             if len(result.stdout) == 0:
                 return name
             suffix += 1
