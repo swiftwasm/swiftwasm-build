@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+#
+# Build missing LLVM tools required to build Swift SDK for WebAssembly.
+#
+
+import argparse
+import pathlib
+import subprocess
+from typing import List, Optional
+
+from build_support.actions import REPO_ROOT
+
+
+WASM_SPECIFIC_TOOLS = [
+    'wasm-ld',
+    'llvm-ar',
+    'llvm-ranlib',
+]
+
+
+def compute_missing_tools(toolchain_path: pathlib.Path):
+
+    missing_tools = []
+    for tool in WASM_SPECIFIC_TOOLS:
+        if not (toolchain_path / 'usr' / 'bin' / tool).exists():
+            missing_tools.append(tool)
+
+    return missing_tools
+
+
+def compute_build_products(toolchain_path: pathlib.Path):
+    build_products = []
+    missing_tools = compute_missing_tools(toolchain_path)
+
+    if 'llvm-ranlib' in missing_tools and \
+            (toolchain_path / 'usr' / 'bin' / 'llvm-ar').exists():
+        build_products.append(
+                SymlinkTool(toolchain_path,
+                            tool_name='llvm-ranlib', target='llvm-ar'))
+        missing_tools.remove('llvm-ranlib')
+
+    if len(missing_tools) > 0:
+        build_products.append(BuildLLVMTools(toolchain_path, missing_tools))
+
+    # Symlink tools for existing tools
+    for tool in WASM_SPECIFIC_TOOLS:
+        if tool in missing_tools:
+            continue
+
+        build_products.append(SymlinkTool(toolchain_path, tool))
+
+    return build_products
+
+
+class BuildLLVMTools:
+
+    def __init__(self, toolchain_path: pathlib.Path, tools: List[str]):
+        self.toolchain_path = toolchain_path
+        self.tools = tools
+
+    def configure(
+            self, build_dir: pathlib.Path, llvm_project_dir: pathlib.Path):
+        cmake_options = []
+        if 'wasm-ld' in self.tools:
+            cmake_options.append('-DLLVM_ENABLE_PROJECTS=lld')
+        subprocess.check_call([
+            'cmake',
+            '-G', 'Ninja',
+            '-DCMAKE_BUILD_TYPE=Release',
+            '-DLLVM_TARGETS_TO_BUILD=WebAssembly',
+            '-DCMAKE_INSTALL_PREFIX=' + str(self.toolchain_path),
+            '-DLLVM_TOOLCHAIN_TOOLS=' + ';'.join(self.tools),
+            llvm_project_dir / 'llvm',
+        ], cwd=build_dir)
+
+    def build(self, build_dir: pathlib.Path):
+        print(f'Building LLVM tools in {build_dir}')
+        subprocess.check_call(['ninja', 'install'], cwd=build_dir)
+
+    def __str__(self):
+        return 'Build LLVM tools (' + ', '.join(self.tools) + ')'
+
+
+class SymlinkTool:
+
+    def __init__(
+            self, toolchain_path: pathlib.Path,
+            tool_name: str, target: Optional[str] = None):
+        self.toolchain_path = toolchain_path
+        self.tool_name = tool_name
+        self.target = target
+
+    def configure(
+            self, build_dir: pathlib.Path, llvm_project_dir: pathlib.Path):
+        pass
+
+    def build(self, build_dir: pathlib.Path):
+        bin_dir = build_dir / 'bin'
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        target_name = self.target if self.target else self.tool_name
+        target = self.toolchain_path / 'usr' / 'bin' / target_name
+        tool = bin_dir / self.tool_name
+        if not tool.exists():
+            tool.symlink_to(target)
+
+    def __str__(self):
+        if self.target:
+            return f'Symlink {self.tool_name} to {self.target}'
+        return 'Symlink ' + self.tool_name
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--toolchain', required=True)
+    args = parser.parse_args()
+
+    toolchain_path = pathlib.Path(args.toolchain)
+    missing_tools = compute_missing_tools(toolchain_path)
+
+    if len(missing_tools) == 0:
+        print('All required tools are available')
+        return
+
+    print('Missing tools:')
+    for tool in missing_tools:
+        print(f'  * {tool}')
+
+    repo_root = pathlib.Path(REPO_ROOT)
+    build_dir = repo_root / '..' / 'build' / 'llvm-tools'
+    build_dir.mkdir(parents=True, exist_ok=True)
+
+    llvm_project_dir = repo_root / '..' / 'llvm-project'
+
+    products = compute_build_products(toolchain_path)
+    for product in products:
+        print(product)
+        product.configure(build_dir, llvm_project_dir)
+        product.build(build_dir)
+
+
+if __name__ == '__main__':
+    main()
