@@ -97,7 +97,7 @@ class DownloadBaseSnapshotAction(Action):
         if not os.path.exists(tarball_path):
             print(f"=====> Downloading base snapshot {tarball_name}")
             os.makedirs(os.path.dirname(tarball_path), exist_ok=True)
-            self.system('curl', '-L', '-o', tarball_path, snapshot_url)
+            self.system('curl', '--fail', '-L', '-o', tarball_path, snapshot_url)
 
         base_snapshot_dir = os.path.join('..', 'build', 'Packaging', 'base-snapshot')
 
