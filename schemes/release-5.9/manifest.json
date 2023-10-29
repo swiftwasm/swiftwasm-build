@@ -5,5 +5,6 @@
     "swift-corelibs-foundation": "660624d0220c0efbef054f4919f9f01fd3866be1",
     "swift-corelibs-xctest": "77bc9f5386ee8a2a4e8da5ac30e846b451d101b6"
   },
+  "wasi-sysroot": "https://github.com/swiftwasm/wasi-sdk-build/releases/download/wasi-sdk-14%2Bswiftwasm-2022-03-13/wasi-sysroot.tar.gz",
   "swift-org-download-channel": "swift-5.9.1-release"
 }
