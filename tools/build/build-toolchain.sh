@@ -10,9 +10,11 @@ WASI_SYSROOT_PATH="$BUILD_SDK_PATH/wasi-sysroot"
 case $(uname -s) in
   Darwin)
     HOST_SUFFIX=macosx-$(uname -m)
+    HOST_BUILD_PRESET=wasm_buildbot_osx_package
   ;;
   Linux)
     HOST_SUFFIX=linux-$(uname -m)
+    HOST_BUILD_PRESET=wasm_buildbot_linux
   ;;
   *)
     echo "Unrecognised platform $(uname -s)"
@@ -48,7 +50,7 @@ build_host_toolchain() {
   env SWIFT_BUILD_ROOT="$HOST_BUILD_ROOT" \
     "$SOURCE_PATH/swift/utils/build-script" \
     --preset-file="$TOOLS_BUILD_PATH/build-presets.ini" \
-    --preset=webassembly-host-install \
+    --preset=$HOST_BUILD_PRESET \
     --build-dir="$HOST_BUILD_DIR" \
     HOST_ARCHITECTURE="$(uname -m)" \
     INSTALL_DESTDIR="$HOST_TOOLCHAIN_DESTDIR"
