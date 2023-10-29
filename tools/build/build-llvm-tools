@@ -119,11 +119,10 @@ def main():
 
     if len(missing_tools) == 0:
         print('All required tools are available')
-        return
-
-    print('Missing tools:')
-    for tool in missing_tools:
-        print(f'  * {tool}')
+    else:
+        print('Missing tools:')
+        for tool in missing_tools:
+            print(f'  * {tool}')
 
     repo_root = pathlib.Path(REPO_ROOT)
     build_dir = repo_root / '..' / 'build' / 'llvm-tools'
