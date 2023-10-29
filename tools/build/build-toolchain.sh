@@ -19,14 +19,14 @@ need_build_cross_compiler() {
   local patch_dir="$REPO_PATH/schemes/$SCHEME/swift"
 
   if [ ! -d "$patch_dir" ]; then
-    return 0
+    return 1
   fi
 
   if [ -z "$(ls -A "$patch_dir")" ]; then
-    return 0
+    return 1
   fi
 
-  return 1
+  return 0
 }
 
 
