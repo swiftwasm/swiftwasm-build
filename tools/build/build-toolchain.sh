@@ -37,7 +37,7 @@ if need_build_cross_compiler; then
 else
   echo "Using prebuilt cross compiler..."
   "$TOOLS_BUILD_PATH/install-base-toolchain" --scheme "$SCHEME"
-  CROSS_COMPILER_DESTDIR=$PACKAGING_DIR/base-toolchain
+  CROSS_COMPILER_DESTDIR=$PACKAGING_DIR/base-snapshot
 fi
 "$TOOLS_BUILD_PATH/build-llvm-tools" --toolchain "$CROSS_COMPILER_DESTDIR"
 
