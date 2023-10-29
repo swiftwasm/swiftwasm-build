@@ -3,6 +3,7 @@
 set -ex
 
 SOURCE_PATH="$(cd "$(dirname $0)/../../.." && pwd)"
+TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 SCHEME="${1:?"scheme is not specified"}"
 
 export SCCACHE_CACHE_SIZE="50G"
