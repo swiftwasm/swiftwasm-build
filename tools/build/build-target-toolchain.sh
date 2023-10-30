@@ -56,6 +56,8 @@ build_target_toolchain() {
       -D CMAKE_BUILD_TYPE=Release \
       -D LLVM_ENABLE_ZLIB=NO \
       -D LLVM_ENABLE_LIBXML2=NO \
+      -D CMAKE_C_COMPILER="$CLANG_BIN_DIR/clang" \
+      -D CMAKE_CXX_COMPILER="$CLANG_BIN_DIR/clang++" \
       -G Ninja \
       -S "$SOURCE_PATH/llvm-project/llvm"
   fi
