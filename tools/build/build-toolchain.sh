@@ -34,6 +34,16 @@ if need_build_cross_compiler; then
   echo "Building cross compiler..."
   "$TOOLS_BUILD_PATH/build-host-toolchain.sh"
   CROSS_COMPILER_DESTDIR=$PACKAGING_DIR/host-toolchain
+
+  # package-toolchain will merge the base toolchain and
+  # target toolchain into one toolchain. We need to overwrite
+  # compilers in the base toolchain with the just built ones
+  # in the host toolchain. So we copy the host toolchain to
+  # target toolchain first.
+  TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain
+  rm -rf "$TARGET_TOOLCHAIN_DESTDIR"
+  mkdir -p "$TARGET_TOOLCHAIN_DESTDIR"
+  rsync -a "$CROSS_COMPILER_DESTDIR/" "$TARGET_TOOLCHAIN_DESTDIR"
 else
   echo "Using prebuilt cross compiler..."
   "$TOOLS_BUILD_PATH/install-base-toolchain" --scheme "$SCHEME"
