@@ -262,6 +262,7 @@ jobs:
           $TOOLCHAIN/usr/bin/swiftc \
                 -target wasm32-unknown-wasi \
                 -sdk $TOOLCHAIN/usr/share/wasi-sysroot \
+                -resource-dir $TOOLCHAIN/usr/lib/swift_static \
                 hello.swift -o hello.wasm && \
                 echo "Successfully linked hello.wasm"
       - name: Upload hello.wasm
