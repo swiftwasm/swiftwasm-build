@@ -30,7 +30,7 @@ build_target_toolchain() {
 
   local COMPILER_RT_BUILD_DIR="$TARGET_BUILD_ROOT/compiler-rt-wasi-wasm32"
   local CLANG_VERSION
-  CLANG_VERSION="$(basename "$($LLVM_BIN_DIR/clang -print-resource-dir)")"
+  CLANG_VERSION="$(basename "$($CLANG_BIN_DIR/clang -print-resource-dir)")"
 
   cmake -B "$COMPILER_RT_BUILD_DIR" \
     -D CMAKE_TOOLCHAIN_FILE="$TOOLS_BUILD_PATH/compiler-rt-cache.cmake" \
