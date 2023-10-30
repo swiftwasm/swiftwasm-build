@@ -15,6 +15,7 @@ WASM_SPECIFIC_TOOLS = [
     'wasm-ld',
     'llvm-ar',
     'llvm-ranlib',
+    'FileCheck',
 ]
 
 
@@ -78,7 +79,9 @@ class BuildLLVMTools:
 
     def build(self, build_dir: pathlib.Path):
         print(f'Building LLVM tools in {build_dir}')
-        subprocess.check_call(['ninja', 'install'], cwd=build_dir)
+        cmd = ['ninja'] + self.tools
+        print(f'Running "{" ".join(cmd)}"')
+        subprocess.check_call(cmd, cwd=build_dir)
 
     def __str__(self):
         return 'Build LLVM tools (' + ', '.join(self.tools) + ')'
