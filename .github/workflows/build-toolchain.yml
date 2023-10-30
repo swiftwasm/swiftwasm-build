@@ -65,7 +65,7 @@ jobs:
     name: Build matrix
     needs: [start-runner]
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     outputs:
       entries: ${{ steps.generate.outputs.entries }}
     steps:
@@ -99,7 +99,7 @@ jobs:
       # https://github.com/actions/cache/blob/main/tips-and-workarounds.md#cache-segment-restore-timeout
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 30
     needs: [build-matrix]
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
@@ -196,7 +196,7 @@ jobs:
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
 
       - name: Extract build-cache from Docker container
-        if: ${{ matrix.container != null && always() }}
+        if: ${{ matrix.container != null && !cancelled() }}
         run: |
           rm -rf ${{ github.workspace }}/build-cache
           docker cp swiftwasm-ci-buildbot:/home/build-user/build-cache ${{ github.workspace }}/build-cache
@@ -209,7 +209,7 @@ jobs:
         run: ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}
 
       - uses: actions/cache/save@v3
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         with:
           path: build-cache
           key: ${{ steps.cache_key.outputs.SCCACHE_KEY }}
