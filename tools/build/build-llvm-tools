@@ -81,9 +81,20 @@ class BuildLLVMTools:
 
     def build(self, build_dir: pathlib.Path):
         print(f'Building LLVM tools in {build_dir}')
-        cmd = ['ninja'] + self.tools
+
+        cmake_targets = []
+        for tool in self.tools:
+            if tool == 'wasm-ld':
+                cmake_targets.append('lld')
+            else:
+                cmake_targets.append(tool)
+        cmd = ['ninja'] + cmake_targets
         print(f'Running "{" ".join(cmd)}"')
         subprocess.check_call(cmd, cwd=build_dir)
+        # Symlink wasm-ld to lld
+        if 'wasm-ld' in self.tools:
+            (build_dir / 'bin' / 'wasm-ld').symlink_to(
+                    build_dir / 'bin' / 'lld')
 
     def __str__(self):
         return 'Build LLVM tools (' + ', '.join(self.tools) + ')'
