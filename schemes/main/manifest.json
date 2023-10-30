@@ -4,6 +4,7 @@
     "swift-corelibs-foundation": "660624d0220c0efbef054f4919f9f01fd3866be1",
     "swift-corelibs-xctest": "77bc9f5386ee8a2a4e8da5ac30e846b451d101b6"
   },
+  "build-compiler": false,
   "wasi-sysroot": "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-19/wasi-sysroot-19.0.tar.gz",
   "swift-org-download-channel": "development"
 }
