@@ -48,18 +48,23 @@ build_target_toolchain() {
 
   ninja install -C "$COMPILER_RT_BUILD_DIR"
 
-  local LLVM_TARGET_BUILD_DIR="$TARGET_BUILD_ROOT/llvm-wasi-wasm32"
+  local LLVM_TARGET_BUILD_DIR
 
-  if [ ! -f "$LLVM_TARGET_BUILD_DIR/CMakeCache.txt" ]; then
-    # Only configure LLVM to use CMake functionalities in LLVM
-    cmake -B "$LLVM_TARGET_BUILD_DIR" \
-      -D CMAKE_BUILD_TYPE=Release \
-      -D LLVM_ENABLE_ZLIB=NO \
-      -D LLVM_ENABLE_LIBXML2=NO \
-      -D CMAKE_C_COMPILER="$CLANG_BIN_DIR/clang" \
-      -D CMAKE_CXX_COMPILER="$CLANG_BIN_DIR/clang++" \
-      -G Ninja \
-      -S "$SOURCE_PATH/llvm-project/llvm"
+  if [ -f "$SOURCE_PATH/build/llvm-tools/CMakeCache.txt" ]; then
+    LLVM_TARGET_BUILD_DIR="$SOURCE_PATH/build/llvm-tools"
+  else
+    LLVM_TARGET_BUILD_DIR="$TARGET_BUILD_ROOT/llvm-wasi-wasm32"
+    if [ ! -f "$LLVM_TARGET_BUILD_DIR/CMakeCache.txt" ]; then
+      # Only configure LLVM to use CMake functionalities in LLVM
+      cmake -B "$LLVM_TARGET_BUILD_DIR" \
+        -D CMAKE_BUILD_TYPE=Release \
+        -D LLVM_ENABLE_ZLIB=NO \
+        -D LLVM_ENABLE_LIBXML2=NO \
+        -D CMAKE_C_COMPILER="$CLANG_BIN_DIR/clang" \
+        -D CMAKE_CXX_COMPILER="$CLANG_BIN_DIR/clang++" \
+        -G Ninja \
+        -S "$SOURCE_PATH/llvm-project/llvm"
+    fi
   fi
 
   local SWIFT_STDLIB_BUILD_DIR="$TARGET_BUILD_ROOT/swift-stdlib-wasi-wasm32"
