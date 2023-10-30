@@ -6,6 +6,7 @@
 import argparse
 import pathlib
 import subprocess
+import shutil
 from typing import List, Optional
 
 from build_support.actions import REPO_ROOT
@@ -67,7 +68,17 @@ class BuildLLVMTools:
         if 'wasm-ld' in self.tools:
             cmake_options.append('-DLLVM_ENABLE_PROJECTS=lld')
         clang_bin_dir = self.toolchain_path / 'usr' / 'bin'
-        subprocess.check_call([
+
+        sccache_path = shutil.which('sccache')
+        if sccache_path:
+            for launcher_cmake_option in [
+                'CMAKE_C_COMPILER_LAUNCHER',
+                'CMAKE_CXX_COMPILER_LAUNCHER'
+            ]:
+                cmake_options.append(
+                    f'-D{launcher_cmake_option}={sccache_path}')
+
+        cmd = [
             'cmake',
             '-G', 'Ninja',
             '-DCMAKE_BUILD_TYPE=Release',
@@ -76,8 +87,13 @@ class BuildLLVMTools:
             '-DLLVM_TARGETS_TO_BUILD=WebAssembly',
             '-DCMAKE_INSTALL_PREFIX=' + str(self.toolchain_path),
             '-DLLVM_TOOLCHAIN_TOOLS=' + ';'.join(self.tools),
-            llvm_project_dir / 'llvm',
-        ], cwd=build_dir)
+        ]
+
+        cmd += cmake_options
+        cmd.append(str(llvm_project_dir / 'llvm'))
+        print(f'Running "{" ".join(cmd)}"')
+
+        subprocess.check_call(cmd, cwd=build_dir)
 
     def build(self, build_dir: pathlib.Path):
         print(f'Building LLVM tools in {build_dir}')
