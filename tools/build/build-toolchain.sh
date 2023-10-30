@@ -26,7 +26,7 @@ need_build_cross_compiler() {
     return 1
   fi
 
-  python3 -c 'import sys, json; exit(0 if json.load(sys.stdin)["build-compiler"] else 1)' < $REPO_PATH/schemes/$SCHEME/manifest.json
+  python3 -c 'import sys, json; exit(0 if json.load(sys.stdin).get("build-compiler", True) else 1)' < $REPO_PATH/schemes/$SCHEME/manifest.json
 }
 
 
