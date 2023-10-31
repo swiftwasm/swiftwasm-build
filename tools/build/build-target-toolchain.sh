@@ -76,7 +76,8 @@ build_target_toolchain() {
   # fails libcxx version check. So activate LLVM_COMPILER_CHECKED to spoof the checker
   # SWIFT_DRIVER_TEST_OPTIONS is used to specify clang resource dir for wasm32-unknown-wasi
   # because it's not built beside clang
-  # TODO(katei): Move SWIFT_STDLIB_HAS_ASL to cmake/caches/Runtime-WASI-wasm32.cmake
+  # TODO(katei): Move SWIFT_STDLIB_HAS_ASL and SWIFT_RUNTIME_CRASH_REPORTER_CLIENT
+  # to cmake/caches/Runtime-WASI-wasm32.cmake
   cmake -B "$SWIFT_STDLIB_BUILD_DIR" \
     -C "$SOURCE_PATH/swift/cmake/caches/Runtime-WASI-wasm32.cmake" \
     -D CMAKE_BUILD_TYPE=Release \
@@ -109,6 +110,7 @@ build_target_toolchain() {
     -D SWIFT_PRIMARY_VARIANT_ARCH=wasm32 \
     -D SWIFT_SDKS:STRING=WASI \
     -D SWIFT_STDLIB_HAS_ASL=NO \
+    -D SWIFT_RUNTIME_CRASH_REPORTER_CLIENT=NO \
     -D SWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE="$SOURCE_PATH/swift-syntax" \
     -D SWIFT_PATH_TO_STRING_PROCESSING_SOURCE="$SOURCE_PATH/swift-experimental-string-processing" \
     -G Ninja \
