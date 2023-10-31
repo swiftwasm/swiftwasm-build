@@ -247,6 +247,10 @@ jobs:
           name: ${{ matrix.target }}-test-results
           path: ./swift-test-results.tar.gz
 
+      - name: Cleanup docker volume
+        if: ${{ matrix.container != null }}
+        run: docker volume rm --force oss-swift-package
+
       # Run e2e test
       - name: Prepare E2E test
         run: |
