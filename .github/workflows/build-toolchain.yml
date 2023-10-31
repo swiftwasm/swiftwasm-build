@@ -222,7 +222,8 @@ jobs:
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}
         run: |
-          docker exec swiftwasm-ci-buildbot /bin/bash -lc "cd build/WebAssembly/swift-stdlib-wasi-wasm32 && ninja check-swift-wasi-wasm32-custom"
+          docker exec swiftwasm-ci-buildbot /bin/bash -lc \
+            "ninja -C build/WebAssembly/swift-stdlib-wasi-wasm32 check-swift-wasi-wasm32-custom && rm -rf build"
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container == null }}
         run: |
