@@ -250,7 +250,10 @@ jobs:
 
       - name: Cleanup docker volume
         if: ${{ matrix.container != null }}
-        run: docker volume rm --force oss-swift-package
+        run: |
+          docker stop swiftwasm-ci-buildbot
+          docker rm swiftwasm-ci-buildbot
+          docker volume rm --force oss-swift-package
 
       # Run e2e test
       - name: Prepare E2E test
