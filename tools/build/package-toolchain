@@ -5,6 +5,7 @@ import os
 import argparse
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 from build_support.platform import PlatformInfo
+from build_support.llvm_tools import WASM_SPECIFIC_TOOLS_TO_INSTALL
 
 
 class SnapshotInfo:
@@ -29,6 +30,7 @@ class PackageAction(Action):
         base_toolchain_path = os.path.join(packaging_dir, 'base-snapshot')
         target_toolchain_path = os.path.join(packaging_dir, 'target-toolchain')
         dist_toolchain_path = os.path.join(packaging_dir, 'dist-toolchain', self.snapshot_info.toolchain_name)
+        llvm_tools_path = os.path.join('..', 'build', 'llvm-tools')
         build_sdk_path = os.path.join('..', 'build-sdk')
 
         shutil.rmtree(os.path.dirname(dist_toolchain_path), ignore_errors=True)
@@ -39,6 +41,8 @@ class PackageAction(Action):
         self.rsync("-a", target_toolchain_path + "/", dist_toolchain_path)
 
         self.copy_icu_libs(build_sdk_path, dist_toolchain_path)
+
+        self.install_extra_llvm_tools(llvm_tools_path, dist_toolchain_path)
 
         # FIXME: We now support only legacy driver because the new swift-driver doesn't have hacks for default
         # -sdk and forcing -use-static-resource-dir (-static-executable).
@@ -71,6 +75,30 @@ class PackageAction(Action):
         for lib in icu_libs:
             dest_path = os.path.join(dest_dir, lib)
             shutil.copy(os.path.join(icu_lib_dir, lib), dest_path)
+
+    def install_extra_llvm_tools(self, llvm_tools_path, dist_toolchain_path):
+        import shutil
+        print(f"=====> Installing extra LLVM tools")
+        llvm_tools_bin_dir = os.path.join(llvm_tools_path, 'bin')
+        install_bin_dir = os.path.join(dist_toolchain_path, 'usr', 'bin')
+        for tool_name in WASM_SPECIFIC_TOOLS_TO_INSTALL:
+            # Skip installing if the tool already exists
+            if os.path.exists(os.path.join(install_bin_dir, tool_name)):
+                continue
+
+            tool_path = os.path.join(llvm_tools_bin_dir, tool_name)
+            # Copy the tool while preserving the symlink
+            print(f"Copying {tool_path} to {install_bin_dir}")
+            shutil.copy(tool_path, install_bin_dir, follow_symlinks=False)
+
+            # If it's a symlink, copy the direct symlink target too
+            if os.path.islink(tool_path):
+                target = os.readlink(tool_path)
+                if os.path.exists(os.path.join(install_bin_dir, target)):
+                    continue
+                target_path = os.path.join(llvm_tools_bin_dir, target)
+                print(f"Copying {target_path} to {install_bin_dir} (target of {tool_path})")
+                shutil.copy(target_path, install_bin_dir, follow_symlinks=False)
 
 
 class DarwinInfoPlistAction(Action):
