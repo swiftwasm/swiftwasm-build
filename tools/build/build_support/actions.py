@@ -104,27 +104,34 @@ class DownloadBaseSnapshotAction(Action):
         extension = platform_info.package_extension
 
         tarball_path = os.path.join('..', 'build', 'Packaging', f'base-snapshot.{extension}')
+        base_snapshot_dir = os.path.join('..', 'build', 'Packaging', 'base-snapshot')
+
+        if os.path.exists(os.path.join(base_snapshot_dir, 'usr')):
+            print(f"=====> Base snapshot '{base_snapshot_dir}' already exists")
+            return
+
         if not os.path.exists(tarball_path):
             print(f"=====> Downloading base snapshot {tarball_name}")
             os.makedirs(os.path.dirname(tarball_path), exist_ok=True)
             self.system('curl', '--fail', '-L', '-o', tarball_path, snapshot_url)
 
-        base_snapshot_dir = os.path.join('..', 'build', 'Packaging', 'base-snapshot')
+        print(f"=====> Unpacking base snapshot {tarball_name}")
+        os.makedirs(base_snapshot_dir, exist_ok=True)
+        if extension == "tar.gz":
+            self.system('tar', '-C', base_snapshot_dir, '--strip-components', '1', '-xzf', tarball_path)
+        elif extension == "pkg":
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmpdir:
+                self.system('xar', '-xf', tarball_path, '-C', tmpdir)
+                old_cwd = os.getcwd()
+                os.chdir(base_snapshot_dir)
+                pkg_name = tarball_name.replace(".pkg", "-package.pkg")
+                self.system('cpio', '-i', '-I', os.path.join(tmpdir, pkg_name, 'Payload'))
+                os.chdir(old_cwd)
 
-        if not os.path.exists(os.path.join(base_snapshot_dir, 'usr')):
-            print(f"=====> Unpacking base snapshot {tarball_name}")
-            os.makedirs(base_snapshot_dir, exist_ok=True)
-            if extension == "tar.gz":
-                self.system('tar', '-C', base_snapshot_dir, '--strip-components', '1', '-xzf', tarball_path)
-            elif extension == "pkg":
-                import tempfile
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    self.system('xar', '-xf', tarball_path, '-C', tmpdir)
-                    old_cwd = os.getcwd()
-                    os.chdir(base_snapshot_dir)
-                    pkg_name = tarball_name.replace(".pkg", "-package.pkg")
-                    self.system('cpio', '-i', '-I', os.path.join(tmpdir, pkg_name, 'Payload'))
-                    os.chdir(old_cwd)
+        if self.options.optimize_disk_footprint:
+            print(f"=====> Cleaning up base snapshot tarball '{tarball_path}'")
+            os.remove(tarball_path)
 
 class ActionRunner:
     def __init__(self, actions):
@@ -143,6 +150,9 @@ def derive_options_from_args(argv, parser: argparse.ArgumentParser):
     parser.add_argument('--dry-run', help='Prints the commands that would be executed', action='store_true')
     parser.add_argument('-v', '--verbose', help='Prints the commands that are executed', action='store_true')
     parser.add_argument('--skip-history', help='Skip histories when obtaining sources', action='store_true')
+    parser.add_argument('--optimize-disk-footprint',
+                        help='Minimize disk footprint',
+                        action='store_true', default=os.environ.get('CI', None) is not None)
 
     options = parser.parse_args(argv)
 
