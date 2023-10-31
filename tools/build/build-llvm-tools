@@ -10,16 +10,7 @@ import shutil
 from typing import List, Optional
 
 from build_support.actions import REPO_ROOT
-
-
-WASM_SPECIFIC_TOOLS = [
-    'wasm-ld',
-    'llvm-ar',
-    'llvm-ranlib',
-    # These tools are used by Swift test suite
-    'llvm-nm',
-    'FileCheck',
-]
+from build_support.llvm_tools import WASM_SPECIFIC_TOOLS
 
 
 def compute_missing_tools(toolchain_path: pathlib.Path):
@@ -39,8 +30,9 @@ def compute_build_products(toolchain_path: pathlib.Path):
     if 'llvm-ranlib' in missing_tools and \
             (toolchain_path / 'usr' / 'bin' / 'llvm-ar').exists():
         build_products.append(
-                SymlinkTool(toolchain_path,
-                            tool_name='llvm-ranlib', target='llvm-ar'))
+                SymlinkTool(tool_name='llvm-ar', toolchain_path=toolchain_path))
+        build_products.append(
+                SymlinkTool(tool_name='llvm-ranlib', target='llvm-ar'))
         missing_tools.remove('llvm-ranlib')
 
     if len(missing_tools) > 0:
@@ -51,7 +43,8 @@ def compute_build_products(toolchain_path: pathlib.Path):
         if tool in missing_tools:
             continue
 
-        build_products.append(SymlinkTool(toolchain_path, tool))
+        build_products.append(SymlinkTool(
+            tool_name=tool, toolchain_path=toolchain_path))
 
     return build_products
 
@@ -119,8 +112,8 @@ class BuildLLVMTools:
 class SymlinkTool:
 
     def __init__(
-            self, toolchain_path: pathlib.Path,
-            tool_name: str, target: Optional[str] = None):
+            self, tool_name: str, target: Optional[str] = None,
+            toolchain_path: pathlib.Path = None):
         self.toolchain_path = toolchain_path
         self.tool_name = tool_name
         self.target = target
@@ -133,7 +126,10 @@ class SymlinkTool:
         bin_dir = build_dir / 'bin'
         bin_dir.mkdir(parents=True, exist_ok=True)
         target_name = self.target if self.target else self.tool_name
-        target = self.toolchain_path / 'usr' / 'bin' / target_name
+        if self.toolchain_path:
+            target = self.toolchain_path / 'usr' / 'bin' / target_name
+        else:
+            target = target_name
         tool = bin_dir / self.tool_name
         if not tool.exists():
             tool.symlink_to(target)
