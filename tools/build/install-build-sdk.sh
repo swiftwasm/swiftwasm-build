@@ -16,10 +16,16 @@ install_libxml2() {
 }
 
 install_icu() {
-  ICU_URL="https://github.com/swiftwasm/icu4c-wasi/releases/download/0.5.0/icu4c-wasi.tar.xz"
+  local ICU_URL
+  ICU_URL="$(python3 -c 'import sys, json; print(json.load(sys.stdin)["icu4c"])' < "$SCHEME_DIR/manifest.json")"
   curl -L "$ICU_URL" | tar Jx
   rm -rf "$BUILD_SDK_PATH/icu"
-  mv icu_out "$BUILD_SDK_PATH/icu"
+  if [ -d "icu_out" ]; then
+    # Just for backward compatibility
+    mv icu_out "$BUILD_SDK_PATH/icu"
+  else
+    mv icu "$BUILD_SDK_PATH/icu"
+  fi
 }
 
 install_wasi-sysroot() {
