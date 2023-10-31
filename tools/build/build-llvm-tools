@@ -108,9 +108,9 @@ class BuildLLVMTools:
         print(f'Running "{" ".join(cmd)}"')
         subprocess.check_call(cmd, cwd=build_dir)
         # Symlink wasm-ld to lld
-        if 'wasm-ld' in self.tools:
-            (build_dir / 'bin' / 'wasm-ld').symlink_to(
-                    build_dir / 'bin' / 'lld')
+        wasm_ld_path = build_dir / 'bin' / 'wasm-ld'
+        if 'wasm-ld' in self.tools and not wasm_ld_path.exists():
+            wasm_ld_path.symlink_to(build_dir / 'bin' / 'lld')
 
     def __str__(self):
         return 'Build LLVM tools (' + ', '.join(self.tools) + ')'
