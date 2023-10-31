@@ -48,6 +48,9 @@ else
   echo "Using prebuilt cross compiler..."
   "$TOOLS_BUILD_PATH/install-base-toolchain" --scheme "$SCHEME"
   CROSS_COMPILER_DESTDIR=$PACKAGING_DIR/base-snapshot
+  # FIXME: Remove this once we fixed new swift-driver to use llvm-ar
+  # for WebAssembly target.
+  rm -f "$CROSS_COMPILER_DESTDIR/usr/bin/swift-driver"
 fi
 "$TOOLS_BUILD_PATH/build-llvm-tools" --toolchain "$CROSS_COMPILER_DESTDIR"
 
