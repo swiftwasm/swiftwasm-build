@@ -1,0 +1,384 @@
+From ed38c661b8892ac83e40c799f0ea873731275086 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sun, 29 Oct 2023 00:39:31 +0000
+Subject: [PATCH 2/2] [wasm] Get rid of pthread stub hack
+
+---
+ CoreFoundation/Base.subproj/CFInternal.h      | 31 ++++++++++++-
+ CoreFoundation/Base.subproj/CFPlatform.c      |  3 ++
+ CoreFoundation/Base.subproj/CFPriv.h          |  2 +-
+ CoreFoundation/Base.subproj/CFRuntime.c       |  4 +-
+ CoreFoundation/Base.subproj/CFUtilities.c     |  8 +++-
+ .../Base.subproj/CoreFoundation_Prefix.h      |  6 +++
+ .../Base.subproj/ForSwiftFoundationOnly.h     |  8 +++-
+ Sources/Foundation/NSLock.swift               | 45 +++++++++++++++++++
+ 8 files changed, 101 insertions(+), 6 deletions(-)
+
+diff --git a/CoreFoundation/Base.subproj/CFInternal.h b/CoreFoundation/Base.subproj/CFInternal.h
+index 21f9efec..d6763e6c 100644
+--- a/CoreFoundation/Base.subproj/CFInternal.h
++++ b/CoreFoundation/Base.subproj/CFInternal.h
+@@ -657,6 +657,35 @@ CF_INLINE int _CFRecursiveMutexUnlock(_CFRecursiveMutex *mutex) {
+   LeaveCriticalSection(mutex);
+   return 0;
+ }
++#elif TARGET_OS_WASI
++typedef struct {} _CFMutex;
++#define _CF_MUTEX_STATIC_INITIALIZER {}
++CF_INLINE int _CFMutexCreate(_CFMutex *lock) {
++  return 0;
++}
++CF_INLINE int _CFMutexDestroy(_CFMutex *lock) {
++  return 0;
++}
++CF_INLINE int _CFMutexLock(_CFMutex *lock) {
++  return 0;
++}
++CF_INLINE int _CFMutexUnlock(_CFMutex *lock) {
++  return 0;
++}
++
++typedef struct {} _CFRecursiveMutex;
++CF_INLINE int _CFRecursiveMutexCreate(_CFRecursiveMutex *mutex) {
++  return 0;
++}
++CF_INLINE int _CFRecursiveMutexDestroy(_CFRecursiveMutex *mutex) {
++  return 0;
++}
++CF_INLINE int _CFRecursiveMutexLock(_CFRecursiveMutex *mutex) {
++  return 0;
++}
++CF_INLINE int _CFRecursiveMutexUnlock(_CFRecursiveMutex *mutex) {
++  return 0;
++}
+ #else
+ #error "do not know how to define mutex and recursive mutex for this OS"
+ #endif
+@@ -680,7 +709,7 @@ typedef uint32_t os_unfair_lock_options_t;
+ static void os_unfair_lock_lock(os_unfair_lock_t lock) { pthread_mutex_lock(lock); }
+ static void os_unfair_lock_lock_with_options(os_unfair_lock_t lock, os_unfair_lock_options_t options) { pthread_mutex_lock(lock); }
+ static void os_unfair_lock_unlock(os_unfair_lock_t lock) { pthread_mutex_unlock(lock); }
+-#elif defined(_WIN32)
++#elif defined(_WIN32) || TARGET_OS_WASI
+ #define OS_UNFAIR_LOCK_INIT CFLockInit
+ #define os_unfair_lock CFLock_t
+ #define os_unfair_lock_lock __CFLock
+diff --git a/CoreFoundation/Base.subproj/CFPlatform.c b/CoreFoundation/Base.subproj/CFPlatform.c
+index 99a05609..6bf8b5a3 100644
+--- a/CoreFoundation/Base.subproj/CFPlatform.c
++++ b/CoreFoundation/Base.subproj/CFPlatform.c
+@@ -1626,6 +1626,8 @@ CF_PRIVATE int asprintf(char **ret, const char *format, ...) {
+ extern void *swift_retain(void *);
+ extern void swift_release(void *);
+ 
++#if !TARGET_OS_WASI
++
+ #if TARGET_OS_WIN32
+ typedef struct _CFThreadSpecificData {
+     CFTypeRef value;
+@@ -1804,6 +1806,7 @@ CF_CROSS_PLATFORM_EXPORT int _CFThreadGetName(char *buf, int length) {
+ #endif
+     return -1;
+ }
++#endif // !TARGET_OS_WASI
+ 
+ CF_EXPORT char **_CFEnviron(void) {
+ #if TARGET_OS_MAC
+diff --git a/CoreFoundation/Base.subproj/CFPriv.h b/CoreFoundation/Base.subproj/CFPriv.h
+index 692a106a..639de79c 100644
+--- a/CoreFoundation/Base.subproj/CFPriv.h
++++ b/CoreFoundation/Base.subproj/CFPriv.h
+@@ -598,7 +598,7 @@ CF_EXPORT CFMessagePortRef _CFMessagePortCreateLocalEx(CFAllocatorRef allocator,
+ #if __has_include(<unistd.h>)
+ #include <unistd.h>
+ #endif
+-#if _POSIX_THREADS
++#if _POSIX_THREADS && __has_include(<pthread.h>)
+ #include <pthread.h>
+ #endif
+ #include <time.h>
+diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
+index a2ae585b..ab602608 100644
+--- a/CoreFoundation/Base.subproj/CFRuntime.c
++++ b/CoreFoundation/Base.subproj/CFRuntime.c
+@@ -1198,9 +1198,11 @@ void __CFInitialize(void) {
+         DuplicateHandle(GetCurrentProcess(), GetCurrentThread(),
+                         GetCurrentProcess(), &_CFMainPThread, 0, FALSE,
+                         DUPLICATE_SAME_ACCESS);
+-#else
++#elif _POSIX_THREADS
+         // move this next line up into the #if above after Foundation gets off this symbol. Also: <rdar://problem/39622745> Stop using _CFMainPThread
+         _CFMainPThread = pthread_self();
++#elif TARGET_OS_WASI
++        _CFMainPThread = NULL;
+ #endif
+ 
+ #if TARGET_OS_WIN32
+diff --git a/CoreFoundation/Base.subproj/CFUtilities.c b/CoreFoundation/Base.subproj/CFUtilities.c
+index 7c3fc9f8..fc07b8a7 100644
+--- a/CoreFoundation/Base.subproj/CFUtilities.c
++++ b/CoreFoundation/Base.subproj/CFUtilities.c
+@@ -927,8 +927,12 @@ static void _populateBanner(char **banner, char **time, char **thread, int *bann
+     bannerLen = asprintf(banner, "%04d-%02d-%02d %02d:%02d:%02d.%03d %s[%d:%lx] ", year, month, day, hour, minute, second, ms, *_CFGetProgname(), getpid(), GetCurrentThreadId());
+     asprintf(thread, "%lx", GetCurrentThreadId());
+ #elif TARGET_OS_WASI
+-    bannerLen = asprintf(banner, "%04d-%02d-%02d %02d:%02d:%02d.%03d [%x] ", year, month, day, hour, minute, second, ms, (unsigned int)pthread_self());
+-    asprintf(thread, "%lx", pthread_self());
++    _CFThreadRef tid = 0;
++# if _POSIX_THREADS
++    tid = pthread_self();
++# endif
++    bannerLen = asprintf(banner, "%04d-%02d-%02d %02d:%02d:%02d.%03d [%x] ", year, month, day, hour, minute, second, ms, (unsigned int)tid);
++    asprintf(thread, "%lx", tid);
+ #else
+     bannerLen = asprintf(banner, "%04d-%02d-%02d %02d:%02d:%02d.%03d %s[%d:%x] ", year, month, day, hour, minute, second, ms, *_CFGetProgname(), getpid(), (unsigned int)pthread_self());
+     asprintf(thread, "%lx", pthread_self());
+diff --git a/CoreFoundation/Base.subproj/CoreFoundation_Prefix.h b/CoreFoundation/Base.subproj/CoreFoundation_Prefix.h
+index bf6f203b..2d0d4655 100644
+--- a/CoreFoundation/Base.subproj/CoreFoundation_Prefix.h
++++ b/CoreFoundation/Base.subproj/CoreFoundation_Prefix.h
+@@ -138,6 +138,12 @@ typedef char * Class;
+ 
+ #endif
+ 
++#if __has_include(<unistd.h>)
++# include <unistd.h>
++# if TARGET_OS_WASI && _POSIX_THREADS && !__has_include(<pthread.h>)
++#  undef _POSIX_THREADS
++# endif
++#endif
+     
+ /* This macro creates some helper functions which are useful in dealing with libdispatch:
+  *  __ PREFIX Queue -- manages and returns a singleton serial queue
+diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
+index af3fc843..04ea85b7 100644
+--- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
++++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
+@@ -42,7 +42,7 @@
+ #if __has_include(<unistd.h>)
+ #include <unistd.h>
+ #endif
+-#if _POSIX_THREADS
++#if _POSIX_THREADS && __has_include(<pthread.h>)
+ #include <pthread.h>
+ #endif
+ #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+@@ -414,6 +414,10 @@ typedef unsigned long _CFThreadSpecificKey;
+ typedef pthread_t _CFThreadRef;
+ typedef pthread_attr_t _CFThreadAttributes;
+ typedef pthread_key_t _CFThreadSpecificKey;
++#elif TARGET_OS_WASI
++typedef void *_CFThreadRef;
++typedef void *_CFThreadAttributes;
++typedef void *_CFThreadSpecificKey;
+ #endif
+ 
+ CF_CROSS_PLATFORM_EXPORT Boolean _CFIsMainThread(void);
+@@ -425,6 +429,7 @@ CF_EXPORT CFHashCode __CFHashDouble(double d);
+ CF_CROSS_PLATFORM_EXPORT void CFSortIndexes(CFIndex *indexBuffer, CFIndex count, CFOptionFlags opts, CFComparisonResult (^cmp)(CFIndex, CFIndex));
+ #endif
+ 
++#if !TARGET_OS_WASI
+ CF_EXPORT CFTypeRef _Nullable _CFThreadSpecificGet(_CFThreadSpecificKey key);
+ CF_EXPORT void _CFThreadSpecificSet(_CFThreadSpecificKey key, CFTypeRef _Nullable value);
+ CF_EXPORT _CFThreadSpecificKey _CFThreadSpecificKeyCreate(void);
+@@ -433,6 +438,7 @@ CF_EXPORT _CFThreadRef _CFThreadCreate(const _CFThreadAttributes attrs, void *_N
+ 
+ CF_CROSS_PLATFORM_EXPORT int _CFThreadSetName(_CFThreadRef thread, const char *_Nonnull name);
+ CF_CROSS_PLATFORM_EXPORT int _CFThreadGetName(char *_Nonnull buf, int length);
++#endif
+ 
+ CF_EXPORT Boolean _CFCharacterSetIsLongCharacterMember(CFCharacterSetRef theSet, UTF32Char theChar);
+ CF_EXPORT CFCharacterSetRef _CFCharacterSetCreateCopy(CFAllocatorRef alloc, CFCharacterSetRef theSet);
+diff --git a/Sources/Foundation/NSLock.swift b/Sources/Foundation/NSLock.swift
+index 59d334f1..4e8b6e25 100644
+--- a/Sources/Foundation/NSLock.swift
++++ b/Sources/Foundation/NSLock.swift
+@@ -48,6 +48,8 @@ open class NSLock: NSObject, NSLocking {
+         InitializeSRWLock(mutex)
+         InitializeConditionVariable(timeoutCond)
+         InitializeSRWLock(timeoutMutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_init(mutex, nil)
+ #if os(macOS) || os(iOS)
+@@ -60,6 +62,8 @@ open class NSLock: NSObject, NSLocking {
+     deinit {
+ #if os(Windows)
+         // SRWLocks do not need to be explicitly destroyed
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_destroy(mutex)
+ #endif
+@@ -73,6 +77,8 @@ open class NSLock: NSObject, NSLocking {
+     open func lock() {
+ #if os(Windows)
+         AcquireSRWLockExclusive(mutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_lock(mutex)
+ #endif
+@@ -84,6 +90,8 @@ open class NSLock: NSObject, NSLocking {
+         AcquireSRWLockExclusive(timeoutMutex)
+         WakeAllConditionVariable(timeoutCond)
+         ReleaseSRWLockExclusive(timeoutMutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_unlock(mutex)
+ #if os(macOS) || os(iOS)
+@@ -98,6 +106,9 @@ open class NSLock: NSObject, NSLocking {
+     open func `try`() -> Bool {
+ #if os(Windows)
+         return TryAcquireSRWLockExclusive(mutex) != 0
++#elseif os(WASI)
++        // noop on no thread platforms
++        return true
+ #else
+         return pthread_mutex_trylock(mutex) == 0
+ #endif
+@@ -108,6 +119,9 @@ open class NSLock: NSObject, NSLocking {
+         if TryAcquireSRWLockExclusive(mutex) != 0 {
+           return true
+         }
++#elseif os(WASI)
++        // noop on no thread platforms
++        return true
+ #else
+         if pthread_mutex_trylock(mutex) == 0 {
+             return true
+@@ -247,6 +261,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
+         InitializeCriticalSection(mutex)
+         InitializeConditionVariable(timeoutCond)
+         InitializeSRWLock(timeoutMutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+ #if CYGWIN || os(OpenBSD)
+         var attrib : pthread_mutexattr_t? = nil
+@@ -273,6 +289,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
+     deinit {
+ #if os(Windows)
+         DeleteCriticalSection(mutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_destroy(mutex)
+ #endif
+@@ -286,6 +304,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
+     open func lock() {
+ #if os(Windows)
+         EnterCriticalSection(mutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_lock(mutex)
+ #endif
+@@ -297,6 +317,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
+         AcquireSRWLockExclusive(timeoutMutex)
+         WakeAllConditionVariable(timeoutCond)
+         ReleaseSRWLockExclusive(timeoutMutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_unlock(mutex)
+ #if os(macOS) || os(iOS)
+@@ -311,6 +333,9 @@ open class NSRecursiveLock: NSObject, NSLocking {
+     open func `try`() -> Bool {
+ #if os(Windows)
+         return TryEnterCriticalSection(mutex)
++#elseif os(WASI)
++        // noop on no thread platforms
++        return true
+ #else
+         return pthread_mutex_trylock(mutex) == 0
+ #endif
+@@ -321,6 +346,9 @@ open class NSRecursiveLock: NSObject, NSLocking {
+         if TryEnterCriticalSection(mutex) {
+             return true
+         }
++#elseif os(WASI)
++        // noop on no thread platforms
++        return true
+ #else
+         if pthread_mutex_trylock(mutex) == 0 {
+             return true
+@@ -352,6 +380,8 @@ open class NSCondition: NSObject, NSLocking {
+ #if os(Windows)
+         InitializeSRWLock(mutex)
+         InitializeConditionVariable(cond)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_init(mutex, nil)
+         pthread_cond_init(cond, nil)
+@@ -361,6 +391,8 @@ open class NSCondition: NSObject, NSLocking {
+     deinit {
+ #if os(Windows)
+         // SRWLock do not need to be explicitly destroyed
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_destroy(mutex)
+         pthread_cond_destroy(cond)
+@@ -374,6 +406,8 @@ open class NSCondition: NSObject, NSLocking {
+     open func lock() {
+ #if os(Windows)
+         AcquireSRWLockExclusive(mutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_lock(mutex)
+ #endif
+@@ -382,6 +416,8 @@ open class NSCondition: NSObject, NSLocking {
+     open func unlock() {
+ #if os(Windows)
+         ReleaseSRWLockExclusive(mutex)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_mutex_unlock(mutex)
+ #endif
+@@ -390,6 +426,8 @@ open class NSCondition: NSObject, NSLocking {
+     open func wait() {
+ #if os(Windows)
+         SleepConditionVariableSRW(cond, mutex, WinSDK.INFINITE, 0)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_cond_wait(cond, mutex)
+ #endif
+@@ -398,6 +436,9 @@ open class NSCondition: NSObject, NSLocking {
+     open func wait(until limit: Date) -> Bool {
+ #if os(Windows)
+         return SleepConditionVariableSRW(cond, mutex, timeoutFrom(date: limit), 0)
++#elseif os(WASI)
++        // noop on no thread platforms
++        return true
+ #else
+         guard var timeout = timeSpecFrom(date: limit) else {
+             return false
+@@ -409,6 +450,8 @@ open class NSCondition: NSObject, NSLocking {
+     open func signal() {
+ #if os(Windows)
+         WakeConditionVariable(cond)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_cond_signal(cond)
+ #endif
+@@ -417,6 +460,8 @@ open class NSCondition: NSObject, NSLocking {
+     open func broadcast() {
+ #if os(Windows)
+         WakeAllConditionVariable(cond)
++#elseif os(WASI)
++        // noop on no thread platforms
+ #else
+         pthread_cond_broadcast(cond)
+ #endif
+-- 
+2.40.0
+
