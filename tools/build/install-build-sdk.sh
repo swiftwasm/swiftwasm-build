@@ -7,6 +7,7 @@ TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
 SCHEME="${1:?"scheme is not specified"}"
 SCHEME_DIR="$(cd "$(dirname "$0")/../../schemes/$SCHEME" && pwd)"
+CURRENT_SCHEME_FILE="$BUILD_SDK_PATH/scheme"
 
 install_libxml2() {
   LIBXML2_URL="https://github.com/swiftwasm/libxml2-wasm/releases/download/1.0.0/libxml2-wasm32-unknown-wasi.tar.gz"
@@ -41,10 +42,31 @@ install_wasi-sysroot() {
   fi
 }
 
+should_clean_install_sdk() {
+  # Clean sdk directory if the existing one is not compatible with the current scheme
+  # Return 0 if the sdk directory should be cleaned
+  if [ ! -e "$CURRENT_SCHEME_FILE" ]; then
+    return 0
+  fi
+  local current_scheme
+  current_scheme="$(cat "$CURRENT_SCHEME_FILE")"
+
+  if [ "$current_scheme" != "$SCHEME" ]; then
+    return 0
+  fi
+
+  return 1
+}
+
 workdir=$(mktemp -d)
 pushd "$workdir"
 
+if should_clean_install_sdk; then
+  rm -rf "$BUILD_SDK_PATH"
+fi
+
 mkdir -p "$BUILD_SDK_PATH"
+echo "$SCHEME" > "$BUILD_SDK_PATH/scheme"
 
 if [ ! -e "$BUILD_SDK_PATH/libxml2" ]; then
   install_libxml2
