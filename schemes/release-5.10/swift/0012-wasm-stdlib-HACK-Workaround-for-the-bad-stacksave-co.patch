@@ -1,0 +1,32 @@
+From 23bcb6fe2c629e82d9fc4f66b25fe99fc8851207 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 19 Apr 2023 13:14:46 +0000
+Subject: [PATCH] [wasm][stdlib] HACK: Workaround for the bad stacksave codegen
+ in LLVM
+
+The LLVM backend generates bad code for some code using `llvm.stacksave`
+intrinsics. This patch works around the issue by avoiding such code
+generation. See https://github.com/llvm/llvm-project/issues/62235
+---
+ stdlib/public/core/ValidUTF8Buffer.swift | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/stdlib/public/core/ValidUTF8Buffer.swift b/stdlib/public/core/ValidUTF8Buffer.swift
+index 38799a2a86a..7dd7ca38bee 100644
+--- a/stdlib/public/core/ValidUTF8Buffer.swift
++++ b/stdlib/public/core/ValidUTF8Buffer.swift
+@@ -127,7 +127,10 @@ extension _ValidUTF8Buffer: RandomAccessCollection {
+   @inlinable
+   @inline(__always)
+   public func distance(from i: Index, to j: Index) -> Int {
+-    _debugPrecondition(_isValid(i))
++    // FIXME(katei): The precondition check is commented out because it
++    // causes bad codegen for `stacksave` on WebAssembly.
++    // See https://github.com/llvm/llvm-project/issues/62235
++    // _debugPrecondition(_isValid(i))
+     _debugPrecondition(_isValid(j))
+     return (
+       i._biasedBits.leadingZeroBitCount - j._biasedBits.leadingZeroBitCount
+-- 
+2.40.0
+

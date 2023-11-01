@@ -1,0 +1,26 @@
+From be417141009e42c3191a715465c4f60d48a18860 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 20 Jun 2023 09:27:38 +0000
+Subject: [PATCH] [wasm][test] HACK: Disable os_stdlib tests due to no dynamic
+ loading
+
+---
+ test/lit.cfg | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/lit.cfg b/test/lit.cfg
+index acc64536990..90a25334f7d 100644
+--- a/test/lit.cfg
++++ b/test/lit.cfg
+@@ -2281,7 +2281,7 @@ if run_vendor != 'apple':
+ 
+ if 'remote_run_host' in lit_config.params:
+     configure_remote_run()
+-elif not kIsWindows:
++elif not kIsWindows and not run_os == 'wasi':
+     if 'use_os_stdlib' in lit_config.params:
+         config.available_features.add('use_os_stdlib')
+ 
+-- 
+2.40.0
+
