@@ -1,6 +1,6 @@
 {
   "update-checkout-scheme": "release/5.10",
-  "base-tag": "swift-5.10-DEVELOPMENT-SNAPSHOT-2023-11-01-a",
+  "base-tag": "swift-5.10-DEVELOPMENT-SNAPSHOT-2023-11-02-a",
   "repos": {
     "swift-corelibs-foundation": "660624d0220c0efbef054f4919f9f01fd3866be1",
     "swift-corelibs-xctest": "77bc9f5386ee8a2a4e8da5ac30e846b451d101b6"
