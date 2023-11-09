@@ -15,7 +15,13 @@ from build.build_support.actions import *
 def main():
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
     options = derive_options_from_args(sys.argv[1:], parser)
-    actions = [CloneAction(options), UpdateCheckoutAction(options), ApplyPatchesAction(options, 'swift'), CheckoutCorelibsAction(options), ApplyPatchesAction(options, 'swift-corelibs-foundation')]
+    actions = [
+        CloneAction(options), UpdateCheckoutAction(options),
+        ApplyPatchesAction(options, 'swift'),
+        CheckoutCorelibsAction(options),
+        ApplyPatchesAction(options, 'swift-corelibs-foundation'),
+        ApplyPatchesAction(options, 'swift-corelibs-xctest'),
+    ]
 
     ActionRunner(actions).run()
 
