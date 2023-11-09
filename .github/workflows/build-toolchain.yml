@@ -173,6 +173,11 @@ jobs:
       - name: Install Homebrew dependencies
         if: ${{ startsWith(matrix.build_os, 'macos-') }}
         run: brew bundle --file swift/Brewfile && brew install wasmtime
+      # release-5.9 requires 3.11 or lower Python
+      - uses: actions/setup-python@v4
+        if: ${{ startsWith(matrix.build_os, 'macos-') && matrix.scheme == 'release-5.9' && matrix.agent_query == 'macos-12' }}
+        with:
+          python-version: '3.11'
 
       - name: Build ${{ matrix.target }} installable archive on Docker container
         if: ${{ matrix.container != null }}
