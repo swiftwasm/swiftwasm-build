@@ -1,0 +1,39 @@
+From fe9c04aab9578dbf652a66849751ab90daf74297 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 9 Nov 2023 02:49:59 +0000
+Subject: [PATCH] [wasm] HACK: hotfix appendAsync compiler crash
+
+The code was completely wrong and I don't know how it ever worked.
+The proper fix is to make the compiler not crash, but for now fix the
+library side for now.
+
+https://github.com/swiftwasm/swift/issues/5558
+---
+ Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift b/Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift
+index bdde83c..2acf490 100644
+--- a/Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift
++++ b/Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift
+@@ -21,12 +21,17 @@ extension XCTestCase {
+         // Because of this, we chose the unusual decision to forgo overloading (which is a super sweet language feature <3) to prevent this issue from surprising any contributors to corelibs-xctest
+         @available(macOS 12.0, *)
+         func appendAsync(_ block: @Sendable @escaping () async throws -> Void) {
++            #if os(WASI)
++            precondition(wasFinalized == false, "API violation -- attempting to add a teardown block after teardown blocks have been dequeued")
++            blocks.append(block)
++            #else
+             XCTWaiter.subsystemQueue.sync {
+                 precondition(wasFinalized == false, "API violation -- attempting to add a teardown block after teardown blocks have been dequeued")
+                 blocks.append {
+                     try await awaitUsingExpectation { try await block() }
+                 }
+             }
++            #endif
+         }
+ 
+         func append(_ block: @escaping () throws -> Void) {
+-- 
+2.40.0
+
