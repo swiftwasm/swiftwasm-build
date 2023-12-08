@@ -207,7 +207,9 @@ jobs:
 
       - name: Build ${{ matrix.target }} installable archive
         if: ${{ matrix.container == null }}
-        timeout-minutes: 300 # Exit before 6 hours limit to allow cache upload
+        # Exit before 6 hours limit to allow cache upload
+        # Limit timeout only for GitHub hosted runners
+        timeout-minutes: ${{ (contains(matrix.agent_query, 'self-hosted') && 0) || 300 }}
         env:
           SKIP_XCODE_VERSION_CHECK: 1
         run: ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}
