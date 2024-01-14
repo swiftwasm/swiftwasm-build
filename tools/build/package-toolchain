@@ -55,7 +55,9 @@ class PackageAction(Action):
         # $ echo | ./usr/bin/swiftc -target wasm32-unknown-wasi -o /dev/null -
         # The new swift-driver doesn't have this hack, so we remove swift-driver from the toolchain for now.
         swift_driver_path = os.path.join(dist_toolchain_path, 'usr', 'bin', 'swift-driver')
-        if os.path.exists(swift_driver_path):
+        if os.path.exists(swift_driver_path) and \
+                self.options.scheme == 'release/5.9' and \
+                self.options.scheme == 'release/5.10':
             os.remove(swift_driver_path)
 
         wasi_sysroot_path = os.path.join('..', 'build-sdk', 'wasi-sysroot')
