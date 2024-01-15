@@ -97,6 +97,27 @@ def affected_schemes(changes, schemes)
   end
 end
 
+def derive_schemes(options)
+  schemes_dir = File.expand_path("../../../schemes", __FILE__)
+  schemes = Dir.glob("#{schemes_dir}/*/manifest.json").map do |path|
+    File.basename(File.dirname(path))
+  end
+
+  if ENV["GITHUB_EVENT_NAME"] == "workflow_dispatch"
+    event = JSON.parse(ENV["GITHUB_EVENT_PATH"])
+    inputs = event["inputs"]
+    if inputs && inputs["scheme"]
+      schemes = [inputs["scheme"]]
+      return schemes
+    end
+  end
+
+  if options[:changes]
+    schemes = affected_schemes(JSON.parse(File.read(options[:changes])), schemes)
+  end
+  schemes
+end
+
 def main
   options = {}
   OptionParser.new do |opts|
@@ -130,20 +151,7 @@ def main
     end
   end
 
-  schemes_dir = File.expand_path("../../../schemes", __FILE__)
-  schemes = Dir.glob("#{schemes_dir}/*/manifest.json").map do |path|
-    File.basename(File.dirname(path))
-  end
-
-  if options[:changes]
-    schemes = affected_schemes(JSON.parse(File.read(options[:changes])), schemes)
-  elsif ENV["GITHUB_EVENT_NAME"] == "workflow_dispatch"
-    event = JSON.parse(ENV["GITHUB_EVENT_PATH"])
-    inputs = event["inputs"]
-    if inputs && inputs["scheme"]
-      schemes = [inputs["scheme"]]
-    end
-  end
+  schemes = derive_schemes(options)
 
   matrix_entries = schemes.flat_map do |scheme|
     if scheme == "main"
