@@ -23,7 +23,7 @@ jobs:
     name: Start self-hosted EC2 runner
     runs-on: ubuntu-latest
     # Run only on main branches to avoid triggers by non-collaborator
-    if: ${{ github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'check-self-hosted-ci') }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'check-self-hosted-ci') }}
     outputs:
       ubuntu20_04_aarch64-label: ${{ steps.start-ubuntu20_04_aarch64-runner.outputs.label }}
       ubuntu20_04_aarch64-ec2-instance-id: ${{ steps.start-ubuntu20_04_aarch64-runner.outputs.ec2-instance-id }}
