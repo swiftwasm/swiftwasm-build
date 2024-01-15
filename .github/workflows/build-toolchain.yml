@@ -97,6 +97,10 @@ jobs:
           cat <<EOF > "$CHANGES_JSON"
           ${{ steps.changes.outputs.changed_files }}
           EOF
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "Toolchain build triggered by workflow_dispatch with following inputs:"
+            cat "$GITHUB_EVENT_PATH"
+          fi
           echo "entries=$(ruby .github/scripts/build-matrix.rb --runner $START_RUNNER_JSON --changes $CHANGES_JSON)" >> $GITHUB_OUTPUT
 
   build-toolchain:
