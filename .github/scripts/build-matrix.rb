@@ -137,6 +137,12 @@ def main
 
   if options[:changes]
     schemes = affected_schemes(JSON.parse(File.read(options[:changes])), schemes)
+  elsif ENV["GITHUB_EVENT_NAME"] == "workflow_dispatch"
+    event = JSON.parse(ENV["GITHUB_EVENT_PATH"])
+    inputs = event["inputs"]
+    if inputs && inputs["scheme"]
+      schemes = [inputs["scheme"]]
+    end
   end
 
   matrix_entries = schemes.flat_map do |scheme|

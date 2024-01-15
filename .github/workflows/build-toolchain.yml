@@ -11,6 +11,12 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**.md'
+  workflow_dispatch:
+    inputs:
+      scheme:
+        description: 'Scheme to build'
+        required: true
+        default: 'main'
 
 jobs:
   start-runner:
