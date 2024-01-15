@@ -104,7 +104,7 @@ def derive_schemes(options)
   end
 
   if ENV["GITHUB_EVENT_NAME"] == "workflow_dispatch"
-    event = JSON.parse(ENV["GITHUB_EVENT_PATH"])
+    event = JSON.parse(File.read(ENV["GITHUB_EVENT_PATH"]))
     inputs = event["inputs"]
     if inputs && inputs["scheme"]
       schemes = [inputs["scheme"]]
