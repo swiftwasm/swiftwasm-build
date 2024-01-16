@@ -1,4 +1,4 @@
-From b79596efc613d48fa5122212bd18e776f64ff910 Mon Sep 17 00:00:00 2001
+From 21db67e16198a90f650c1f49df34cd6f19d38ca0 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:04:17 +0000
 Subject: [PATCH] [wasm][test] Skip crash tests on WASI for now
@@ -19,7 +19,7 @@ test harness itself. Skip them for now.
  10 files changed, 42 insertions(+)
 
 diff --git a/test/Concurrency/Runtime/actor_assert_precondition_executor.swift b/test/Concurrency/Runtime/actor_assert_precondition_executor.swift
-index b6a1966f14e..1206b6d2532 100644
+index fb6112cf6be..bffd87cb3ee 100644
 --- a/test/Concurrency/Runtime/actor_assert_precondition_executor.swift
 +++ b/test/Concurrency/Runtime/actor_assert_precondition_executor.swift
 @@ -78,10 +78,12 @@ actor Someone {
@@ -284,7 +284,7 @@ index 90683159653..494d20ce234 100644
  TemporaryAllocationTestSuite.test("typedAllocationIsAligned") {
    withUnsafeTemporaryAllocation(of: Int.self, capacity: 1) { buffer in
 diff --git a/test/stdlib/UnsafePointer.swift.gyb b/test/stdlib/UnsafePointer.swift.gyb
-index cc1775d78a5..08b84a61c4e 100644
+index e0ea6199ef3..f8f8a1c33fb 100644
 --- a/test/stdlib/UnsafePointer.swift.gyb
 +++ b/test/stdlib/UnsafePointer.swift.gyb
 @@ -537,6 +537,7 @@ ${SelfName}TestSuite.test("pointer(to:)") {

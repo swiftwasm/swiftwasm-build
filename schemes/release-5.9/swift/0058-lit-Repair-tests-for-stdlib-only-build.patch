@@ -1,4 +1,4 @@
-From b42bf448f82ff197b742f7d85a4e15dba72037e7 Mon Sep 17 00:00:00 2001
+From 57f5cb6cb91c1a472046f61e28ba3738003e468d Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 29 Oct 2023 23:27:31 +0000
 Subject: [PATCH] [lit] Repair tests for stdlib-only build

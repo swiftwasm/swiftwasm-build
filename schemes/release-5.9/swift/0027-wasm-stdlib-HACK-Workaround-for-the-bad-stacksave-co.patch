@@ -1,4 +1,4 @@
-From f96a89233ba19d9d9096c78525f20cd117a8c771 Mon Sep 17 00:00:00 2001
+From 5612196a60f3bb93b5880d86966084f2578da589 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 19 Apr 2023 13:14:46 +0000
 Subject: [PATCH] [wasm][stdlib] HACK: Workaround for the bad stacksave codegen

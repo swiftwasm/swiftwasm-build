@@ -1,4 +1,4 @@
-From b900a957943f0c07c80a73fb8e9123aa7534c389 Mon Sep 17 00:00:00 2001
+From 1c23e6ef7e1c15007d90b108f3c7252e8e237955 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:24:47 +0000
 Subject: [PATCH] [wasm][test] Add missing target specific lit properties
@@ -8,10 +8,10 @@ Subject: [PATCH] [wasm][test] Add missing target specific lit properties
  1 file changed, 6 insertions(+)
 
 diff --git a/test/lit.cfg b/test/lit.cfg
-index ab9ea475f43..661785b8d2f 100644
+index a145f2e0934..ce5a8c5ee32 100644
 --- a/test/lit.cfg
 +++ b/test/lit.cfg
-@@ -1862,10 +1862,16 @@ elif run_os == 'wasi':
+@@ -1896,10 +1896,16 @@ elif run_os == 'wasi':
      config.target_sil_opt = (
          '%s -target %s %s %s %s' %
          (config.sil_opt, config.variant_triple, config.resource_dir_opt, mcp_opt, config.sil_test_options))

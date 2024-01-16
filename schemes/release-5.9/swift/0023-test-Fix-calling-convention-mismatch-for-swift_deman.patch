@@ -1,4 +1,4 @@
-From d5a24ae210c045815ab1c10377b0d724d7a730af Mon Sep 17 00:00:00 2001
+From dfc25f4f2236d733fc52e40229092c71d334532a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:17:12 +0000
 Subject: [PATCH] [test] Fix calling convention mismatch for swift_demangle
@@ -14,10 +14,10 @@ body is not supported yet but discussed in https://forums.swift.org/t/formalizin
  1 file changed, 1 insertion(+)
 
 diff --git a/stdlib/public/runtime/Demangle.cpp b/stdlib/public/runtime/Demangle.cpp
-index 7a585ccc43f..55a8a0d3ee4 100644
+index 64c917a2018..8f5c3ea3475 100644
 --- a/stdlib/public/runtime/Demangle.cpp
 +++ b/stdlib/public/runtime/Demangle.cpp
-@@ -910,6 +910,7 @@ swift::_swift_buildDemanglingForMetadata(const Metadata *type,
+@@ -907,6 +907,7 @@ swift::_swift_buildDemanglingForMetadata(const Metadata *type,
  /// \returns the demangled name. Returns nullptr if the input String is not a
  /// Swift mangled name.
  SWIFT_RUNTIME_EXPORT

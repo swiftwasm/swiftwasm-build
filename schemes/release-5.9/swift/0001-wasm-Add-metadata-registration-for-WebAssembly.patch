@@ -1,4 +1,4 @@
-From a910b7224bc35c478d0b1575cb03ab165a1d83cf Mon Sep 17 00:00:00 2001
+From e906a5615206f580b512ae2eabe71cc4050d2c99 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 11 Jun 2023 11:44:24 +0000
 Subject: [PATCH] [wasm] Add metadata registration for WebAssembly
@@ -12,10 +12,10 @@ adds build support for it.
  rename stdlib/public/runtime/{SwiftRT-ELF.cpp => SwiftRT-ELF-WASM.cpp} (85%)
 
 diff --git a/stdlib/public/runtime/CMakeLists.txt b/stdlib/public/runtime/CMakeLists.txt
-index f80eb0cd7a2..33dfd594b7b 100644
+index 2ee018f6fc5..4881410d6a8 100644
 --- a/stdlib/public/runtime/CMakeLists.txt
 +++ b/stdlib/public/runtime/CMakeLists.txt
-@@ -93,7 +93,7 @@ set(swift_runtime_backtracing_sources
+@@ -94,7 +94,7 @@ set(swift_runtime_backtracing_sources
  # Acknowledge that the following sources are known.
  set(LLVM_OPTIONAL_SOURCES
      SwiftRT-COFF.cpp
@@ -24,7 +24,7 @@ index f80eb0cd7a2..33dfd594b7b 100644
      ${swift_runtime_sources}
      ${swift_runtime_objc_sources}
      ${swift_runtime_leaks_sources}
-@@ -147,11 +147,14 @@ add_swift_target_library(swiftRuntime OBJECT_LIBRARY
+@@ -149,11 +149,14 @@ add_swift_target_library(swiftRuntime OBJECT_LIBRARY
  
  set(ELFISH_SDKS)
  set(COFF_SDKS)
@@ -39,7 +39,7 @@ index f80eb0cd7a2..33dfd594b7b 100644
    endif()
  endforeach()
  
-@@ -160,7 +163,7 @@ endforeach()
+@@ -162,7 +165,7 @@ endforeach()
  # with LTO, force swift runtime to compile without LTO for Linux.
  add_swift_target_library(swiftImageRegistrationObjectELF
                    OBJECT_LIBRARY IS_STDLIB IS_STDLIB_CORE
@@ -48,7 +48,7 @@ index f80eb0cd7a2..33dfd594b7b 100644
                    C_COMPILE_FLAGS
                      ${SWIFT_RUNTIME_CORE_CXX_FLAGS}
                      ${swift_enable_backtracing}
-@@ -182,17 +185,32 @@ add_swift_target_library(swiftImageRegistrationObjectCOFF
+@@ -184,17 +187,32 @@ add_swift_target_library(swiftImageRegistrationObjectCOFF
                    SWIFT_COMPILE_FLAGS ${SWIFT_STANDARD_LIBRARY_SWIFT_FLAGS}
                    INSTALL_IN_COMPONENT none)
  
@@ -81,7 +81,7 @@ index f80eb0cd7a2..33dfd594b7b 100644
 +      endif()
 +      set(swiftrtObject ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/swiftImageRegistrationObject${SWIFT_SDK_${sdk}_OBJECT_FORMAT}-${arch_suffix}.dir/${swiftrtSourceName}${CMAKE_C_OUTPUT_EXTENSION})
  
-       if(sdk STREQUAL WINDOWS)
+       if(sdk STREQUAL "WINDOWS")
          set(extension .obj)
 diff --git a/stdlib/public/runtime/SwiftRT-ELF.cpp b/stdlib/public/runtime/SwiftRT-ELF-WASM.cpp
 similarity index 85%

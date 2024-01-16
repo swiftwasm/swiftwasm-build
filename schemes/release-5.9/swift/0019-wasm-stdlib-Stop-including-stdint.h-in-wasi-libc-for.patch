@@ -1,4 +1,4 @@
-From a62ae1c5803df3e2da05f22840a9c2d9d62570d9 Mon Sep 17 00:00:00 2001
+From 08b878d1968699997f3243daed480922c31b6ad5 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:02:13 +0000
 Subject: [PATCH] [wasm][stdlib] Stop including stdint.h in wasi-libc for
@@ -11,7 +11,7 @@ SwiftStdint.h
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/stdlib/public/SwiftShims/swift/shims/SwiftStdint.h b/stdlib/public/SwiftShims/swift/shims/SwiftStdint.h
-index 7b83e90d727..117677e497a 100644
+index cd8d808cbd6..386186df096 100644
 --- a/stdlib/public/SwiftShims/swift/shims/SwiftStdint.h
 +++ b/stdlib/public/SwiftShims/swift/shims/SwiftStdint.h
 @@ -24,7 +24,7 @@

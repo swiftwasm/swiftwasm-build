@@ -1,4 +1,4 @@
-From 08eb1eaffc3aca50ecac54cb9eb7f1bf6971a2f7 Mon Sep 17 00:00:00 2001
+From 0a734aa1cc8b18de5c5c65696ed664d43b728be1 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 9 Jun 2023 15:43:23 +0000
 Subject: [PATCH] [static-stdlib] NFC: Generalize the
@@ -11,10 +11,10 @@ stdlib targets if needed instead of only for the Linux target.
  1 file changed, 27 insertions(+), 21 deletions(-)
 
 diff --git a/stdlib/public/runtime/CMakeLists.txt b/stdlib/public/runtime/CMakeLists.txt
-index 5917ceb531b..4a9410bcd1e 100644
+index e43c0775cdb..54a06b3697e 100644
 --- a/stdlib/public/runtime/CMakeLists.txt
 +++ b/stdlib/public/runtime/CMakeLists.txt
-@@ -102,28 +102,34 @@ set(swift_runtime_library_compile_flags ${swift_runtime_compile_flags})
+@@ -110,28 +110,34 @@ set(swift_runtime_library_compile_flags ${swift_runtime_compile_flags})
  list(APPEND swift_runtime_library_compile_flags -DswiftCore_EXPORTS)
  list(APPEND swift_runtime_library_compile_flags -I${SWIFT_SOURCE_DIR}/stdlib/include/llvm/Support -I${SWIFT_SOURCE_DIR}/include)
  

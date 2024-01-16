@@ -1,4 +1,4 @@
-From ca29c51c7aa5e73d8a841a2895083110c5680efa Mon Sep 17 00:00:00 2001
+From 54321121f0ed62381dd46fedbc23e25b585bcc0c Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 11 Jun 2023 12:12:52 +0000
 Subject: [PATCH] [Concurrency] Fix calling convention mismatch in AsyncStream

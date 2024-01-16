@@ -1,4 +1,4 @@
-From a5c5482b7cdc8cf7d7a56112412326075a8cd78b Mon Sep 17 00:00:00 2001
+From 7253dc1b5c2ab520dd15887fe4847b5615ad3e26 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 26 May 2023 16:19:37 +0000
 Subject: [PATCH] [test] Add missing default value for target_run_with_leaks
@@ -11,10 +11,10 @@ Reverting commit 401e9304f41e0179f631f2e8fbed30b8b20769fc
  1 file changed, 1 insertion(+)
 
 diff --git a/test/lit.cfg b/test/lit.cfg
-index ea799627617..a939ea02ae7 100644
+index e229dc85a09..8a955f0da88 100644
 --- a/test/lit.cfg
 +++ b/test/lit.cfg
-@@ -1048,6 +1048,7 @@ target_specific_module_triple = config.variant_triple
+@@ -1082,6 +1082,7 @@ target_specific_module_triple = config.variant_triple
  target_future = target_specific_module_triple
  
  config.target_run = ''
@@ -23,5 +23,5 @@ index ea799627617..a939ea02ae7 100644
  config.target_pic_opt = ''
  config.target_cxx_lib = '-lc++'
 -- 
-2.37.1 (Apple Git-137.1)
+2.40.0
 

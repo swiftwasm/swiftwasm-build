@@ -1,4 +1,4 @@
-From 227371c38cbbc392eddda1831008905d776653d3 Mon Sep 17 00:00:00 2001
+From fadee93a1ea5effe6bc137a02c5757c9ed096365 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 08:14:18 +0000
 Subject: [PATCH] [wasm][build] Install ICU static libraries under swift_static
@@ -8,17 +8,17 @@ Subject: [PATCH] [wasm][build] Install ICU static libraries under swift_static
  1 file changed, 43 insertions(+)
 
 diff --git a/stdlib/public/runtime/CMakeLists.txt b/stdlib/public/runtime/CMakeLists.txt
-index 38de01cd2a8..2207762573d 100644
+index 4881410d6a8..be7f63e5e92 100644
 --- a/stdlib/public/runtime/CMakeLists.txt
 +++ b/stdlib/public/runtime/CMakeLists.txt
-@@ -244,10 +244,31 @@ foreach(sdk ${SWIFT_SDKS})
+@@ -258,10 +258,31 @@ foreach(sdk ${SWIFT_SDKS})
        add_dependencies(stdlib swift-stdlib-${arch_suffix} swiftImageRegistration-${arch_suffix})
      endif()
  
 +    string(TOLOWER "${sdk}" lowercase_sdk)
      # Generate the static-stdlib-args.lnk file used by -static-stdlib option for
      # 'GenericUnix' (eg linux)
-     if(${SWIFT_SDK_${sdk}_OBJECT_FORMAT} STREQUAL ELF)
+     if(SWIFT_SDK_${sdk}_OBJECT_FORMAT STREQUAL "ELF")
        string(TOLOWER "${sdk}" lowercase_sdk)
 +      if(SWIFT_${SWIFT_HOST_VARIANT_SDK}_${SWIFT_HOST_VARIANT_ARCH}_ICU_STATICLIB)
 +        set(libicu_i18n_a -licui18nswift)
@@ -43,7 +43,7 @@ index 38de01cd2a8..2207762573d 100644
        set(libpthread -lpthread)
        set(concurrency_libs)
        set(android_libraries)
-@@ -274,6 +295,28 @@ ${concurrency_libs}
+@@ -288,6 +309,28 @@ ${concurrency_libs}
        swift_install_in_component(FILES "${SWIFTSTATICLIB_DIR}/${linkfile}"
                                   DESTINATION "lib/swift_static/${lowercase_sdk}"
                                   COMPONENT stdlib)

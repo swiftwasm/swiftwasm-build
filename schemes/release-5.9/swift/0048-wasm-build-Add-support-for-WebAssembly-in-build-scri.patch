@@ -1,4 +1,4 @@
-From 42b576b331ebfa1cc954b46044a9de8f6e5f0d21 Mon Sep 17 00:00:00 2001
+From fa8780526ce5d4e52badd2cb4034f2beb08941a4 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:49:27 +0000
 Subject: [PATCH] [wasm][build] Add support for WebAssembly in build-script
@@ -9,7 +9,7 @@ Subject: [PATCH] [wasm][build] Add support for WebAssembly in build-script
  2 files changed, 13 insertions(+)
 
 diff --git a/utils/build-script-impl b/utils/build-script-impl
-index b08ee527e3b..26baa0f2f8d 100755
+index 4a243bd7cab..7325d9b1b98 100755
 --- a/utils/build-script-impl
 +++ b/utils/build-script-impl
 @@ -116,12 +116,16 @@ KNOWN_SETTINGS=(
@@ -29,7 +29,7 @@ index b08ee527e3b..26baa0f2f8d 100755
      skip-build-benchmarks                         ""                "set to skip building Swift Benchmark Suite"
      skip-build-clang-tools-extra                  ""                "set to skip building clang-tools-extra as part of llvm"
      skip-build-compiler-rt                        ""                "set to skip building Compiler-RT"
-@@ -1736,6 +1740,13 @@ for host in "${ALL_HOSTS[@]}"; do
+@@ -1737,6 +1741,13 @@ for host in "${ALL_HOSTS[@]}"; do
                      )
                  fi
  

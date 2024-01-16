@@ -1,4 +1,4 @@
-From 8654cbe30eb06febfc29cbb0256af06942d10fe0 Mon Sep 17 00:00:00 2001
+From ce08b2284dc3300c61f5adf617cc954b773d1021 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 06:49:07 +0000
 Subject: [PATCH] [wasm][cmake] HACK: Skip building swift-reflection-test for
@@ -11,10 +11,10 @@ The reason why this change is needed is unclear to me...
  2 files changed, 6 insertions(+), 1 deletion(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 563d40ee885..309a32524b6 100644
+index 2eeaf61e374..4342ae674c9 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -560,6 +560,11 @@ option(SWIFT_STDLIB_ENABLE_OBJC_INTEROP
+@@ -566,6 +566,11 @@ option(SWIFT_STDLIB_ENABLE_OBJC_INTEROP
         "Should stdlib be built with Obj-C interop."
         "${SWIFT_STDLIB_ENABLE_OBJC_INTEROP_default}")
  
