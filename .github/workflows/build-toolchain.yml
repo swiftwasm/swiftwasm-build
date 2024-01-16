@@ -75,7 +75,7 @@ jobs:
     outputs:
       entries: ${{ steps.generate.outputs.entries }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v2
         id: changes
         with:
@@ -132,7 +132,7 @@ jobs:
           fi
           df -h
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           path: swiftwasm-build
 
@@ -295,7 +295,7 @@ jobs:
           path: hello.wasm
       - name: Checkout integration-tests
         if: ${{ matrix.run_e2e_test }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: swiftwasm/integration-tests
           path: integration-tests
