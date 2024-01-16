@@ -1,4 +1,4 @@
-From 26f663c23b280c4b7a1213fb374cbbe77347a753 Mon Sep 17 00:00:00 2001
+From 62ef0019c51b14a8003e371596921d8ec34af5d4 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Jun 2023 17:58:49 +0000
 Subject: [PATCH] [wasm][build] Add WASILibc module and its build support
@@ -19,7 +19,7 @@ because wasi-libc is actually based on musl libc.
  create mode 100644 stdlib/public/Platform/wasi-libc.modulemap.gyb
 
 diff --git a/stdlib/public/Platform/CMakeLists.txt b/stdlib/public/Platform/CMakeLists.txt
-index f478206d6a2..6dbfee2f253 100644
+index e78e760942b..e97ba7994d2 100644
 --- a/stdlib/public/Platform/CMakeLists.txt
 +++ b/stdlib/public/Platform/CMakeLists.txt
 @@ -98,6 +98,23 @@ add_swift_target_library(swiftGlibc ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES} IS_SDK_O
@@ -104,7 +104,7 @@ index f478206d6a2..6dbfee2f253 100644
 @@ -181,7 +206,7 @@ foreach(sdk ${SWIFT_SDKS})
      # prefix. This is the one we'll install instead.
      if(NOT "${SWIFT_SDK_${SWIFT_HOST_VARIANT_SDK}_ARCH_${arch}_PATH}" STREQUAL "/" AND
-        NOT (${sdk} STREQUAL ANDROID AND NOT "${SWIFT_ANDROID_NATIVE_SYSROOT}" STREQUAL ""))
+        NOT (sdk STREQUAL "ANDROID" AND NOT "${SWIFT_ANDROID_NATIVE_SYSROOT}" STREQUAL ""))
 -      set(glibc_sysroot_relative_modulemap_out "${module_dir}/sysroot-relative-modulemaps/glibc.modulemap")
 +      set(glibc_sysroot_relative_modulemap_out "${module_dir}/sysroot-relative-modulemaps/${glibc_modulemap_outname}")
  
