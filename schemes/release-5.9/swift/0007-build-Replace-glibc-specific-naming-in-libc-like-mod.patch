@@ -1,4 +1,4 @@
-From e6d3f2fbae4160f19ba688f3acd2f227cba58529 Mon Sep 17 00:00:00 2001
+From b91a142ccea6e4b6ff79865d1a4379b0bd523af3 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 10 Jun 2023 12:57:10 +0000
 Subject: [PATCH] [build] Replace glibc specific naming in libc-like modulemap
@@ -9,7 +9,7 @@ Subject: [PATCH] [build] Replace glibc specific naming in libc-like modulemap
  1 file changed, 45 insertions(+), 45 deletions(-)
 
 diff --git a/stdlib/public/Platform/CMakeLists.txt b/stdlib/public/Platform/CMakeLists.txt
-index 6dbfee2f253..cf1fb695500 100644
+index e97ba7994d2..f202ccd2eee 100644
 --- a/stdlib/public/Platform/CMakeLists.txt
 +++ b/stdlib/public/Platform/CMakeLists.txt
 @@ -96,7 +96,7 @@ add_swift_target_library(swiftGlibc ${SWIFT_STDLIB_LIBRARY_BUILD_TYPES} IS_SDK_O
@@ -137,7 +137,7 @@ index 6dbfee2f253..cf1fb695500 100644
 @@ -206,15 +206,15 @@ foreach(sdk ${SWIFT_SDKS})
      # prefix. This is the one we'll install instead.
      if(NOT "${SWIFT_SDK_${SWIFT_HOST_VARIANT_SDK}_ARCH_${arch}_PATH}" STREQUAL "/" AND
-        NOT (${sdk} STREQUAL ANDROID AND NOT "${SWIFT_ANDROID_NATIVE_SYSROOT}" STREQUAL ""))
+        NOT (sdk STREQUAL "ANDROID" AND NOT "${SWIFT_ANDROID_NATIVE_SYSROOT}" STREQUAL ""))
 -      set(glibc_sysroot_relative_modulemap_out "${module_dir}/sysroot-relative-modulemaps/${glibc_modulemap_outname}")
 +      set(libc_sysroot_relative_modulemap_out "${module_dir}/sysroot-relative-modulemaps/${libc_modulemap_outname}")
  
