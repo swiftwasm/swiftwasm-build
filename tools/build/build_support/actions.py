@@ -73,7 +73,7 @@ class ApplyPatchesAction(Action):
         for patch in patches:
             repo_root_dirname = pathlib.Path(".").resolve().name
             relative_path = os.path.join("..", repo_root_dirname, patch)
-            self.system('git', '-C', self.repo_dir, 'am', '--3way', '--keep-non-patch', str(relative_path))
+            self.system('git', '-C', self.repo_dir, 'am', '--keep-non-patch', str(relative_path))
 
     def compute_unique_branch_name(self, basename):
         name = basename
