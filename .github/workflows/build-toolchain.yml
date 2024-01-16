@@ -229,7 +229,7 @@ jobs:
           key: ${{ steps.cache_key.outputs.SCCACHE_KEY }}
 
       - name: Upload ${{ matrix.target }} installable archive
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}-${{ matrix.scheme }}-installable
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz
@@ -257,7 +257,7 @@ jobs:
         run: |
           tar cJf ./swift-test-results.tar.gz build/WebAssembly/swift-stdlib-wasi-wasm32/swift-test-results
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ matrix.run_full_test }}
         with:
           name: ${{ matrix.target }}-test-results
@@ -289,7 +289,7 @@ jobs:
                 echo "Successfully linked hello.wasm"
       - name: Upload hello.wasm
         if: ${{ matrix.build_hello_wasm }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}-hello.wasm
           path: hello.wasm
