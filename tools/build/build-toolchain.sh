@@ -49,8 +49,8 @@ else
   "$TOOLS_BUILD_PATH/install-base-toolchain" --scheme "$SCHEME"
   CROSS_COMPILER_DESTDIR=$PACKAGING_DIR/base-snapshot
 
-  # Only for release/5.9 and release/5.10
-  if [ "$SCHEME" = "release/5.9" ] || [ "$SCHEME" = "release/5.10" ]; then
+  # Only for release-5.9 and release-5.10
+  if [ "$SCHEME" = "release-5.9" ] || [ "$SCHEME" = "release-5.10" ]; then
     # HACK: Remove swift-driver since the old swift-driver used "ar" instead of "llvm-ar"
     rm -f "$CROSS_COMPILER_DESTDIR/usr/bin/swift-driver"
   fi
