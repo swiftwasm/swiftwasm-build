@@ -1,4 +1,4 @@
-From 353cefa8c6151c84c11f305a9dbbaf15821e37da Mon Sep 17 00:00:00 2001
+From 8ad12f77d2ca12c930730fd2ef4fc17561095d47 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:25:35 +0000
 Subject: [PATCH] [wasm][SIL/IRGen] HACK: Always forward extra argument to
@@ -41,7 +41,7 @@ index d23a53e822c..dfd37ec2830 100644
      auto fnPtr =
          FunctionPointer::forDirect(IGM, accessorFn, /*secondaryValue*/ nullptr,
 diff --git a/lib/SIL/Verifier/SILVerifier.cpp b/lib/SIL/Verifier/SILVerifier.cpp
-index ebd0cf404d6..33eb2e820d0 100644
+index cc0634f09fd..6a98b3cf710 100644
 --- a/lib/SIL/Verifier/SILVerifier.cpp
 +++ b/lib/SIL/Verifier/SILVerifier.cpp
 @@ -299,8 +299,9 @@ void verifyKeyPathComponent(SILModule &M,
@@ -69,10 +69,10 @@ index ebd0cf404d6..33eb2e820d0 100644
        auto newValueParam = substSetterType->getParameters()[0];
        // TODO: This should probably be unconditionally +1 when we
 diff --git a/lib/SILGen/SILGenExpr.cpp b/lib/SILGen/SILGenExpr.cpp
-index 1db2a8da1a3..e7dfabbe050 100644
+index 96860888599..f1544e50337 100644
 --- a/lib/SILGen/SILGenExpr.cpp
 +++ b/lib/SILGen/SILGenExpr.cpp
-@@ -2995,6 +2995,7 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+@@ -2987,6 +2987,7 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
      }
    }
  
@@ -80,7 +80,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
    auto genericSig =
        genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
                   : nullptr;
-@@ -3003,6 +3004,14 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+@@ -2995,6 +2996,14 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
      genericEnv = nullptr;
    }
  
@@ -95,7 +95,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
    // Build the signature of the thunk as expected by the keypath runtime.
    auto signature = [&]() {
      CanType loweredBaseTy, loweredPropTy;
-@@ -3018,7 +3027,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+@@ -3010,7 +3019,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
      SmallVector<SILParameterInfo, 2> params;
      params.push_back({loweredBaseTy, paramConvention});
      auto &C = SGM.getASTContext();
@@ -105,7 +105,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
        params.push_back({C.getUnsafeRawPointerType()->getCanonicalType(),
                          ParameterConvention::Direct_Unowned});
      
-@@ -3078,7 +3088,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
+@@ -3070,7 +3080,8 @@ static SILFunction *getOrCreateKeyPathGetter(SILGenModule &SGM,
    }
    auto baseArg = entry->createFunctionArgument(baseArgTy);
    SILValue indexPtrArg;
@@ -115,7 +115,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
      auto indexArgTy = signature->getParameters()[1].getSILStorageType(
          SGM.M, signature, subSGF.F.getTypeExpansionContext());
      indexPtrArg = entry->createFunctionArgument(indexArgTy);
-@@ -3167,6 +3178,7 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3159,6 +3170,7 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
      }
    }
  
@@ -123,7 +123,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
    auto genericSig =
        genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
                   : nullptr;
-@@ -3175,6 +3187,14 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3167,6 +3179,14 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
      genericEnv = nullptr;
    }
  
@@ -138,7 +138,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
    // Build the signature of the thunk as expected by the keypath runtime.
    auto signature = [&]() {
      CanType loweredBaseTy, loweredPropTy;
-@@ -3200,7 +3220,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3192,7 +3212,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
                          ? ParameterConvention::Indirect_Inout
                          : paramConvention});
      // indexes
@@ -148,7 +148,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
        params.push_back({C.getUnsafeRawPointerType()->getCanonicalType(),
                          ParameterConvention::Direct_Unowned});
  
-@@ -3254,7 +3275,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
+@@ -3246,7 +3267,8 @@ static SILFunction *getOrCreateKeyPathSetter(SILGenModule &SGM,
    auto baseArg = entry->createFunctionArgument(baseArgTy);
    SILValue indexPtrArg;
    
@@ -158,7 +158,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
      auto indexArgTy = signature->getParameters()[2].getSILStorageType(
          SGM.M, signature, subSGF.getTypeExpansionContext());
      indexPtrArg = entry->createFunctionArgument(indexArgTy);
-@@ -3344,6 +3366,7 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
+@@ -3336,6 +3358,7 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
      return;
    }
  
@@ -166,7 +166,7 @@ index 1db2a8da1a3..e7dfabbe050 100644
    auto genericSig =
        genericEnv ? genericEnv->getGenericSignature().getCanonicalSignature()
                   : nullptr;
-@@ -3353,6 +3376,14 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
+@@ -3345,6 +3368,14 @@ getOrCreateKeyPathEqualsAndHash(SILGenModule &SGM,
      genericEnv = nullptr;
    }
  

@@ -1,4 +1,4 @@
-From 18923c3b703b9380b079d59a52db3f83fd2b3e37 Mon Sep 17 00:00:00 2001
+From f02cfefd72ce6505d6a0bee026e9609568c1aace Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Mon, 15 May 2023 10:01:30 +0000
 Subject: [PATCH] [wasm] Read autolink entries from custom section instead of

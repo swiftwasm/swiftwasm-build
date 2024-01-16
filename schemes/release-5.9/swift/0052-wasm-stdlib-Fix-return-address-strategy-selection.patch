@@ -1,4 +1,4 @@
-From 3198412db00b03e9131dcf3cbdfbe889a8665fd7 Mon Sep 17 00:00:00 2001
+From e20de32c658080e7612f398aecfdf6212677774f Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 10 Jun 2023 10:00:19 +0000
 Subject: [PATCH] [wasm][stdlib] Fix return-address strategy selection

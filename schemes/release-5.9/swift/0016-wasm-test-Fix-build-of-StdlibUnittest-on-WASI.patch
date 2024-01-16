@@ -1,4 +1,4 @@
-From 4d83bfcd0f66f92911be7d29ab4a61dac84f7ff6 Mon Sep 17 00:00:00 2001
+From f2bbb9827dabd4799b4f8e67b37986c2fb52cff8 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:53:38 +0000
 Subject: [PATCH] [wasm][test] Fix build of StdlibUnittest on WASI
@@ -52,7 +52,7 @@ index 008f17a5200..368f49d7000 100644
  import Darwin
  #elseif canImport(Glibc)
 diff --git a/stdlib/private/StdlibUnittest/StdlibUnittest.swift b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
-index 9cb21b7d6d1..56aea542128 100644
+index d6e3f90bae2..f3ac00c80e6 100644
 --- a/stdlib/private/StdlibUnittest/StdlibUnittest.swift
 +++ b/stdlib/private/StdlibUnittest/StdlibUnittest.swift
 @@ -12,7 +12,9 @@

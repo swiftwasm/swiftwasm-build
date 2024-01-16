@@ -1,4 +1,4 @@
-From 5519a5680e5bd4cb3616a025f085415c57cda60b Mon Sep 17 00:00:00 2001
+From a2b60ad60f514c67d6f844279e3544e315806357 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 07:17:38 +0000
 Subject: [PATCH] [wasm][Driver] HACK: Add `-use-static-resource-dir` by
@@ -14,10 +14,10 @@ in the driver invocation. But it is a convenient change for users.
  2 files changed, 19 insertions(+), 3 deletions(-)
 
 diff --git a/lib/Driver/Driver.cpp b/lib/Driver/Driver.cpp
-index 1bfce29afcd..9044e4adebb 100644
+index 47dd1ea3e58..782bda3b920 100644
 --- a/lib/Driver/Driver.cpp
 +++ b/lib/Driver/Driver.cpp
-@@ -2404,7 +2404,8 @@ bool Driver::handleImmediateArgs(const ArgList &Args, const ToolChain &TC) {
+@@ -2391,7 +2391,8 @@ bool Driver::handleImmediateArgs(const ArgList &Args, const ToolChain &TC) {
      if (Args.hasFlag(options::OPT_static_executable,
                       options::OPT_no_static_executable, false) ||
          Args.hasFlag(options::OPT_static_stdlib, options::OPT_no_static_stdlib,
@@ -28,10 +28,10 @@ index 1bfce29afcd..9044e4adebb 100644
      }
  
 diff --git a/lib/Driver/ToolChains.cpp b/lib/Driver/ToolChains.cpp
-index a1aecdc6d84..8e27d7d3410 100644
+index 48a990a6f83..ce7a26dc99f 100644
 --- a/lib/Driver/ToolChains.cpp
 +++ b/lib/Driver/ToolChains.cpp
-@@ -660,7 +660,8 @@ ToolChain::constructInvocation(const CompileJobAction &job,
+@@ -638,7 +638,8 @@ ToolChain::constructInvocation(const CompileJobAction &job,
    if (context.Args.hasFlag(options::OPT_static_executable,
                             options::OPT_no_static_executable, false) ||
        context.Args.hasFlag(options::OPT_static_stdlib,
@@ -41,7 +41,7 @@ index a1aecdc6d84..8e27d7d3410 100644
      Arguments.push_back("-use-static-resource-dir");
    }
  
-@@ -1188,7 +1189,13 @@ ToolChain::constructInvocation(const MergeModuleJobAction &job,
+@@ -1160,7 +1161,13 @@ ToolChain::constructInvocation(const MergeModuleJobAction &job,
    context.Args.AddLastArg(Arguments, options::OPT_import_objc_header);
  
    context.Args.AddLastArg(Arguments, options::OPT_disable_incremental_imports);
@@ -56,7 +56,7 @@ index a1aecdc6d84..8e27d7d3410 100644
    Arguments.push_back("-module-name");
    Arguments.push_back(context.Args.MakeArgString(context.OI.ModuleName));
  
-@@ -1388,6 +1395,14 @@ ToolChain::constructInvocation(const GeneratePCHJobAction &job,
+@@ -1360,6 +1367,14 @@ ToolChain::constructInvocation(const GeneratePCHJobAction &job,
    addInputsOfType(Arguments, context.InputActions, file_types::TY_ClangHeader);
    context.Args.AddLastArg(Arguments, options::OPT_index_store_path);
  

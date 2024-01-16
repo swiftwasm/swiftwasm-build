@@ -1,4 +1,4 @@
-From 794c2a71e0f9780adf2bf5a3cf3550178ad87d31 Mon Sep 17 00:00:00 2001
+From 603537cd1a90e8941620bc7af2747406c60bd724 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:51:29 +0000
 Subject: [PATCH] [wasm][build] HACK: Add SwiftWasm compiler vendor support
@@ -12,7 +12,7 @@ This patch should not be upstreamed. Maybe we can use
  3 files changed, 20 insertions(+), 5 deletions(-)
 
 diff --git a/utils/build_swift/build_swift/driver_arguments.py b/utils/build_swift/build_swift/driver_arguments.py
-index 3fc18b3c281..e62bfee0e8a 100644
+index f2ff30c5617..56eb06a06e7 100644
 --- a/utils/build_swift/build_swift/driver_arguments.py
 +++ b/utils/build_swift/build_swift/driver_arguments.py
 @@ -459,7 +459,7 @@ def create_argument_parser():

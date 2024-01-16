@@ -1,4 +1,4 @@
-From c994500d825bafa5fb5ccb3437980aeb4dd93e49 Mon Sep 17 00:00:00 2001
+From 65443b6171e474b194c86b3ce1d7ed3a10d63256 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Jun 2023 16:24:46 +0000
 Subject: [PATCH] [Driver] Use WebAssembly toolchain for WASI target
@@ -17,10 +17,10 @@ is not present when not building stdlib for WASI.
  create mode 100644 test/Driver/Inputs/fake-resource-dir/lib/swift_static/wasi/static-executable-args.lnk
 
 diff --git a/lib/Driver/Driver.cpp b/lib/Driver/Driver.cpp
-index 0ebdffe28fb..32867832d38 100644
+index 782bda3b920..023d60b7533 100644
 --- a/lib/Driver/Driver.cpp
 +++ b/lib/Driver/Driver.cpp
-@@ -375,7 +375,7 @@ Driver::buildToolChain(const llvm::opt::InputArgList &ArgList) {
+@@ -367,7 +367,7 @@ Driver::buildToolChain(const llvm::opt::InputArgList &ArgList) {
    case llvm::Triple::Haiku:
      return std::make_unique<toolchains::GenericUnix>(*this, target);
    case llvm::Triple::WASI:
@@ -55,7 +55,7 @@ index f96cea46e33..45a9f84d12b 100644
  
  // RUN: not %swiftc_driver -sdk "" -driver-print-jobs -profile-generate -profile-use=/dev/null %s 2>&1 | %FileCheck -check-prefix=MIX_GEN_USE %s
 diff --git a/test/Driver/sdk.swift b/test/Driver/sdk.swift
-index 98cc05c5516..8aba6e15f51 100644
+index dc9ad10eae3..6ec138bd8fb 100644
 --- a/test/Driver/sdk.swift
 +++ b/test/Driver/sdk.swift
 @@ -2,7 +2,7 @@

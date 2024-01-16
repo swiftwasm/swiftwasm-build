@@ -1,4 +1,4 @@
-From 73c3a26fb4b473e421a0b3f417f9cf7e9972f58e Mon Sep 17 00:00:00 2001
+From 30147096910f461b6607d6241e8271033a0a9b62 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 20 Jun 2023 09:37:52 +0000
 Subject: [PATCH] [test] Make KeyPath test pointer-size agnostic
@@ -10,10 +10,10 @@ but not on other pointer-sized platforms.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/test/stdlib/KeyPath.swift b/test/stdlib/KeyPath.swift
-index 59d02f7a2e0..40ff0f79dd1 100644
+index 1649e7087b1..1358345f2e2 100644
 --- a/test/stdlib/KeyPath.swift
 +++ b/test/stdlib/KeyPath.swift
-@@ -1078,7 +1078,7 @@ if #available(SwiftStdlib 5.9, *) {
+@@ -1085,7 +1085,7 @@ if #available(SwiftStdlib 5.9, *) {
      let dogAgeKp = _createOffsetBasedKeyPath(
        root: Dog.self,
        value: Int.self,

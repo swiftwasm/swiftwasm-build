@@ -1,4 +1,4 @@
-From 4caeb326d637b9a6649557e782068f5a492c0cac Mon Sep 17 00:00:00 2001
+From ed57c661ed3bf26e248d252cb9c110ba33440aeb Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Jun 2023 19:04:23 +0000
 Subject: [PATCH] [static-stdlib] Move static-executable-args.lnk under
@@ -16,10 +16,10 @@ similarity index 100%
 rename from utils/static-executable-args.lnk
 rename to stdlib/public/Resources/linux/static-executable-args.lnk
 diff --git a/stdlib/public/runtime/CMakeLists.txt b/stdlib/public/runtime/CMakeLists.txt
-index 3d85e1071b3..5917ceb531b 100644
+index 0d3bc17f595..e43c0775cdb 100644
 --- a/stdlib/public/runtime/CMakeLists.txt
 +++ b/stdlib/public/runtime/CMakeLists.txt
-@@ -106,18 +106,19 @@ set(sdk "${SWIFT_HOST_VARIANT_SDK}")
+@@ -114,18 +114,19 @@ set(sdk "${SWIFT_HOST_VARIANT_SDK}")
  if(SWIFT_BUILD_STATIC_STDLIB AND "${sdk}" STREQUAL "LINUX")
    set(static_binary_lnk_file_list)
    string(TOLOWER "${sdk}" lowercase_sdk)
