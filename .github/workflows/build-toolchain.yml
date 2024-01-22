@@ -159,7 +159,7 @@ jobs:
         run: |
           xcodebuild -version
 
-      - uses: actions/cache/restore@v3
+      - uses: actions/cache/restore@v4
         id: build-cache
         with:
           path: build-cache
@@ -222,7 +222,7 @@ jobs:
           SKIP_XCODE_VERSION_CHECK: 1
         run: ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}
 
-      - uses: actions/cache/save@v3
+      - uses: actions/cache/save@v4
         if: ${{ !cancelled() }}
         with:
           path: build-cache
