@@ -3,19 +3,36 @@
 import sys
 import os
 import argparse
+import json
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 from build_support.platform import PlatformInfo
 from build_support.llvm_tools import WASM_SPECIFIC_TOOLS_TO_INSTALL
 
 
 class SnapshotInfo:
-    def __init__(self, year: int, month: int, day: int, toolchain_name: str, tarball_name: str, daily_snapshot: bool):
+    def __init__(self, year: int, month: int, day: int, swift_version: str, artifact_name: str, daily_snapshot: bool):
         self.year = year
         self.month = month
         self.day = day
-        self.toolchain_name = toolchain_name
-        self.tarball_name = tarball_name
+        self.swift_version = swift_version
+        self.artifact_name = artifact_name
         self.daily_snapshot = daily_snapshot
+
+    @property
+    def toolchain_name(self):
+        return f"swift-wasm-{self.swift_version}"
+
+    @property
+    def swift_sdk_name(self):
+        return f"{self.swift_version}-wasm"
+
+    @property
+    def tarball_name(self):
+        return f"{self.artifact_name}.tar.gz"
+
+    @property
+    def artifactbundle_zip_name(self):
+        return f"{self.artifact_name}.artifactbundle.zip"
 
 
 class PackageAction(Action):
@@ -63,6 +80,9 @@ class PackageAction(Action):
         wasi_sysroot_path = os.path.join('..', 'build-sdk', 'wasi-sysroot')
         shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
 
+        self.make_swift_sdk(
+            base_toolchain_path, target_toolchain_path, wasi_sysroot_path)
+
     def rsync(self, *args):
         import subprocess
         subprocess.check_call(['rsync'] + list(args))
@@ -101,6 +121,55 @@ class PackageAction(Action):
                 target_path = os.path.join(llvm_tools_bin_dir, target)
                 print(f"Copying {target_path} to {install_bin_dir} (target of {tool_path})")
                 shutil.copy(target_path, install_bin_dir, follow_symlinks=False)
+
+    def make_swift_sdk(
+        self,
+        base_toolchain_path: str,
+        target_toolchain_path: str,
+        wasi_sysroot_path: str
+    ):
+        print("=====> Building Swift SDK")
+        sdk_generator_pkg_path = os.path.join(
+            os.path.dirname(__file__), "..", "swift-sdk-generator")
+        sdk_generator_args = [
+            os.path.join(base_toolchain_path, "usr", "bin", "swift"),
+            "run", "--package-path", sdk_generator_pkg_path,
+            "--", "swift-sdk-generator", "make-wasm-sdk",
+            "--target-swift-package-path", target_toolchain_path,
+            "--host-swift-package-path", base_toolchain_path,
+            "--wasi-sysroot", wasi_sysroot_path,
+            "--host", self.get_default_target_triple(base_toolchain_path),
+            "--target", "wasm32-unknown-wasi",
+            "--swift-version", self.snapshot_info.swift_version,
+            "--sdk-name", self.snapshot_info.swift_sdk_name,
+        ]
+        self.system(*sdk_generator_args)
+        artifactbundle_path = os.path.join(
+            sdk_generator_pkg_path, "Bundles",
+            self.snapshot_info.swift_sdk_name + ".artifactbundle")
+
+        zip_path = os.path.join(
+            os.getcwd(), "..", self.snapshot_info.artifactbundle_zip_name)
+        print(f"=====> Zipping {artifactbundle_path} to {zip_path}")
+        zip_args = [
+            "zip", "-r", "-y", "-q", zip_path,
+            os.path.basename(artifactbundle_path)
+        ]
+        old_cwd = os.getcwd()
+        os.chdir(os.path.dirname(artifactbundle_path))
+        self.system(*zip_args)
+        os.chdir(old_cwd)
+
+    def get_default_target_triple(self, base_toolchain_path: str):
+        import subprocess
+        swift_frontend_path = os.path.join(
+            base_toolchain_path, "usr", "bin", "swift-frontend")
+        # Use subprocess instead of self.system to run it even in dry-run
+        output = subprocess.check_output(
+            [swift_frontend_path, "-print-target-info"],
+            universal_newlines=True)
+        info = json.loads(output)
+        return info["target"]["triple"]
 
 
 class DarwinInfoPlistAction(Action):
@@ -176,13 +245,13 @@ def derive_snapshot_info(daily_snapshot: bool, scheme: str) -> SnapshotInfo:
     toolchain_channel = derive_toolchain_channel(scheme)
     now = datetime.datetime.utcnow()
     if daily_snapshot:
-        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{now.year:04d}-{now.month:02d}-{now.day:02d}-a"
+        swift_version = f"{toolchain_channel}-SNAPSHOT-{now.year:04d}-{now.month:02d}-{now.day:02d}-a"
     else:
-        toolchain_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT"
+        swift_version = f"{toolchain_channel}-SNAPSHOT"
     platform_info = PlatformInfo.derive()
     os_suffix = "macos" if platform_info.full_name == "osx" else platform_info.full_name
-    tarball_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}.tar.gz"
-    return SnapshotInfo(now.year, now.month, now.day, toolchain_name, tarball_name, daily_snapshot)
+    artifact_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}"
+    return SnapshotInfo(now.year, now.month, now.day, swift_version, artifact_name, daily_snapshot)
 
 
 def main():
