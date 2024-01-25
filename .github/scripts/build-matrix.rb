@@ -67,8 +67,8 @@ BASE_MATRIX_ENTRIES = [
     "free_disk_space": true
   },
   {
-    "build_os": "macos-12",
-    "agent_query": "macos-12",
+    "build_os": "macos-13",
+    "agent_query": "macos-13",
     "target": "macos_x86_64",
     "run_stdlib_test": false,
     "run_full_test": false,
@@ -77,7 +77,7 @@ BASE_MATRIX_ENTRIES = [
     "clean_build_dir": false
   },
   {
-    "build_os": "macos-11",
+    "build_os": "macos-13",
     "agent_query": ["self-hosted", "macOS", "ARM64"],
     "target": "macos_arm64",
     "run_stdlib_test": true,
