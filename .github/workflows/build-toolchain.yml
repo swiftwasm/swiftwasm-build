@@ -135,6 +135,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: swiftwasm-build
+          submodules: true
 
       - name: Configure git user for git-am
         run: |
