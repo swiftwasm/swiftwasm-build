@@ -208,6 +208,8 @@ jobs:
             ${{ matrix.container }}
           docker exec swiftwasm-ci-buildbot /bin/bash -lc 'env; cp -r /source/* /home/build-user/; ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}'
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
+          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip .
+          docker cp swiftwasm-ci-buildbot:/home/build-user/${{ matrix.toolchain_channel }}-SNAPSHOT-wasm.artifactbundle .
 
       - name: Extract build-cache from Docker container
         if: ${{ matrix.container != null && !cancelled() }}
@@ -233,6 +235,12 @@ jobs:
         with:
           name: ${{ matrix.target }}-${{ matrix.scheme }}-installable
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz
+
+      - name: Upload ${{ matrix.target }} SDK artifact bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-${{ matrix.scheme }}-artifactbundle
+          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip
 
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}

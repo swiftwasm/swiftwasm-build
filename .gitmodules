@@ -1,0 +1,3 @@
+[submodule "tools/swift-sdk-generator"]
+	path = tools/swift-sdk-generator
+	url = https://github.com/apple/swift-sdk-generator.git
