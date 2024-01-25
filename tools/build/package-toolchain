@@ -144,19 +144,31 @@ class PackageAction(Action):
             "--sdk-name", self.snapshot_info.swift_sdk_name,
         ]
         self.system(*sdk_generator_args)
+
         artifactbundle_path = os.path.join(
             sdk_generator_pkg_path, "Bundles",
             self.snapshot_info.swift_sdk_name + ".artifactbundle")
-
         zip_path = os.path.join(
             os.getcwd(), "..", self.snapshot_info.artifactbundle_zip_name)
-        print(f"=====> Zipping {artifactbundle_path} to {zip_path}")
+
+        # Rename the artifactbundle to be match with the basename of .zip
+        # for the quirks of SwiftPM 5.9
+        import shutil
+        dist_artifactbundle_path = os.path.join(
+            os.path.dirname(artifactbundle_path),
+            os.path.splitext(os.path.basename(zip_path))[0])
+        print(f"=====> Renaming {artifactbundle_path} to "
+              f"{dist_artifactbundle_path} for SwiftPM 5.9 issue")
+        shutil.rmtree(dist_artifactbundle_path, ignore_errors=True)
+        shutil.move(artifactbundle_path, dist_artifactbundle_path)
+
+        print(f"=====> Zipping {dist_artifactbundle_path} to {zip_path}")
         zip_args = [
             "zip", "-r", "-y", "-q", zip_path,
-            os.path.basename(artifactbundle_path)
+            os.path.basename(dist_artifactbundle_path)
         ]
         old_cwd = os.getcwd()
-        os.chdir(os.path.dirname(artifactbundle_path))
+        os.chdir(os.path.dirname(dist_artifactbundle_path))
         self.system(*zip_args)
         os.chdir(old_cwd)
 
