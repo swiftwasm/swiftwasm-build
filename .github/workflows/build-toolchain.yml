@@ -210,7 +210,6 @@ jobs:
           docker exec swiftwasm-ci-buildbot /bin/bash -lc 'env; cp -r /source/* /home/build-user/; ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}'
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip .
-          docker cp swiftwasm-ci-buildbot:/home/build-user/${{ matrix.toolchain_channel }}-SNAPSHOT-wasm.artifactbundle .
 
       - name: Extract build-cache from Docker container
         if: ${{ matrix.container != null && !cancelled() }}
