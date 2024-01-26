@@ -276,6 +276,9 @@ class Distribution:
 
             package = self.package_artifact(
                 artifact_path, tag_name, platform_suffix)
+            if options.dry_run:
+                print(f"Skip uploading actual artifact \"{package}\"")
+                continue
             self.upload_to_release(package, release)
 
     def guess_tag_name(self, path):
