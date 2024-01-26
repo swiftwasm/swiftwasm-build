@@ -296,7 +296,7 @@ jobs:
                 hello.swift -o hello.wasm && \
                 echo "Successfully linked hello.wasm"
       - name: Upload hello.wasm
-        if: ${{ matrix.build_hello_wasm }}
+        if: ${{ matrix.build_hello_wasm && matrix.scheme == 'main' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}-hello.wasm
