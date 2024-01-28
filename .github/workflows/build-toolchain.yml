@@ -84,6 +84,7 @@ jobs:
             changed:
               - "schemes/**"
               - "tools/build/**"
+              - "tools/swift-sdk-generator"
               - "tools/git-swift-workspace"
 
       - name: Generate entries
