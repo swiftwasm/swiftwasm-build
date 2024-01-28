@@ -173,6 +173,7 @@ jobs:
         run: |
           rm -rf ${{ github.workspace }}/build \
             ${{ github.workspace }}/swift \
+            ${{ github.workspace }}/swiftwasm-build/tools/swift-sdk-generator/Bundles \
             ${{ github.workspace }}/build-sdk
 
       - run: chmod -R 777 ./build-cache
