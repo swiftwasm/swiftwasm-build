@@ -110,7 +110,7 @@ jobs:
       # https://github.com/actions/cache/blob/main/tips-and-workarounds.md#cache-segment-restore-timeout
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 30
     needs: [build-matrix]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.build-matrix.outputs.entries != '[]' }}
     strategy:
       fail-fast: false
       matrix:
