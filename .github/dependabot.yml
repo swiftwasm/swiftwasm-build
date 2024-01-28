@@ -9,3 +9,7 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+  - package-ecosystem: 'gitsubmodule'
+    directory: 'tools/swift-sdk-generator'
+    schedule:
+      interval: 'daily'
