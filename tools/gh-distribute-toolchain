@@ -561,19 +561,13 @@ class Distribution:
         subprocess.run(["git", "-C", build_repo_dir,
                        "checkout", build_rev], check=True)
 
-        swift_repo_dir = os.path.join(self.checkout_dir, "swift")
-        status = subprocess.run([
-            'git', '-C', swift_repo_dir,
-            'tag', '--list', '--contains', tag_name]).returncode
-        if status == 0:
-            print(f"Tag {tag_name} already exists")
-            return
-
         # Checkout swift repository and apply patches at the build revision
         git_swift_workspace = os.path.join(
             build_repo_dir, "tools", "git-swift-workspace")
         subprocess.run([git_swift_workspace, "--scheme",
                        options.scheme], check=True)
+
+        swift_repo_dir = os.path.join(self.checkout_dir, "swift")
 
         fork_repo = 'git@github.com:swiftwasm/swift.git'
         status = subprocess.run(['git', '-C', swift_repo_dir,
@@ -585,6 +579,13 @@ class Distribution:
         # Fetch the tag from the fork. This can fail if the tag doesn't exist
         subprocess.run(['git', '-C', swift_repo_dir,
                         'fetch', 'swiftwasm', 'tag', tag_name, '--no-tags'])
+
+        status = subprocess.run([
+            'git', '-C', swift_repo_dir,
+            'tag', '--list', '--contains', tag_name]).returncode
+        if status == 0:
+            print(f"Tag {tag_name} already exists")
+            return
 
         self.effect_run(["git", "-C", swift_repo_dir, "tag", tag_name], check=True)
         self.effect_run(["git", "-C", swift_repo_dir,
