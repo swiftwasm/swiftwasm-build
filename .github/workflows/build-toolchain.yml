@@ -161,6 +161,15 @@ jobs:
         run: |
           xcodebuild -version
 
+      - name: Clean build directory
+        if: ${{ matrix.clean_build_dir }}
+        run: |
+          rm -rf ${{ github.workspace }}/build \
+            ${{ github.workspace }}/swift \
+            ${{ github.workspace }}/swiftwasm-build/tools/swift-sdk-generator/Bundles \
+            ${{ github.workspace }}/build-cache \
+            ${{ github.workspace }}/build-sdk
+
       - uses: actions/cache/restore@v4
         id: build-cache
         with:
@@ -168,14 +177,6 @@ jobs:
           key: ${{ steps.cache_key.outputs.SCCACHE_KEY }}
           restore-keys: |
             ${{ steps.cache_key.outputs.SCCACHE_KEY_PREFIX }}
-
-      - name: Clean build directory
-        if: ${{ matrix.clean_build_dir }}
-        run: |
-          rm -rf ${{ github.workspace }}/build \
-            ${{ github.workspace }}/swift \
-            ${{ github.workspace }}/swiftwasm-build/tools/swift-sdk-generator/Bundles \
-            ${{ github.workspace }}/build-sdk
 
       - run: chmod -R 777 ./build-cache
         if: ${{ steps.build-cache.outputs.cache-hit }}
