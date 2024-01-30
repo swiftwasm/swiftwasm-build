@@ -128,7 +128,6 @@ class PackageAction(Action):
         target_toolchain_path: str,
         wasi_sysroot_path: str
     ):
-        print("=====> Building Swift SDK")
         sdk_generator_pkg_path = os.path.join(
             os.path.dirname(__file__), "..", "swift-sdk-generator")
         sdk_generator_args = [
@@ -143,6 +142,8 @@ class PackageAction(Action):
             "--swift-version", self.snapshot_info.swift_version,
             "--sdk-name", self.snapshot_info.swift_sdk_name,
         ]
+        print("=====> Building Swift SDK")
+        print(" ".join(sdk_generator_args))
         self.system(*sdk_generator_args)
 
         artifactbundle_path = os.path.join(
