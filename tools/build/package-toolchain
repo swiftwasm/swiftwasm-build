@@ -54,10 +54,12 @@ class PackageAction(Action):
         os.makedirs(dist_toolchain_path, exist_ok=True)
         print(f"=====> Copying base snapshot {base_toolchain_path} to {dist_toolchain_path}")
         self.rsync("-a", base_toolchain_path + "/", dist_toolchain_path)
+
+        self.copy_icu_libs(build_sdk_path, target_toolchain_path)
+        # Copying target stdlib to dist toolchain, and cross compiler if
+        # host compiler is built with patches by ourselves.
         print(f"=====> Copying target toolchain {target_toolchain_path} to {dist_toolchain_path}")
         self.rsync("-a", target_toolchain_path + "/", dist_toolchain_path)
-
-        self.copy_icu_libs(build_sdk_path, dist_toolchain_path)
 
         self.install_extra_llvm_tools(llvm_tools_path, dist_toolchain_path)
 
@@ -78,10 +80,12 @@ class PackageAction(Action):
             os.remove(swift_driver_path)
 
         wasi_sysroot_path = os.path.join('..', 'build-sdk', 'wasi-sysroot')
-        shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
-
+        # Now dist toolchain always has cross compiler regardless of whether
+        # host compiler is built by ourselves or just downloaded from swift.org
         self.make_swift_sdk(
-            base_toolchain_path, target_toolchain_path, wasi_sysroot_path)
+            dist_toolchain_path, target_toolchain_path, wasi_sysroot_path)
+
+        shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
 
     def rsync(self, *args):
         import subprocess
