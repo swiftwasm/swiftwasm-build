@@ -162,6 +162,11 @@ class PackageAction(Action):
         shutil.rmtree(dist_artifactbundle_path, ignore_errors=True)
         shutil.move(artifactbundle_path, dist_artifactbundle_path)
 
+        if os.path.exists(zip_path):
+            print(f"=====> Removing existing .artifactbundle.zip: {zip_path}")
+            if not self.options.dry_run:
+                os.remove(zip_path)
+
         print(f"=====> Zipping {dist_artifactbundle_path} to {zip_path}")
         zip_args = [
             "zip", "-r", "-y", "-q", zip_path,
