@@ -83,7 +83,10 @@ class PackageAction(Action):
         # Now dist toolchain always has cross compiler regardless of whether
         # host compiler is built by ourselves or just downloaded from swift.org
         self.make_swift_sdk(
-            dist_toolchain_path, target_toolchain_path, wasi_sysroot_path)
+            base_toolchain_path,
+            dist_toolchain_path,
+            target_toolchain_path,
+            wasi_sysroot_path)
 
         shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
 
@@ -129,9 +132,23 @@ class PackageAction(Action):
     def make_swift_sdk(
         self,
         base_toolchain_path: str,
+        host_toolchain_path: str,
         target_toolchain_path: str,
         wasi_sysroot_path: str
     ):
+        """
+        Build the Swift SDK for WebAssembly.
+
+        :param base_toolchain_path: The path to the base toolchain, which
+            is an upstream toolchain downloaded from swift.org/download.
+        :param host_toolchain_path: The path to the host toolchain, which
+            is a toolchain built by ourselves if we need any patches against
+            the compiler, or just a copy of the base toolchain.
+        :param target_toolchain_path: The path to the target toolchain, which
+            contains the cross-compiled Swift standard library and SDK for
+            WebAssembly.
+        :param wasi_sysroot_path: The path to the WASI sysroot.
+        """
         sdk_generator_pkg_path = os.path.join(
             os.path.dirname(__file__), "..", "swift-sdk-generator")
         sdk_generator_args = [
@@ -139,9 +156,9 @@ class PackageAction(Action):
             "run", "--package-path", sdk_generator_pkg_path,
             "--", "swift-sdk-generator", "make-wasm-sdk",
             "--target-swift-package-path", target_toolchain_path,
-            "--host-swift-package-path", base_toolchain_path,
+            "--host-swift-package-path", host_toolchain_path,
             "--wasi-sysroot", wasi_sysroot_path,
-            "--host", self.get_default_target_triple(base_toolchain_path),
+            "--host", self.get_default_target_triple(host_toolchain_path),
             "--target", "wasm32-unknown-wasi",
             "--swift-version", self.snapshot_info.swift_version,
             "--sdk-name", self.snapshot_info.swift_sdk_name,
