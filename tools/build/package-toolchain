@@ -269,6 +269,22 @@ class ArchiveTarballAction(Action):
         self.system("tar", "-C",  dist_toolchain_dir, "-czf", tarball_path, self.snapshot_info.toolchain_name)
 
 
+class CleanBuildArtifactAction(Action):
+    def run(self):
+        import shutil
+        print("=====> Cleaning build artifacts")
+        build_paths = [
+            os.path.join("..", "build", "WebAssemblyCompiler"),
+            os.path.join("..", "build", "Packaging", "host-toolchain"),
+        ]
+        for path in build_paths:
+            if not os.path.exists(path):
+                continue
+            print(f"=====> Removing {path}")
+            if not self.options.dry_run:
+                shutil.rmtree(path, ignore_errors=True)
+
+
 def derive_toolchain_channel(scheme: str) -> str:
     release_scheme_prefix = "release-"
     if scheme == "main":
@@ -298,7 +314,13 @@ def main():
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
     options = derive_options_from_args(sys.argv[1:], parser)
     snapshot_info = derive_snapshot_info(options.daily_snapshot, options.scheme)
-    actions = [DownloadBaseSnapshotAction(options), PackageAction(options, snapshot_info)]
+    actions = []
+    if options.optimize_disk_footprint:
+        actions.append(CleanBuildArtifactAction(options))
+
+    actions.append(DownloadBaseSnapshotAction(options))
+    actions.append(PackageAction(options, snapshot_info))
+
     if os.uname().sysname == "Darwin":
         actions.append(DarwinInfoPlistAction(options, snapshot_info))
     actions.append(ArchiveTarballAction(options, snapshot_info))
