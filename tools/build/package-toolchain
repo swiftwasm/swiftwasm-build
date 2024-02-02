@@ -275,7 +275,6 @@ class CleanBuildArtifactAction(Action):
         print("=====> Cleaning build artifacts")
         build_paths = [
             os.path.join("..", "build", "WebAssemblyCompiler"),
-            os.path.join("..", "build", "Packaging", "host-toolchain"),
         ]
         for path in build_paths:
             if not os.path.exists(path):
