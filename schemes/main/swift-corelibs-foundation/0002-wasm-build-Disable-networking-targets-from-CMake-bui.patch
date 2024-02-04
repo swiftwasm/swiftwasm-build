@@ -1,0 +1,79 @@
+From 0f36722d80d2aa315829917cb564ab2773d2a9a3 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sun, 4 Feb 2024 14:42:43 +0000
+Subject: [PATCH] [wasm][build] Disable networking targets from CMake build
+
+This is a follow-up to 5e7281b993ca04486ed8f2add39c8b11f132a550
+---
+ CoreFoundation/CMakeLists.txt | 25 +++++++++++++++++--------
+ Sources/CMakeLists.txt        |  4 +++-
+ 2 files changed, 20 insertions(+), 9 deletions(-)
+
+diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
+index 18c2e508..c3413d67 100644
+--- a/CoreFoundation/CMakeLists.txt
++++ b/CoreFoundation/CMakeLists.txt
+@@ -28,11 +28,14 @@ endif()
+ 
+ if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
+   find_package(LibXml2 REQUIRED)
+-  find_package(CURL CONFIG)
+-  if(CURL_FOUND)
+-    set(CURL_VERSION_STRING ${CURL_VERSION})
+-  else()
+-    find_package(CURL REQUIRED)
++
++  if(BUILD_NETWORKING)
++    find_package(CURL CONFIG)
++    if(CURL_FOUND)
++      set(CURL_VERSION_STRING ${CURL_VERSION})
++    else()
++      find_package(CURL REQUIRED)
++    endif()
+   endif()
+ endif()
+ 
+@@ -438,7 +441,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+                              PRIVATE
+                                CURL_STATICLIB)
+ endif()
+-if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
++if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin AND BUILD_NETWORKING)
+   target_link_libraries(CFURLSessionInterface PRIVATE
+     CURL::libcurl)
+ endif()
+@@ -540,10 +543,16 @@ endif()
+ 
+ install(TARGETS
+           CoreFoundation
+-          CFURLSessionInterface
+           CFXMLInterface
+         DESTINATION
+-          "${CMAKE_INSTALL_FULL_LIBDIR}")
++          "${CMAKE_INSTALL_FULL_LIBDIR}/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>")
++
++if(BUILD_NETWORKING)
++  install(TARGETS
++            CFURLSessionInterface
++          DESTINATION
++            "${CMAKE_INSTALL_FULL_LIBDIR}/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>")
++endif()
+ 
+ # Needed to avoid double slash "//" when CMAKE_INSTALL_PREFIX set to "/" and DESTDIR used to relocate whole installation.
+ # Double slash raise CMake error "file called with network path DESTINATION //System/Library/Frameworks".
+diff --git a/Sources/CMakeLists.txt b/Sources/CMakeLists.txt
+index ab3a1bef..94b85146 100644
+--- a/Sources/CMakeLists.txt
++++ b/Sources/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ add_subdirectory(UUID)
+ add_subdirectory(Foundation)
+-add_subdirectory(FoundationNetworking)
++if(BUILD_NETWORKING)
++  add_subdirectory(FoundationNetworking)
++endif()
+ add_subdirectory(FoundationXML)
+ add_subdirectory(Tools)
+-- 
+2.43.0
+

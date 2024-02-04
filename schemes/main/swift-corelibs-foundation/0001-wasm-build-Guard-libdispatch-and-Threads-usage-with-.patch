@@ -1,7 +1,7 @@
-From 04f07a3feb3e33d1e424ef7ec0bca5e4bc6922ef Mon Sep 17 00:00:00 2001
+From 7f195656e3309a1be99a234eb27e067d15e44dbf Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 13:57:13 +0000
-Subject: [PATCH] [wasm] Guard libdispatch and Threads usage with
+Subject: [PATCH] [wasm][build] Guard libdispatch and Threads usage with
  HAS_LIBDISPATCH_API
 
 This is a follow-up to 5e7281b993ca04486ed8f2add39c8b11f132a550
