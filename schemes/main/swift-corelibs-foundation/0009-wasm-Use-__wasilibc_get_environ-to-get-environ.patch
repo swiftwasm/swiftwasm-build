@@ -1,0 +1,42 @@
+From 29322bd1c7ddf16cf64b5e828b3e927038b7e9fb Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sun, 4 Feb 2024 16:31:06 +0000
+Subject: [PATCH] [wasm] Use `__wasilibc_get_environ` to get environ
+
+The `environ` variable in wasi-libc need to be accessed through the
+`__wasilibc_get_environ` function to ensure that it is initialized
+properly.
+---
+ CoreFoundation/Base.subproj/CFPlatform.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/CoreFoundation/Base.subproj/CFPlatform.c b/CoreFoundation/Base.subproj/CFPlatform.c
+index 982c4e06..fd4f009e 100644
+--- a/CoreFoundation/Base.subproj/CFPlatform.c
++++ b/CoreFoundation/Base.subproj/CFPlatform.c
+@@ -22,6 +22,10 @@
+     #include <mach-o/dyld.h>
+ #endif
+ 
++#if TARGET_OS_WASI
++#include <wasi/libc-environ.h>
++#endif
++
+ #define _CFEmitInternalDiagnostics 0
+ 
+ 
+@@ -1813,8 +1817,10 @@ CF_EXPORT char **_CFEnviron(void) {
+     return *_NSGetEnviron();
+ #elif TARGET_OS_WIN32
+     return _environ;
++#elif TARGET_OS_WASI
++    return __wasilibc_get_environ();
+ #else
+-#if TARGET_OS_BSD || TARGET_OS_WASI
++#if TARGET_OS_BSD
+     extern char **environ;
+ #endif
+     return environ;
+-- 
+2.43.0
+
