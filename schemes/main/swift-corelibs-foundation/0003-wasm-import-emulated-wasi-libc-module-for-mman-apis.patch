@@ -1,7 +1,7 @@
-From 2be8e97d311ee0a7530303d62bcd51e7cba6df59 Mon Sep 17 00:00:00 2001
+From d121be76c724c259710e445e035913689d457c3a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 29 Oct 2023 00:39:00 +0000
-Subject: [PATCH 1/2] [wasm] import emulated wasi-libc module for mman apis
+Subject: [PATCH] [wasm] import emulated wasi-libc module for mman apis
 
 ---
  Sources/Foundation/Data.swift       | 1 +
@@ -9,7 +9,7 @@ Subject: [PATCH 1/2] [wasm] import emulated wasi-libc module for mman apis
  2 files changed, 2 insertions(+)
 
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
-index f6b9a06b..f396129a 100644
+index de5c0400..5c7004f7 100644
 --- a/Sources/Foundation/Data.swift
 +++ b/Sources/Foundation/Data.swift
 @@ -29,6 +29,7 @@
@@ -21,7 +21,7 @@ index f6b9a06b..f396129a 100644
  @usableFromInline let malloc = WASILibc.malloc
  @usableFromInline let free = WASILibc.free
 diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
-index 5e28678c..670d684f 100644
+index 4c42f26c..d882e078 100644
 --- a/Sources/Foundation/FileHandle.swift
 +++ b/Sources/Foundation/FileHandle.swift
 @@ -26,6 +26,7 @@ fileprivate let _write = Glibc.write(_:_:_:)
@@ -33,5 +33,5 @@ index 5e28678c..670d684f 100644
  fileprivate let _write = WASILibc.write(_:_:_:)
  fileprivate let _close = WASILibc.close(_:)
 -- 
-2.40.0
+2.43.0
 

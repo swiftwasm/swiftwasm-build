@@ -1,7 +1,7 @@
-From ed38c661b8892ac83e40c799f0ea873731275086 Mon Sep 17 00:00:00 2001
+From 83696d2a1e15f11c7a6f005bbb1d57c54e76afb8 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 29 Oct 2023 00:39:31 +0000
-Subject: [PATCH 2/2] [wasm] Get rid of pthread stub hack
+Subject: [PATCH] [wasm] Get rid of pthread stub hack
 
 ---
  CoreFoundation/Base.subproj/CFInternal.h      | 31 ++++++++++++-
@@ -98,7 +98,7 @@ index 692a106a..639de79c 100644
  #endif
  #include <time.h>
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
-index a2ae585b..ab602608 100644
+index 73d64635..db3e73d9 100644
 --- a/CoreFoundation/Base.subproj/CFRuntime.c
 +++ b/CoreFoundation/Base.subproj/CFRuntime.c
 @@ -1198,9 +1198,11 @@ void __CFInitialize(void) {
@@ -191,10 +191,10 @@ index af3fc843..04ea85b7 100644
  CF_EXPORT Boolean _CFCharacterSetIsLongCharacterMember(CFCharacterSetRef theSet, UTF32Char theChar);
  CF_EXPORT CFCharacterSetRef _CFCharacterSetCreateCopy(CFAllocatorRef alloc, CFCharacterSetRef theSet);
 diff --git a/Sources/Foundation/NSLock.swift b/Sources/Foundation/NSLock.swift
-index 59d334f1..4e8b6e25 100644
+index f4384b70..69c1d1d8 100644
 --- a/Sources/Foundation/NSLock.swift
 +++ b/Sources/Foundation/NSLock.swift
-@@ -48,6 +48,8 @@ open class NSLock: NSObject, NSLocking {
+@@ -61,6 +61,8 @@ open class NSLock: NSObject, NSLocking {
          InitializeSRWLock(mutex)
          InitializeConditionVariable(timeoutCond)
          InitializeSRWLock(timeoutMutex)
@@ -203,7 +203,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_init(mutex, nil)
  #if os(macOS) || os(iOS)
-@@ -60,6 +62,8 @@ open class NSLock: NSObject, NSLocking {
+@@ -73,6 +75,8 @@ open class NSLock: NSObject, NSLocking {
      deinit {
  #if os(Windows)
          // SRWLocks do not need to be explicitly destroyed
@@ -212,7 +212,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_destroy(mutex)
  #endif
-@@ -73,6 +77,8 @@ open class NSLock: NSObject, NSLocking {
+@@ -86,6 +90,8 @@ open class NSLock: NSObject, NSLocking {
      open func lock() {
  #if os(Windows)
          AcquireSRWLockExclusive(mutex)
@@ -221,7 +221,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_lock(mutex)
  #endif
-@@ -84,6 +90,8 @@ open class NSLock: NSObject, NSLocking {
+@@ -97,6 +103,8 @@ open class NSLock: NSObject, NSLocking {
          AcquireSRWLockExclusive(timeoutMutex)
          WakeAllConditionVariable(timeoutCond)
          ReleaseSRWLockExclusive(timeoutMutex)
@@ -230,7 +230,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_unlock(mutex)
  #if os(macOS) || os(iOS)
-@@ -98,6 +106,9 @@ open class NSLock: NSObject, NSLocking {
+@@ -111,6 +119,9 @@ open class NSLock: NSObject, NSLocking {
      open func `try`() -> Bool {
  #if os(Windows)
          return TryAcquireSRWLockExclusive(mutex) != 0
@@ -240,7 +240,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          return pthread_mutex_trylock(mutex) == 0
  #endif
-@@ -108,6 +119,9 @@ open class NSLock: NSObject, NSLocking {
+@@ -121,6 +132,9 @@ open class NSLock: NSObject, NSLocking {
          if TryAcquireSRWLockExclusive(mutex) != 0 {
            return true
          }
@@ -250,7 +250,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          if pthread_mutex_trylock(mutex) == 0 {
              return true
-@@ -247,6 +261,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
+@@ -260,6 +274,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
          InitializeCriticalSection(mutex)
          InitializeConditionVariable(timeoutCond)
          InitializeSRWLock(timeoutMutex)
@@ -259,7 +259,7 @@ index 59d334f1..4e8b6e25 100644
  #else
  #if CYGWIN || os(OpenBSD)
          var attrib : pthread_mutexattr_t? = nil
-@@ -273,6 +289,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
+@@ -286,6 +302,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
      deinit {
  #if os(Windows)
          DeleteCriticalSection(mutex)
@@ -268,7 +268,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_destroy(mutex)
  #endif
-@@ -286,6 +304,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
+@@ -299,6 +317,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
      open func lock() {
  #if os(Windows)
          EnterCriticalSection(mutex)
@@ -277,7 +277,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_lock(mutex)
  #endif
-@@ -297,6 +317,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
+@@ -310,6 +330,8 @@ open class NSRecursiveLock: NSObject, NSLocking {
          AcquireSRWLockExclusive(timeoutMutex)
          WakeAllConditionVariable(timeoutCond)
          ReleaseSRWLockExclusive(timeoutMutex)
@@ -286,7 +286,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_unlock(mutex)
  #if os(macOS) || os(iOS)
-@@ -311,6 +333,9 @@ open class NSRecursiveLock: NSObject, NSLocking {
+@@ -324,6 +346,9 @@ open class NSRecursiveLock: NSObject, NSLocking {
      open func `try`() -> Bool {
  #if os(Windows)
          return TryEnterCriticalSection(mutex)
@@ -296,7 +296,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          return pthread_mutex_trylock(mutex) == 0
  #endif
-@@ -321,6 +346,9 @@ open class NSRecursiveLock: NSObject, NSLocking {
+@@ -334,6 +359,9 @@ open class NSRecursiveLock: NSObject, NSLocking {
          if TryEnterCriticalSection(mutex) {
              return true
          }
@@ -306,7 +306,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          if pthread_mutex_trylock(mutex) == 0 {
              return true
-@@ -352,6 +380,8 @@ open class NSCondition: NSObject, NSLocking {
+@@ -365,6 +393,8 @@ open class NSCondition: NSObject, NSLocking {
  #if os(Windows)
          InitializeSRWLock(mutex)
          InitializeConditionVariable(cond)
@@ -315,7 +315,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_init(mutex, nil)
          pthread_cond_init(cond, nil)
-@@ -361,6 +391,8 @@ open class NSCondition: NSObject, NSLocking {
+@@ -374,6 +404,8 @@ open class NSCondition: NSObject, NSLocking {
      deinit {
  #if os(Windows)
          // SRWLock do not need to be explicitly destroyed
@@ -324,7 +324,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_destroy(mutex)
          pthread_cond_destroy(cond)
-@@ -374,6 +406,8 @@ open class NSCondition: NSObject, NSLocking {
+@@ -387,6 +419,8 @@ open class NSCondition: NSObject, NSLocking {
      open func lock() {
  #if os(Windows)
          AcquireSRWLockExclusive(mutex)
@@ -333,7 +333,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_lock(mutex)
  #endif
-@@ -382,6 +416,8 @@ open class NSCondition: NSObject, NSLocking {
+@@ -395,6 +429,8 @@ open class NSCondition: NSObject, NSLocking {
      open func unlock() {
  #if os(Windows)
          ReleaseSRWLockExclusive(mutex)
@@ -342,7 +342,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_mutex_unlock(mutex)
  #endif
-@@ -390,6 +426,8 @@ open class NSCondition: NSObject, NSLocking {
+@@ -403,6 +439,8 @@ open class NSCondition: NSObject, NSLocking {
      open func wait() {
  #if os(Windows)
          SleepConditionVariableSRW(cond, mutex, WinSDK.INFINITE, 0)
@@ -351,7 +351,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_cond_wait(cond, mutex)
  #endif
-@@ -398,6 +436,9 @@ open class NSCondition: NSObject, NSLocking {
+@@ -411,6 +449,9 @@ open class NSCondition: NSObject, NSLocking {
      open func wait(until limit: Date) -> Bool {
  #if os(Windows)
          return SleepConditionVariableSRW(cond, mutex, timeoutFrom(date: limit), 0)
@@ -361,7 +361,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          guard var timeout = timeSpecFrom(date: limit) else {
              return false
-@@ -409,6 +450,8 @@ open class NSCondition: NSObject, NSLocking {
+@@ -422,6 +463,8 @@ open class NSCondition: NSObject, NSLocking {
      open func signal() {
  #if os(Windows)
          WakeConditionVariable(cond)
@@ -370,7 +370,7 @@ index 59d334f1..4e8b6e25 100644
  #else
          pthread_cond_signal(cond)
  #endif
-@@ -417,6 +460,8 @@ open class NSCondition: NSObject, NSLocking {
+@@ -430,6 +473,8 @@ open class NSCondition: NSObject, NSLocking {
      open func broadcast() {
  #if os(Windows)
          WakeAllConditionVariable(cond)
@@ -380,5 +380,5 @@ index 59d334f1..4e8b6e25 100644
          pthread_cond_broadcast(cond)
  #endif
 -- 
-2.40.0
+2.43.0
 
