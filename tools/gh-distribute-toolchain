@@ -288,6 +288,7 @@ class Distribution:
         self.run_id = run_id
         self.secrets = secrets
         self.dry_run = dry_run
+        self.verbose = verbose
         self.distribution_dir = os.path.join(
             os.path.dirname(REPO_ROOT), "build", "Distribution")
         self.artifacts_dir = os.path.join(
