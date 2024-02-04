@@ -1,10 +1,10 @@
-From c55f98b0b22fdd484fb3f5b872fed078340e6710 Mon Sep 17 00:00:00 2001
+From f69fcaac3e75ee3840bffcdba83f313a55427165 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Sun, 4 Feb 2024 14:44:27 +0000
+Date: Sun, 4 Feb 2024 14:52:39 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
- CMakeLists.txt                                | 21 +++++-
+ CMakeLists.txt                                |  2 +
  CoreFoundation/Base.subproj/CFFileUtilities.c | 29 ++++++--
  CoreFoundation/Base.subproj/CFInternal.h      |  8 +-
  CoreFoundation/Base.subproj/CFPlatform.c      |  9 ++-
@@ -12,7 +12,6 @@ Subject: [PATCH] WebAssembly Support
  CoreFoundation/Base.subproj/CFSortFunctions.c |  5 +-
  .../Base.subproj/ForSwiftFoundationOnly.h     |  4 +-
  .../SwiftRuntime/CoreFoundation.h             | 10 +++
- .../static/wasm32-unknown-wasi.modulemap      |  8 ++
  CoreFoundation/CMakeLists.txt                 | 73 +++++++++++++------
  .../Collections.subproj/CFBasicHash.c         | 17 ++++-
  .../Collections.subproj/CFBasicHash.h         |  4 +
@@ -84,11 +83,10 @@ Subject: [PATCH] WebAssembly Support
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
  Sources/FoundationXML/XMLDocument.swift       |  2 +
  Sources/FoundationXML/XMLParser.swift         |  4 +-
- 80 files changed, 648 insertions(+), 220 deletions(-)
- create mode 100644 CoreFoundation/Base.subproj/static/wasm32-unknown-wasi.modulemap
+ 79 files changed, 625 insertions(+), 216 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 646cd3e4..98eba324 100644
+index 646cd3e4..7f944268 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -63,6 +63,7 @@ endif()
@@ -107,32 +105,6 @@ index 646cd3e4..98eba324 100644
  target_include_directories(CoreFoundation PRIVATE
    ${CMAKE_BINARY_DIR}/uuid-headers
    ${CMAKE_CURRENT_BINARY_DIR}/CoreFoundation.framework/Headers)
-@@ -122,10 +124,21 @@ install(DIRECTORY
-         DESTINATION
-           ${swift_lib_dir}/CoreFoundation
-         FILES_MATCHING PATTERN "*.h")
--install(FILES
--          CoreFoundation/Base.subproj/$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:static/>module.map
--        DESTINATION
--          ${swift_lib_dir}/CoreFoundation)
-+
-+# TODO(katei): Remove wasm32-unknown-wasi specific modulemap which is required to link icui18n
-+# This workaround can be removed after https://github.com/apple/swift/pull/35936
-+if(CMAKE_SYSTEM_NAME STREQUAL WASI)
-+  install(FILES
-+            CoreFoundation/Base.subproj/$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:static/>wasm32-unknown-wasi.modulemap
-+          DESTINATION
-+            ${swift_lib_dir}/CoreFoundation
-+          RENAME module.map)
-+else()
-+  install(FILES
-+            CoreFoundation/Base.subproj/$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:static/>module.map
-+          DESTINATION
-+            ${swift_lib_dir}/CoreFoundation)
-+endif()
- install(DIRECTORY
-           ${CMAKE_CURRENT_BINARY_DIR}/CFURLSessionInterface.framework/Headers/
-         DESTINATION
 diff --git a/CoreFoundation/Base.subproj/CFFileUtilities.c b/CoreFoundation/Base.subproj/CFFileUtilities.c
 index 53596fb9..a8394613 100644
 --- a/CoreFoundation/Base.subproj/CFFileUtilities.c
@@ -479,20 +451,6 @@ index b373875a..72a1f795 100644
  #include <sys/types.h>
  #include <stdarg.h>
  #include <assert.h>
-diff --git a/CoreFoundation/Base.subproj/static/wasm32-unknown-wasi.modulemap b/CoreFoundation/Base.subproj/static/wasm32-unknown-wasi.modulemap
-new file mode 100644
-index 00000000..a1bd757b
---- /dev/null
-+++ b/CoreFoundation/Base.subproj/static/wasm32-unknown-wasi.modulemap
-@@ -0,0 +1,8 @@
-+// workaround: wasm32-unknown-wasi needs to link icui18n because it's not linked by default
-+// on the platform.
-+module CoreFoundation [extern_c] [system] {
-+    umbrella header "CoreFoundation.h"
-+    explicit module CFPlugInCOM { header "CFPlugInCOM.h" }
-+
-+    link "icui18n"
-+}
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
 index c3413d67..8864ee5b 100644
 --- a/CoreFoundation/CMakeLists.txt
