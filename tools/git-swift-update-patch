@@ -5,12 +5,18 @@ def main
   require "pathname"
   require "json"
 
-  options = {}
+  options = {
+    repository: "swift",
+  }
   OptionParser.new do |opts|
     opts.banner = "Usage: git-swift-update-patch [options]"
 
     opts.on("-s", "--scheme SCHEME", "The scheme to use") do |v|
       options[:scheme] = v
+    end
+
+    opts.on("-R", "--repository REPOSITORY", "The repository to use") do |v|
+      options[:repository] = v
     end
   end.parse!
 
@@ -21,19 +27,14 @@ def main
 
   manifest = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], 'manifest.json')))
 
-  patches_path = File.absolute_path(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], 'swift'))
+  patches_path = File.absolute_path(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], options[:repository]))
   upstream_rev = manifest['base-tag']
-
-  unless `git status --porcelain`.empty?
-    puts "Patch set repository is not clean"
-    exit 1
-  end
 
   Dir.chdir(File.join(File.dirname(__FILE__), '..')) do
     Kernel.system(*[
-      'git', '-C', "../swift",
+      'git', '-C', "../" + options[:repository],
       'format-patch', '--no-numbered', upstream_rev,
-      "-o", Pathname.new(patches_path).relative_path_from(File.absolute_path("../swift")).to_s,
+      "-o", Pathname.new(patches_path).relative_path_from(File.absolute_path("../" + options[:repository])).to_s,
     ], exception: true)
   end
 end
