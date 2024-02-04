@@ -1,7 +1,7 @@
 {
   "base-tag": "swift-DEVELOPMENT-SNAPSHOT-2024-01-30-a",
   "repos": {
-    "swift-corelibs-foundation": "660624d0220c0efbef054f4919f9f01fd3866be1",
+    "swift-corelibs-foundation": "dbca8c7ddcfd19f7f6f6e1b60fd3ee3f748e263c",
     "swift-corelibs-xctest": "77bc9f5386ee8a2a4e8da5ac30e846b451d101b6"
   },
   "build-compiler": false,
