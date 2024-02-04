@@ -1,108 +1,97 @@
-From e98647c84c5ce81246a4a1278ec64226b81df713 Mon Sep 17 00:00:00 2001
+From a0634a5c7956bace600bc7f40b34819eb8f60dd0 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 14:05:21 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
- CMakeLists.txt                                |  29 +++-
- CoreFoundation/Base.subproj/CFFileUtilities.c |  29 +++-
- CoreFoundation/Base.subproj/CFInternal.h      |   8 +-
- CoreFoundation/Base.subproj/CFPlatform.c      |   9 +-
- CoreFoundation/Base.subproj/CFRuntime.c       |  30 +++-
- CoreFoundation/Base.subproj/CFSortFunctions.c |   5 +-
- .../Base.subproj/ForSwiftFoundationOnly.h     |   4 +-
- .../SwiftRuntime/CoreFoundation.h             |  10 ++
- .../static/wasm32-unknown-wasi.modulemap      |   8 +
- CoreFoundation/CMakeLists.txt                 | 137 ++++++++++++------
- .../Collections.subproj/CFBasicHash.c         |  17 ++-
- .../Collections.subproj/CFBasicHash.h         |   4 +
- .../Collections.subproj/CFStorage.c           |  10 ++
- .../Collections.subproj/CFStorage.h           |   4 +-
- CoreFoundation/Error.subproj/CFError.c        |   7 +-
- .../Locale.subproj/CFCalendar_Enumerate.c     |   4 +-
- .../Locale.subproj/CFDateFormatter.c          |  11 +-
- CoreFoundation/Locale.subproj/CFLocale.c      |   6 +-
- CoreFoundation/NumberDate.subproj/CFDate.c    |  12 +-
- .../Parsing.subproj/CFPropertyList.c          |  11 +-
- CoreFoundation/PlugIn.subproj/CFBundlePriv.h  |   2 +-
- .../PlugIn.subproj/CFBundle_BinaryTypes.h     |   3 +-
- .../PlugIn.subproj/CFBundle_Executable.c      |   2 +-
- .../PlugIn.subproj/CFBundle_InfoPlist.c       |   8 +-
- .../PlugIn.subproj/CFBundle_Internal.h        |   5 +-
- .../PlugIn.subproj/CFBundle_Resources.c       |   4 +
- .../PlugIn.subproj/CFPlugIn_Factory.h         |   2 +-
- .../Preferences.subproj/CFPreferences.c       |  16 +-
- .../CFXMLPreferencesDomain.c                  |   2 +-
- CoreFoundation/RunLoop.subproj/CFMachPort.h   |   2 +-
- .../RunLoop.subproj/CFMachPort_Lifetime.h     |   2 +-
- .../RunLoop.subproj/CFMessagePort.h           |   2 +-
- CoreFoundation/RunLoop.subproj/CFRunLoop.h    |   2 +-
- CoreFoundation/RunLoop.subproj/CFSocket.h     |   2 +-
- CoreFoundation/Stream.subproj/CFStream.h      |   8 +-
- .../Stream.subproj/CFStreamAbstract.h         |   2 +-
- .../Stream.subproj/CFStreamInternal.h         |   2 +-
- CoreFoundation/Stream.subproj/CFStreamPriv.h  |   2 +-
- .../String.subproj/CFCharacterSetData.S       |   8 +
- CoreFoundation/String.subproj/CFString.c      |  16 +-
- .../String.subproj/CFStringUtilities.c        |  18 +--
- .../CFUniCharPropertyDatabase.S               |   8 +
- CoreFoundation/String.subproj/CFUnicodeData.S |   8 +
- .../CFPlatformConverters.c                    |   4 +-
- .../CFStringEncodingConverter.c               |  12 +-
- CoreFoundation/URL.subproj/CFURL.c            |  18 +--
- CoreFoundation/URL.subproj/CFURLComponents.c  |   9 +-
- Sources/BlocksRuntime/runtime.c               |   5 +-
- Sources/CMakeLists.txt                        |  10 +-
- Sources/Foundation/Bundle.swift               |  40 +++++
- Sources/Foundation/ByteCountFormatter.swift   |   1 -
- Sources/Foundation/CMakeLists.txt             |  51 ++++---
- Sources/Foundation/Data.swift                 |  10 +-
- Sources/Foundation/DateFormatter.swift        |  51 +++++++
- .../DispatchData+DataProtocol.swift           |   3 +-
- Sources/Foundation/FileHandle.swift           |  31 +++-
- Sources/Foundation/FileManager.swift          |   2 +
- Sources/Foundation/NSCharacterSet.swift       |   6 +-
- Sources/Foundation/NSData.swift               |   8 +-
- Sources/Foundation/NSError.swift              |   2 +
- Sources/Foundation/NSKeyedArchiver.swift      |   8 +-
- Sources/Foundation/NSNumber.swift             |   4 +
- Sources/Foundation/NSObjCRuntime.swift        |  48 +++---
- Sources/Foundation/NSPathUtilities.swift      |  31 ++--
- Sources/Foundation/NSSet.swift                |   4 +
- Sources/Foundation/NSString.swift             |  10 +-
- Sources/Foundation/NSStringAPI.swift          |   4 +
- Sources/Foundation/NSSwiftRuntime.swift       |   3 +
- Sources/Foundation/NSTimeZone.swift           |  10 +-
- Sources/Foundation/NSURL.swift                |  27 +++-
- Sources/Foundation/Operation.swift            |   2 +
- Sources/Foundation/ProcessInfo.swift          |  10 ++
- Sources/Foundation/Progress.swift             |   2 +
- .../PropertyListSerialization.swift           |   2 +
- Sources/Foundation/ScannerAPI.swift           |   2 +-
- Sources/Foundation/URL.swift                  |   9 +-
- Sources/Foundation/UserDefaults.swift         |  14 ++
- Sources/FoundationXML/CMakeLists.txt          |   6 +
- Sources/FoundationXML/XMLDocument.swift       |   2 +
- Sources/FoundationXML/XMLParser.swift         |   4 +-
- 80 files changed, 700 insertions(+), 246 deletions(-)
+ CMakeLists.txt                                | 21 +++-
+ CoreFoundation/Base.subproj/CFFileUtilities.c | 29 ++++--
+ CoreFoundation/Base.subproj/CFInternal.h      |  8 +-
+ CoreFoundation/Base.subproj/CFPlatform.c      |  9 +-
+ CoreFoundation/Base.subproj/CFRuntime.c       | 30 ++++--
+ CoreFoundation/Base.subproj/CFSortFunctions.c |  5 +-
+ .../Base.subproj/ForSwiftFoundationOnly.h     |  4 +-
+ .../SwiftRuntime/CoreFoundation.h             | 10 ++
+ .../static/wasm32-unknown-wasi.modulemap      |  8 ++
+ CoreFoundation/CMakeLists.txt                 | 98 +++++++++++++------
+ .../Collections.subproj/CFBasicHash.c         | 17 +++-
+ .../Collections.subproj/CFBasicHash.h         |  4 +
+ .../Collections.subproj/CFStorage.c           | 10 ++
+ .../Collections.subproj/CFStorage.h           |  4 +-
+ CoreFoundation/Error.subproj/CFError.c        |  7 +-
+ .../Locale.subproj/CFCalendar_Enumerate.c     |  4 +-
+ .../Locale.subproj/CFDateFormatter.c          | 11 ++-
+ CoreFoundation/Locale.subproj/CFLocale.c      |  6 +-
+ CoreFoundation/NumberDate.subproj/CFDate.c    | 12 +--
+ .../Parsing.subproj/CFPropertyList.c          | 11 ++-
+ CoreFoundation/PlugIn.subproj/CFBundlePriv.h  |  2 +-
+ .../PlugIn.subproj/CFBundle_BinaryTypes.h     |  3 +-
+ .../PlugIn.subproj/CFBundle_Executable.c      |  2 +-
+ .../PlugIn.subproj/CFBundle_InfoPlist.c       |  8 +-
+ .../PlugIn.subproj/CFBundle_Internal.h        |  5 +-
+ .../PlugIn.subproj/CFBundle_Resources.c       |  4 +
+ .../PlugIn.subproj/CFPlugIn_Factory.h         |  2 +-
+ .../Preferences.subproj/CFPreferences.c       | 16 ++-
+ .../CFXMLPreferencesDomain.c                  |  2 +-
+ CoreFoundation/RunLoop.subproj/CFMachPort.h   |  2 +-
+ .../RunLoop.subproj/CFMachPort_Lifetime.h     |  2 +-
+ .../RunLoop.subproj/CFMessagePort.h           |  2 +-
+ CoreFoundation/RunLoop.subproj/CFRunLoop.h    |  2 +-
+ CoreFoundation/RunLoop.subproj/CFSocket.h     |  2 +-
+ CoreFoundation/Stream.subproj/CFStream.h      |  8 +-
+ .../Stream.subproj/CFStreamAbstract.h         |  2 +-
+ .../Stream.subproj/CFStreamInternal.h         |  2 +-
+ CoreFoundation/Stream.subproj/CFStreamPriv.h  |  2 +-
+ .../String.subproj/CFCharacterSetData.S       |  8 ++
+ CoreFoundation/String.subproj/CFString.c      | 16 +--
+ .../String.subproj/CFStringUtilities.c        | 18 ++--
+ .../CFUniCharPropertyDatabase.S               |  8 ++
+ CoreFoundation/String.subproj/CFUnicodeData.S |  8 ++
+ .../CFPlatformConverters.c                    |  4 +-
+ .../CFStringEncodingConverter.c               | 12 +--
+ CoreFoundation/URL.subproj/CFURL.c            | 18 +---
+ CoreFoundation/URL.subproj/CFURLComponents.c  |  9 +-
+ Sources/BlocksRuntime/runtime.c               |  5 +-
+ Sources/CMakeLists.txt                        | 10 +-
+ Sources/Foundation/Bundle.swift               | 40 ++++++++
+ Sources/Foundation/ByteCountFormatter.swift   |  1 -
+ Sources/Foundation/CMakeLists.txt             | 51 ++++++----
+ Sources/Foundation/Data.swift                 | 10 +-
+ Sources/Foundation/DateFormatter.swift        | 51 ++++++++++
+ .../DispatchData+DataProtocol.swift           |  3 +-
+ Sources/Foundation/FileHandle.swift           | 31 +++++-
+ Sources/Foundation/FileManager.swift          |  2 +
+ Sources/Foundation/NSCharacterSet.swift       |  6 +-
+ Sources/Foundation/NSData.swift               |  8 +-
+ Sources/Foundation/NSError.swift              |  2 +
+ Sources/Foundation/NSKeyedArchiver.swift      |  8 +-
+ Sources/Foundation/NSNumber.swift             |  4 +
+ Sources/Foundation/NSObjCRuntime.swift        | 48 ++++-----
+ Sources/Foundation/NSPathUtilities.swift      | 31 +++---
+ Sources/Foundation/NSSet.swift                |  4 +
+ Sources/Foundation/NSString.swift             | 10 +-
+ Sources/Foundation/NSStringAPI.swift          |  4 +
+ Sources/Foundation/NSSwiftRuntime.swift       |  3 +
+ Sources/Foundation/NSTimeZone.swift           | 10 +-
+ Sources/Foundation/NSURL.swift                | 27 +++--
+ Sources/Foundation/Operation.swift            |  2 +
+ Sources/Foundation/ProcessInfo.swift          | 10 ++
+ Sources/Foundation/Progress.swift             |  2 +
+ .../PropertyListSerialization.swift           |  2 +
+ Sources/Foundation/ScannerAPI.swift           |  2 +-
+ Sources/Foundation/URL.swift                  |  9 +-
+ Sources/Foundation/UserDefaults.swift         | 14 +++
+ Sources/FoundationXML/CMakeLists.txt          |  6 ++
+ Sources/FoundationXML/XMLDocument.swift       |  2 +
+ Sources/FoundationXML/XMLParser.swift         |  4 +-
+ 80 files changed, 670 insertions(+), 229 deletions(-)
  create mode 100644 CoreFoundation/Base.subproj/static/wasm32-unknown-wasi.modulemap
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 2bb10990..bb3200dc 100644
+index 646cd3e4..98eba324 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -55,12 +55,15 @@ include(XCTest)
- 
- set(CF_DEPLOYMENT_SWIFT YES CACHE BOOL "Build for Swift" FORCE)
- 
--set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
--set(THREADS_PREFER_PTHREAD_FLAG OFF)
--find_package(Threads REQUIRED)
-+if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
-+  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-+  set(THREADS_PREFER_PTHREAD_FLAG OFF)
-+  find_package(Threads REQUIRED)
-+endif()
+@@ -63,6 +63,7 @@ endif()
  
  set(SAVED_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
  set(BUILD_SHARED_LIBS NO)
@@ -110,7 +99,7 @@ index 2bb10990..bb3200dc 100644
  add_subdirectory(CoreFoundation EXCLUDE_FROM_ALL)
  set(BUILD_SHARED_LIBS ${SAVED_BUILD_SHARED_LIBS})
  
-@@ -79,6 +82,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/uuid-headers/uuid/uuid.h
+@@ -81,6 +82,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/uuid-headers/uuid/uuid.h
  add_custom_target(uuid-headers
    DEPENDS ${CMAKE_BINARY_DIR}/uuid-headers/uuid/uuid.h)
  add_dependencies(CoreFoundation uuid-headers)
@@ -118,7 +107,7 @@ index 2bb10990..bb3200dc 100644
  target_include_directories(CoreFoundation PRIVATE
    ${CMAKE_BINARY_DIR}/uuid-headers
    ${CMAKE_CURRENT_BINARY_DIR}/CoreFoundation.framework/Headers)
-@@ -120,10 +124,21 @@ install(DIRECTORY
+@@ -122,10 +124,21 @@ install(DIRECTORY
          DESTINATION
            ${swift_lib_dir}/CoreFoundation
          FILES_MATCHING PATTERN "*.h")
@@ -505,22 +494,10 @@ index 00000000..a1bd757b
 +    link "icui18n"
 +}
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index beb48d6c..e5ff35e6 100644
+index 18c2e508..8864ee5b 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
-@@ -20,17 +20,23 @@ endif()
- 
- set(CMAKE_POSITION_INDEPENDENT_CODE YES)
- 
--set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
--set(THREADS_PREFER_PTHREAD_FLAG OFF)
--find_package(Threads REQUIRED)
-+
-+if(HAS_LIBDISPATCH_API)
-+  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-+  set(THREADS_PREFER_PTHREAD_FLAG OFF)
-+  find_package(Threads REQUIRED)
-+endif()
+@@ -28,11 +28,14 @@ endif()
  
  if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    find_package(LibXml2 REQUIRED)
@@ -540,7 +517,7 @@ index beb48d6c..e5ff35e6 100644
    endif()
  endif()
  
-@@ -115,6 +121,34 @@ else()
+@@ -117,6 +120,34 @@ else()
    set(FRAMEWORK_LIBRARY_TYPE STATIC)
  endif()
  
@@ -575,7 +552,7 @@ index beb48d6c..e5ff35e6 100644
  add_framework(CoreFoundation
                  ${FRAMEWORK_LIBRARY_TYPE}
                FRAMEWORK_DIRECTORY
-@@ -205,7 +239,6 @@ add_framework(CoreFoundation
+@@ -207,7 +238,6 @@ add_framework(CoreFoundation
                  Locale.subproj/CFDateInterval.h
                  Locale.subproj/CFLocaleInternal.h
                  PlugIn.subproj/CFBundlePriv.h
@@ -583,7 +560,7 @@ index beb48d6c..e5ff35e6 100644
                  String.subproj/CFCharacterSetPriv.h
                  String.subproj/CFRegularExpression.h
                  String.subproj/CFRunArray.h
-@@ -260,6 +293,7 @@ add_framework(CoreFoundation
+@@ -262,6 +292,7 @@ add_framework(CoreFoundation
                  RunLoop.subproj/CFRunLoop.h
                  RunLoop.subproj/CFSocket.h
                  # Stream
@@ -591,7 +568,7 @@ index beb48d6c..e5ff35e6 100644
                  Stream.subproj/CFStream.h
                  # String
                  String.subproj/CFAttributedString.h
-@@ -317,36 +351,15 @@ add_framework(CoreFoundation
+@@ -319,36 +350,15 @@ add_framework(CoreFoundation
                  Parsing.subproj/CFBinaryPList.c
                  Parsing.subproj/CFOldStylePList.c
                  Parsing.subproj/CFPropertyList.c
@@ -629,7 +606,7 @@ index beb48d6c..e5ff35e6 100644
                  # String
                  String.subproj/CFAttributedString.c
                  String.subproj/CFBurstTrie.c
-@@ -374,7 +387,9 @@ add_framework(CoreFoundation
+@@ -376,7 +386,9 @@ add_framework(CoreFoundation
                  URL.subproj/CFURLAccess.c
                  URL.subproj/CFURL.c
                  URL.subproj/CFURLComponents.c
@@ -640,24 +617,18 @@ index beb48d6c..e5ff35e6 100644
  target_compile_definitions(CoreFoundation
                             PRIVATE
                               $<$<COMPILE_LANGUAGE:ASM>:CF_CHARACTERSET_BITMAP="CharacterSets/CFCharacterSetBitmaps.bitmap">
-@@ -384,11 +399,22 @@ target_compile_definitions(CoreFoundation
+@@ -386,6 +398,7 @@ target_compile_definitions(CoreFoundation
  target_include_directories(CoreFoundation
                             PRIVATE
                               ${PROJECT_SOURCE_DIR})
 +
  target_link_libraries(CoreFoundation PRIVATE
--  Threads::Threads
    ${CMAKE_DL_LIBS}
--  BlocksRuntime
--  dispatch)
-+  BlocksRuntime)
-+
-+if(HAS_LIBDISPATCH_API)
-+  target_link_libraries(CoreFoundation PRIVATE
-+    Threads::Threads
-+    dispatch)
-+endif()
-+
+   BlocksRuntime)
+@@ -396,6 +409,11 @@ if(HAS_LIBDISPATCH_API)
+     dispatch)
+ endif()
+ 
 +if(NOT BUILD_SHARED_LIBS)
 +  set_property(TARGET CoreFoundation PROPERTY STATIC_LIBRARY_OPTIONS
 +    $<TARGET_OBJECTS:BlocksRuntime>)
@@ -666,7 +637,7 @@ index beb48d6c..e5ff35e6 100644
  if(CMAKE_SYSTEM_NAME STREQUAL Android)
    target_link_libraries(CoreFoundation PRIVATE
      log)
-@@ -431,7 +457,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+@@ -438,7 +456,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
                               PRIVATE
                                 CURL_STATICLIB)
  endif()
@@ -675,7 +646,7 @@ index beb48d6c..e5ff35e6 100644
    target_link_libraries(CFURLSessionInterface PRIVATE
      CURL::libcurl)
  endif()
-@@ -449,6 +475,8 @@ add_framework(CFXMLInterface
+@@ -456,6 +474,8 @@ add_framework(CFXMLInterface
                SOURCES
                  Parsing.subproj/CFXMLInterface.c)
  add_dependencies(CFXMLInterface CoreFoundation)
@@ -684,35 +655,15 @@ index beb48d6c..e5ff35e6 100644
  if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CFXMLInterface PRIVATE
      LibXml2::LibXml2)
-@@ -504,15 +532,19 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL Windows AND NOT CMAKE_SYSTEM_NAME STREQUAL Dar
+@@ -523,6 +543,7 @@ if(HAS_LIBDISPATCH_API)
                          PRIVATE
-                           m)
+                           dispatch)
  endif()
--target_link_libraries(CoreFoundation
--                      PRIVATE
--                        dispatch)
--target_link_libraries(CFURLSessionInterface
--                      PRIVATE
--                        dispatch)
--target_link_libraries(CFXMLInterface
--                      PRIVATE
-+
-+if(HAS_LIBDISPATCH_API)
-+  target_link_libraries(CoreFoundation
-+                        PRIVATE
-+                          dispatch)
-+  target_link_libraries(CFURLSessionInterface
-+                        PRIVATE
-+                          dispatch)
-+  target_link_libraries(CFXMLInterface
-+                        PRIVATE
-                         dispatch)
-+endif()
 +
  if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CoreFoundation
                          PRIVATE
-@@ -528,12 +560,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -538,12 +559,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
                            -Xlinker;-alias_list;-Xlinker;Base.subproj/DarwinSymbolAliases;-twolevel_namespace;-sectcreate;__UNICODE;__csbitmaps;CharacterSets/CFCharacterSetBitmaps.bitmap;-sectcreate;__UNICODE;__properties;CharacterSets/CFUniCharPropertyDatabase.data;-sectcreate;__UNICODE;__data;CharacterSets/CFUnicodeData-L.mapping;-segprot;__UNICODE;r;r)
  endif()
  
