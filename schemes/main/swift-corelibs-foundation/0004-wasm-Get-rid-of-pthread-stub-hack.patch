@@ -1,4 +1,4 @@
-From 071a0e62dcd38c99b4156948cf8845651b94720a Mon Sep 17 00:00:00 2001
+From c033f4f5ecf4ef908f493579887e51945c9a7e5f Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 29 Oct 2023 00:39:31 +0000
 Subject: [PATCH] [wasm] Get rid of pthread stub hack
@@ -15,10 +15,10 @@ Subject: [PATCH] [wasm] Get rid of pthread stub hack
  8 files changed, 101 insertions(+), 6 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFInternal.h b/CoreFoundation/Base.subproj/CFInternal.h
-index 21f9efec..d6763e6c 100644
+index b737f30e..c235b1f1 100644
 --- a/CoreFoundation/Base.subproj/CFInternal.h
 +++ b/CoreFoundation/Base.subproj/CFInternal.h
-@@ -657,6 +657,35 @@ CF_INLINE int _CFRecursiveMutexUnlock(_CFRecursiveMutex *mutex) {
+@@ -654,6 +654,35 @@ CF_INLINE int _CFRecursiveMutexUnlock(_CFRecursiveMutex *mutex) {
    LeaveCriticalSection(mutex);
    return 0;
  }
@@ -54,7 +54,7 @@ index 21f9efec..d6763e6c 100644
  #else
  #error "do not know how to define mutex and recursive mutex for this OS"
  #endif
-@@ -680,7 +709,7 @@ typedef uint32_t os_unfair_lock_options_t;
+@@ -677,7 +706,7 @@ typedef uint32_t os_unfair_lock_options_t;
  static void os_unfair_lock_lock(os_unfair_lock_t lock) { pthread_mutex_lock(lock); }
  static void os_unfair_lock_lock_with_options(os_unfair_lock_t lock, os_unfair_lock_options_t options) { pthread_mutex_lock(lock); }
  static void os_unfair_lock_unlock(os_unfair_lock_t lock) { pthread_mutex_unlock(lock); }
@@ -64,11 +64,11 @@ index 21f9efec..d6763e6c 100644
  #define os_unfair_lock CFLock_t
  #define os_unfair_lock_lock __CFLock
 diff --git a/CoreFoundation/Base.subproj/CFPlatform.c b/CoreFoundation/Base.subproj/CFPlatform.c
-index 99a05609..6bf8b5a3 100644
+index 040e8966..bc535cf4 100644
 --- a/CoreFoundation/Base.subproj/CFPlatform.c
 +++ b/CoreFoundation/Base.subproj/CFPlatform.c
-@@ -1626,6 +1626,8 @@ CF_PRIVATE int asprintf(char **ret, const char *format, ...) {
- extern void *swift_retain(void *);
+@@ -1628,6 +1628,8 @@ CF_PRIVATE int asprintf(char **ret, const char *format, ...) {
+ extern void swift_retain(void *);
  extern void swift_release(void *);
  
 +#if !TARGET_OS_WASI
@@ -76,7 +76,7 @@ index 99a05609..6bf8b5a3 100644
  #if TARGET_OS_WIN32
  typedef struct _CFThreadSpecificData {
      CFTypeRef value;
-@@ -1804,6 +1806,7 @@ CF_CROSS_PLATFORM_EXPORT int _CFThreadGetName(char *buf, int length) {
+@@ -1806,6 +1808,7 @@ CF_CROSS_PLATFORM_EXPORT int _CFThreadGetName(char *buf, int length) {
  #endif
      return -1;
  }
@@ -98,10 +98,10 @@ index 692a106a..639de79c 100644
  #endif
  #include <time.h>
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
-index 73d64635..db3e73d9 100644
+index afdbf5d2..37e9e65e 100644
 --- a/CoreFoundation/Base.subproj/CFRuntime.c
 +++ b/CoreFoundation/Base.subproj/CFRuntime.c
-@@ -1198,9 +1198,11 @@ void __CFInitialize(void) {
+@@ -1194,9 +1194,11 @@ void __CFInitialize(void) {
          DuplicateHandle(GetCurrentProcess(), GetCurrentThread(),
                          GetCurrentProcess(), &_CFMainPThread, 0, FALSE,
                          DUPLICATE_SAME_ACCESS);
@@ -151,7 +151,7 @@ index bf6f203b..2d0d4655 100644
  /* This macro creates some helper functions which are useful in dealing with libdispatch:
   *  __ PREFIX Queue -- manages and returns a singleton serial queue
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index af3fc843..04ea85b7 100644
+index 642151ab..b2ba6e01 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 @@ -42,7 +42,7 @@
@@ -163,7 +163,7 @@ index af3fc843..04ea85b7 100644
  #include <pthread.h>
  #endif
  #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
-@@ -414,6 +414,10 @@ typedef unsigned long _CFThreadSpecificKey;
+@@ -412,6 +412,10 @@ typedef unsigned long _CFThreadSpecificKey;
  typedef pthread_t _CFThreadRef;
  typedef pthread_attr_t _CFThreadAttributes;
  typedef pthread_key_t _CFThreadSpecificKey;
@@ -174,7 +174,7 @@ index af3fc843..04ea85b7 100644
  #endif
  
  CF_CROSS_PLATFORM_EXPORT Boolean _CFIsMainThread(void);
-@@ -425,6 +429,7 @@ CF_EXPORT CFHashCode __CFHashDouble(double d);
+@@ -423,6 +427,7 @@ CF_EXPORT CFHashCode __CFHashDouble(double d);
  CF_CROSS_PLATFORM_EXPORT void CFSortIndexes(CFIndex *indexBuffer, CFIndex count, CFOptionFlags opts, CFComparisonResult (^cmp)(CFIndex, CFIndex));
  #endif
  
@@ -182,7 +182,7 @@ index af3fc843..04ea85b7 100644
  CF_EXPORT CFTypeRef _Nullable _CFThreadSpecificGet(_CFThreadSpecificKey key);
  CF_EXPORT void _CFThreadSpecificSet(_CFThreadSpecificKey key, CFTypeRef _Nullable value);
  CF_EXPORT _CFThreadSpecificKey _CFThreadSpecificKeyCreate(void);
-@@ -433,6 +438,7 @@ CF_EXPORT _CFThreadRef _CFThreadCreate(const _CFThreadAttributes attrs, void *_N
+@@ -431,6 +436,7 @@ CF_EXPORT _CFThreadRef _CFThreadCreate(const _CFThreadAttributes attrs, void *_N
  
  CF_CROSS_PLATFORM_EXPORT int _CFThreadSetName(_CFThreadRef thread, const char *_Nonnull name);
  CF_CROSS_PLATFORM_EXPORT int _CFThreadGetName(char *_Nonnull buf, int length);

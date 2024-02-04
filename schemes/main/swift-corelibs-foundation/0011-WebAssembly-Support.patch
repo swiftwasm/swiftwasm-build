@@ -1,24 +1,14 @@
-From f69fcaac3e75ee3840bffcdba83f313a55427165 Mon Sep 17 00:00:00 2001
+From aeecdacdcbd2b4672eba2367684e5a18734029fc Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Sun, 4 Feb 2024 14:52:39 +0000
+Date: Sun, 4 Feb 2024 16:33:00 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
- CMakeLists.txt                                |  2 +
- CoreFoundation/Base.subproj/CFFileUtilities.c | 29 ++++++--
- CoreFoundation/Base.subproj/CFInternal.h      |  8 +-
- CoreFoundation/Base.subproj/CFPlatform.c      |  9 ++-
- CoreFoundation/Base.subproj/CFRuntime.c       | 30 ++++++--
- CoreFoundation/Base.subproj/CFSortFunctions.c |  5 +-
+ CoreFoundation/Base.subproj/CFRuntime.c       | 22 +++++-
  .../Base.subproj/ForSwiftFoundationOnly.h     |  4 +-
  .../SwiftRuntime/CoreFoundation.h             | 10 +++
  CoreFoundation/CMakeLists.txt                 | 73 +++++++++++++------
- .../Collections.subproj/CFBasicHash.c         | 17 ++++-
- .../Collections.subproj/CFBasicHash.h         |  4 +
- .../Collections.subproj/CFStorage.c           | 10 +++
- .../Collections.subproj/CFStorage.h           |  4 +-
  CoreFoundation/Error.subproj/CFError.c        |  7 +-
- .../Locale.subproj/CFCalendar_Enumerate.c     |  4 +-
  .../Locale.subproj/CFDateFormatter.c          | 11 ++-
  CoreFoundation/Locale.subproj/CFLocale.c      |  6 +-
  CoreFoundation/NumberDate.subproj/CFDate.c    | 12 +--
@@ -48,17 +38,16 @@ Subject: [PATCH] WebAssembly Support
  CoreFoundation/String.subproj/CFUnicodeData.S |  8 ++
  .../CFPlatformConverters.c                    |  4 +-
  .../CFStringEncodingConverter.c               | 12 +--
- CoreFoundation/URL.subproj/CFURL.c            | 18 ++---
+ CoreFoundation/URL.subproj/CFURL.c            |  2 +-
  CoreFoundation/URL.subproj/CFURLComponents.c  |  9 ++-
  Sources/BlocksRuntime/runtime.c               |  5 +-
  Sources/CMakeLists.txt                        |  4 +-
  Sources/Foundation/Bundle.swift               | 40 ++++++++++
- Sources/Foundation/ByteCountFormatter.swift   |  1 -
  Sources/Foundation/CMakeLists.txt             | 51 ++++++++-----
  Sources/Foundation/Data.swift                 | 10 +--
  Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++
  .../DispatchData+DataProtocol.swift           |  3 +-
- Sources/Foundation/FileHandle.swift           | 31 +++++++-
+ Sources/Foundation/FileHandle.swift           | 22 +++++-
  Sources/Foundation/FileManager.swift          |  2 +
  Sources/Foundation/NSCharacterSet.swift       |  6 +-
  Sources/Foundation/NSData.swift               |  8 +-
@@ -83,217 +72,12 @@ Subject: [PATCH] WebAssembly Support
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
  Sources/FoundationXML/XMLDocument.swift       |  2 +
  Sources/FoundationXML/XMLParser.swift         |  4 +-
- 79 files changed, 625 insertions(+), 216 deletions(-)
+ 68 files changed, 534 insertions(+), 181 deletions(-)
 
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 646cd3e4..7f944268 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -63,6 +63,7 @@ endif()
- 
- set(SAVED_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
- set(BUILD_SHARED_LIBS NO)
-+
- add_subdirectory(CoreFoundation EXCLUDE_FROM_ALL)
- set(BUILD_SHARED_LIBS ${SAVED_BUILD_SHARED_LIBS})
- 
-@@ -81,6 +82,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/uuid-headers/uuid/uuid.h
- add_custom_target(uuid-headers
-   DEPENDS ${CMAKE_BINARY_DIR}/uuid-headers/uuid/uuid.h)
- add_dependencies(CoreFoundation uuid-headers)
-+
- target_include_directories(CoreFoundation PRIVATE
-   ${CMAKE_BINARY_DIR}/uuid-headers
-   ${CMAKE_CURRENT_BINARY_DIR}/CoreFoundation.framework/Headers)
-diff --git a/CoreFoundation/Base.subproj/CFFileUtilities.c b/CoreFoundation/Base.subproj/CFFileUtilities.c
-index 53596fb9..a8394613 100644
---- a/CoreFoundation/Base.subproj/CFFileUtilities.c
-+++ b/CoreFoundation/Base.subproj/CFFileUtilities.c
-@@ -38,7 +38,13 @@
- #include <unistd.h>
- #include <dirent.h>
- #include <sys/types.h>
-+
-+#if !TARGET_OS_WASI
- #include <pwd.h>
-+#else
-+#define WASI_D_NAME_SIZE 256
-+#endif
-+
- #include <fcntl.h>
- 
- #define statinfo stat
-@@ -341,7 +347,7 @@ CF_PRIVATE CFMutableArrayRef _CFCreateContentsOfDirectory(CFAllocatorRef alloc,
-     FindClose(handle);
-     pathBuf[pathLength] = '\0';
- 
--#elif TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
-+#elif TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-     uint8_t extBuff[CFMaxPathSize];
-     int extBuffInteriorDotCount = 0; //people insist on using extensions like ".trace.plist", so we need to know how many dots back to look :(
-     
-@@ -444,7 +450,7 @@ CF_PRIVATE CFMutableArrayRef _CFCreateContentsOfDirectory(CFAllocatorRef alloc,
-             dirURL = CFURLCreateFromFileSystemRepresentation(alloc, (uint8_t *)dirPath, pathLength, true);
-             releaseBase = true;
-         }
--#if !defined(__OpenBSD__)
-+#if !defined(__OpenBSD__) && !TARGET_OS_WASI
-         if (dp->d_type == DT_DIR || dp->d_type == DT_UNKNOWN || dp->d_type == DT_LNK || dp->d_type == DT_WHT) {
- #else
-         if (dp->d_type == DT_DIR || dp->d_type == DT_UNKNOWN || dp->d_type == DT_LNK) {
-@@ -461,13 +467,13 @@ CF_PRIVATE CFMutableArrayRef _CFCreateContentsOfDirectory(CFAllocatorRef alloc,
-                     isDir = ((statBuf.st_mode & S_IFMT) == S_IFDIR);
-                 }
-             }
--#if TARGET_OS_LINUX
-+#if TARGET_OS_LINUX || TARGET_OS_WASI
-             fileURL = CFURLCreateFromFileSystemRepresentationRelativeToBase(alloc, (uint8_t *)dp->d_name, namelen, isDir, dirURL);
- #else
-             fileURL = CFURLCreateFromFileSystemRepresentationRelativeToBase(alloc, (uint8_t *)dp->d_name, dp->d_namlen, isDir, dirURL);
- #endif
-         } else {
--#if TARGET_OS_LINUX
-+#if TARGET_OS_LINUX || TARGET_OS_WASI
-             fileURL = CFURLCreateFromFileSystemRepresentationRelativeToBase (alloc, (uint8_t *)dp->d_name, namelen, false, dirURL);
- #else
-             fileURL = CFURLCreateFromFileSystemRepresentationRelativeToBase (alloc, (uint8_t *)dp->d_name, dp->d_namlen, false, dirURL);
-@@ -554,7 +560,7 @@ CF_PRIVATE SInt32 _CFGetPathProperties(CFAllocatorRef alloc, char *path, Boolean
-     
-     if (modTime != NULL) {
-         if (fileExists) {
--#if TARGET_OS_WIN32 || TARGET_OS_LINUX
-+#if TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
-             struct timespec ts = {statBuf.st_mtime, 0};
- #else
-             struct timespec ts = statBuf.st_mtimespec;
-@@ -1099,12 +1105,16 @@ CF_PRIVATE void _CFIterateDirectory(CFStringRef directoryPath, Boolean appendSla
-     struct dirent *dent;
-     if ((dirp = opendir(directoryPathBuf))) {
-         while ((dent = readdir(dirp))) {
--#if TARGET_OS_LINUX
-+#if TARGET_OS_LINUX || TARGET_OS_WASI
-             CFIndex nameLen = strlen(dent->d_name);
-             if (dent->d_type == DT_UNKNOWN) {
-                 // on some old file systems readdir may always fill d_type as DT_UNKNOWN (0), double check with stat
-                 struct stat statBuf;
-+                #if TARGET_OS_WASI
-+                char pathToStat[WASI_D_NAME_SIZE];
-+                #else
-                 char pathToStat[sizeof(dent->d_name)];
-+                #endif
-                 strncpy(pathToStat, directoryPathBuf, sizeof(pathToStat));
-                 strlcat(pathToStat, "/", sizeof(pathToStat));
-                 strlcat(pathToStat, dent->d_name, sizeof(pathToStat));
-@@ -1130,7 +1140,12 @@ CF_PRIVATE void _CFIterateDirectory(CFStringRef directoryPath, Boolean appendSla
-             
-             // This buffer has to be 1 bigger than the size of the one in the dirent so we can hold the extra '/' if it's required
-             // Be sure to initialize the first character to null, so that strlcat below works correctly
--            char fullPathToFile[sizeof(dent->d_name) + 1];
-+            #if TARGET_OS_WASI
-+            size_t d_name_size = WASI_D_NAME_SIZE;
-+            #else
-+            size_t d_name_size = sizeof(dent->d_name);
-+            #endif
-+            char fullPathToFile[d_name_size + 1];
-             fullPathToFile[0] = 0;
-             CFIndex startAt = 0;
- 
-diff --git a/CoreFoundation/Base.subproj/CFInternal.h b/CoreFoundation/Base.subproj/CFInternal.h
-index b737f30e..21f9efec 100644
---- a/CoreFoundation/Base.subproj/CFInternal.h
-+++ b/CoreFoundation/Base.subproj/CFInternal.h
-@@ -103,7 +103,10 @@ CF_EXTERN_C_BEGIN
- #include "CFRuntime_Internal.h"
- #include <limits.h>
- #include <stdatomic.h>
-+
-+#if __BLOCKS__
- #include <Block.h>
-+#endif
- 
- #if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
- 
-@@ -322,7 +325,7 @@ static inline void __CFRuntimeSetValue(CFTypeRef cf, uint8_t n1, uint8_t n2, uin
-     __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
-     __CFInfoType newInfo;
-     __CFInfoType mask = __CFInfoMask(n1, n2);
--	
-+
-     #if !TARGET_OS_WASI
-     do {
-     #endif
-@@ -1172,12 +1175,13 @@ CF_INLINE dispatch_queue_t __CFDispatchQueueGetGenericBackground(void) {
-     return dispatch_get_global_queue(QOS_CLASS_UTILITY, DISPATCH_QUEUE_OVERCOMMIT);
- }
- 
-+CF_PRIVATE dispatch_data_t _CFDataCreateDispatchData(CFDataRef data); //avoids copying in most cases
-+
- #endif
- 
- CF_PRIVATE CFStringRef _CFStringCopyBundleUnloadingProtectedString(CFStringRef str);
- 
- CF_PRIVATE uint8_t *_CFDataGetBytePtrNonObjC(CFDataRef data);
--CF_PRIVATE dispatch_data_t _CFDataCreateDispatchData(CFDataRef data); //avoids copying in most cases
- 
- // Use this for functions that are intended to be breakpoint hooks. If you do not, the compiler may optimize them away.
- // Based on: BREAKPOINT_FUNCTION in objc-os.h
-diff --git a/CoreFoundation/Base.subproj/CFPlatform.c b/CoreFoundation/Base.subproj/CFPlatform.c
-index 040e8966..99a05609 100644
---- a/CoreFoundation/Base.subproj/CFPlatform.c
-+++ b/CoreFoundation/Base.subproj/CFPlatform.c
-@@ -62,11 +62,9 @@ int _CFArgc(void) { return *_NSGetArgc(); }
- #endif
- 
- 
--#if !TARGET_OS_WASI
- CF_PRIVATE Boolean _CFGetCurrentDirectory(char *path, int maxlen) {
-     return getcwd(path, maxlen) != NULL;
- }
--#endif
- 
- #if TARGET_OS_WIN32
- // Returns the path to the CF DLL, which we can then use to find resources like char sets
-@@ -1475,7 +1473,7 @@ void OSMemoryBarrier() {
- #pragma mark -
- #pragma mark Dispatch Replacements
- 
--#if !__HAS_DISPATCH__
-+#if !__HAS_DISPATCH__ && __BLOCKS__
- 
- #include <semaphore.h>
- 
-@@ -1625,7 +1623,7 @@ CF_PRIVATE int asprintf(char **ret, const char *format, ...) {
- #if DEPLOYMENT_RUNTIME_SWIFT
- #include <fcntl.h>
- 
--extern void swift_retain(void *);
-+extern void *swift_retain(void *);
- extern void swift_release(void *);
- 
- #if TARGET_OS_WIN32
-@@ -1812,6 +1810,9 @@ CF_EXPORT char **_CFEnviron(void) {
-     return *_NSGetEnviron();
- #elif TARGET_OS_WIN32
-     return _environ;
-+#elif TARGET_OS_WASI
-+    extern char **environ;
-+    return environ;
- #else
- #if TARGET_OS_BSD || TARGET_OS_WASI
-     extern char **environ;
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
-index afdbf5d2..73d64635 100644
+index 3a4f4914..0c4319de 100644
 --- a/CoreFoundation/Base.subproj/CFRuntime.c
 +++ b/CoreFoundation/Base.subproj/CFRuntime.c
-@@ -52,7 +52,7 @@ __kCFRetainEvent = 28,
- __kCFReleaseEvent = 29
- };
- 
--#if TARGET_OS_WIN32 || TARGET_OS_LINUX
-+#if TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
- #include <malloc.h>
- #elif TARGET_OS_BSD
- #include <stdlib.h> // malloc()
 @@ -227,18 +227,18 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
      [_kCFRuntimeIDCFXMLNode] = &__CFXMLNodeClass,
  #endif // TARGET_OS_OSX
@@ -325,32 +109,7 @@ index afdbf5d2..73d64635 100644
      [_kCFRuntimeIDCFAttributedString] = &__CFAttributedStringClass,
      [_kCFRuntimeIDCFRunArray] = &__CFRunArrayClass,
      [_kCFRuntimeIDCFCharacterSet] = &__CFCharacterSetClass,
-@@ -1162,7 +1164,7 @@ _CFThreadRef _CF_pthread_main_thread_np(void) {
- 
- 
- 
--#if TARGET_OS_LINUX || TARGET_OS_BSD
-+#if TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
- static void __CFInitialize(void) __attribute__ ((constructor));
- #endif
- #if TARGET_OS_WIN32
-@@ -1179,6 +1181,7 @@ void __CFInitialize(void) {
-     if (!__CFInitialized && !__CFInitializing) {
-         __CFInitializing = 1;
- 
-+#if !TARGET_OS_WASI
- #if __HAS_DISPATCH__ && !TARGET_OS_MAC
-     // libdispatch has to be initialized before CoreFoundation, so to avoid
-     // issues with static initializer ordering, we are doing it explicitly.
-@@ -1187,6 +1190,7 @@ void __CFInitialize(void) {
- 
-     // This is a no-op on Darwin, but is needed on Linux and Windows.
-     _CFPerformDynamicInitOfOSRecursiveLock(&CFPlugInGlobalDataLock);
-+#endif
- 
- #if TARGET_OS_WIN32
-         if (!pthread_main_np()) HALT;   // CoreFoundation must be initialized on the main thread
-@@ -1312,7 +1316,9 @@ void __CFInitialize(void) {
+@@ -1314,7 +1316,9 @@ void __CFInitialize(void) {
  #endif
          }
  
@@ -360,16 +119,7 @@ index afdbf5d2..73d64635 100644
  
          __CFOAInitialize();
          
-@@ -1407,7 +1413,7 @@ int DllMain( HINSTANCE hInstance, DWORD dwReason, LPVOID pReserved ) {
- #endif
- 
- #if DEPLOYMENT_RUNTIME_SWIFT
--extern void swift_retain(void *);
-+extern void *swift_retain(void *);
- #endif
- 
- // For "tryR==true", a return of NULL means "failed".
-@@ -1783,6 +1789,18 @@ struct _NSCFXMLBridgeUntyped __NSCFXMLBridgeUntyped = {
+@@ -1785,6 +1789,18 @@ struct _NSCFXMLBridgeUntyped __NSCFXMLBridgeUntyped = {
    &kCFErrorLocalizedDescriptionKey,
  };
  
@@ -388,28 +138,8 @@ index afdbf5d2..73d64635 100644
  // Call out to the CF-level finalizer, because the object is going to go away.
  CF_CROSS_PLATFORM_EXPORT void _CFDeinit(CFTypeRef cf) {
      __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
-diff --git a/CoreFoundation/Base.subproj/CFSortFunctions.c b/CoreFoundation/Base.subproj/CFSortFunctions.c
-index d394e85a..841e4d9d 100644
---- a/CoreFoundation/Base.subproj/CFSortFunctions.c
-+++ b/CoreFoundation/Base.subproj/CFSortFunctions.c
-@@ -66,6 +66,8 @@ enum {
- typedef CFIndex VALUE_TYPE;
- typedef CFIndex INDEX_TYPE;
- typedef CFComparisonResult CMP_RESULT_TYPE;
-+
-+#if __BLOCKS__
- typedef CMP_RESULT_TYPE (^COMPARATOR_BLOCK)(VALUE_TYPE, VALUE_TYPE);
- 
- /*
-@@ -420,5 +422,4 @@ void CFMergeSortArray(void *list, CFIndex count, CFIndex elementSize, CFComparat
-     if (locals != store) free(store);
-     if (locali != indexes) free(indexes);
- }
--
--
-+#endif
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index 642151ab..af3fc843 100644
+index b2ba6e01..04ea85b7 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 @@ -83,6 +83,8 @@
@@ -421,7 +151,7 @@ index 642151ab..af3fc843 100644
  #endif // TARGET_OS_LINUX
  
  #include <stdlib.h>
-@@ -552,7 +554,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
+@@ -558,7 +560,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
  
  #if TARGET_OS_WIN32
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode);
@@ -606,209 +336,6 @@ index c3413d67..8864ee5b 100644
  install(TARGETS
            CoreFoundation
            CFXMLInterface
-diff --git a/CoreFoundation/Collections.subproj/CFBasicHash.c b/CoreFoundation/Collections.subproj/CFBasicHash.c
-index baf1e7b0..378238b3 100644
---- a/CoreFoundation/Collections.subproj/CFBasicHash.c
-+++ b/CoreFoundation/Collections.subproj/CFBasicHash.c
-@@ -13,7 +13,11 @@
- #include <CoreFoundation/CFRuntime.h>
- #include "CFRuntime_Internal.h"
- #include <CoreFoundation/CFSet.h>
-+
-+#if __BLOCKS__
- #include <Block.h>
-+#endif
-+
- #include <math.h>
- #if __HAS_DISPATCH__
- #include <dispatch/dispatch.h>
-@@ -343,8 +347,12 @@ static void **CFBasicHashCallBackPtrs;
- static _Atomic(int32_t) CFBasicHashCallBackPtrsCount = 0;
- 
- static int32_t CFBasicHashGetPtrIndex(void *ptr) {
-+#if __BLOCKS__
-     static dispatch_once_t once;
-     dispatch_once(&once, ^{
-+#else
-+    if (!CFBasicHashCallBackPtrsCount) {
-+#endif
-         CFBasicHashCallBackPtrs = malloc(sizeof(void *) * CFBasicHashSmallSize);
-         if (CFBasicHashCallBackPtrs == NULL) {
-             HALT;
-@@ -358,7 +366,10 @@ static int32_t CFBasicHashGetPtrIndex(void *ptr) {
-         CFBasicHashCallBackPtrs[6] = (void *)__CFStringCollectionCopy;
-         CFBasicHashCallBackPtrs[7] = NULL;
-         CFBasicHashCallBackPtrsCount = 8;
--    });
-+    }
-+    #if __BLOCKS__
-+    );
-+    #endif
-     int32_t idx;
-     for (idx = 0; idx < CFBasicHashCallBackPtrsCount; idx++) {
-         if (CFBasicHashCallBackPtrs[idx] == ptr) {
-@@ -968,6 +979,7 @@ CF_PRIVATE CFIndex CFBasicHashGetCountOfKey(CFConstBasicHashRef ht, uintptr_t st
-     return __CFBasicHashFindBucket(ht, stack_key).count;
- }
- 
-+#if __BLOCKS__
- CF_PRIVATE CFIndex CFBasicHashGetCountOfValue(CFConstBasicHashRef ht, uintptr_t stack_value) {
-     if (__CFBasicHashSubABZero == stack_value) {
-         return 0L;
-@@ -1033,6 +1045,7 @@ CF_PRIVATE void CFBasicHashApplyIndexed(CFConstBasicHashRef ht, CFRange range, B
-         }
-     }
- }
-+#endif
- 
- CF_PRIVATE void CFBasicHashGetElements(CFConstBasicHashRef ht, CFIndex bufferslen, uintptr_t *weak_values, uintptr_t *weak_keys) {
-     CFIndex used = (CFIndex)ht->bits.used_buckets, cnt = (CFIndex)__CFBasicHashTableSizes[ht->bits.num_buckets_idx];
-@@ -1489,6 +1502,7 @@ CF_PRIVATE size_t CFBasicHashGetSize(CFConstBasicHashRef ht, Boolean total) {
-     return size;
- }
- 
-+#if __BLOCKS__
- CF_PRIVATE CFStringRef CFBasicHashCopyDescription(CFConstBasicHashRef ht, Boolean detailed, CFStringRef prefix, CFStringRef entryPrefix, Boolean describeElements) {
-     CFMutableStringRef result = CFStringCreateMutable(kCFAllocatorSystemDefault, 0);
-     CFStringAppendFormat(result, NULL, CFSTR("%@{type = %s %s%s, count = %ld,\n"), prefix, (CFBasicHashIsMutable(ht) ? "mutable" : "immutable"), ((ht->bits.counts_offset) ? "multi" : ""), ((ht->bits.keys_offset) ? "dict" : "set"), CFBasicHashGetCount(ht));
-@@ -1530,6 +1544,7 @@ CF_PRIVATE CFStringRef CFBasicHashCopyDescription(CFConstBasicHashRef ht, Boolea
-     CFStringAppendFormat(result, NULL, CFSTR("%@}\n"), prefix);
-     return result;
- }
-+#endif
- 
- CF_PRIVATE void CFBasicHashShow(CFConstBasicHashRef ht) {
-     CFStringRef str = CFBasicHashCopyDescription(ht, true, CFSTR(""), CFSTR("\t"), false);
-diff --git a/CoreFoundation/Collections.subproj/CFBasicHash.h b/CoreFoundation/Collections.subproj/CFBasicHash.h
-index 988dc9f1..c9ac5ed6 100644
---- a/CoreFoundation/Collections.subproj/CFBasicHash.h
-+++ b/CoreFoundation/Collections.subproj/CFBasicHash.h
-@@ -102,8 +102,12 @@ CFBasicHashBucket CFBasicHashFindBucket(CFConstBasicHashRef ht, uintptr_t stack_
- CFIndex CFBasicHashGetCountOfKey(CFConstBasicHashRef ht, uintptr_t stack_key);
- CFIndex CFBasicHashGetCountOfValue(CFConstBasicHashRef ht, uintptr_t stack_value);
- Boolean CFBasicHashesAreEqual(CFConstBasicHashRef ht1, CFConstBasicHashRef ht2);
-+
-+#if __BLOCKS__
- void CFBasicHashApply(CFConstBasicHashRef ht, Boolean (CF_NOESCAPE ^block)(CFBasicHashBucket));
- void CFBasicHashApplyIndexed(CFConstBasicHashRef ht, CFRange range, Boolean (CF_NOESCAPE ^block)(CFBasicHashBucket));
-+#endif
-+
- void CFBasicHashGetElements(CFConstBasicHashRef ht, CFIndex bufferslen, uintptr_t *weak_values, uintptr_t *weak_keys);
- 
- Boolean CFBasicHashAddValue(CFBasicHashRef ht, uintptr_t stack_key, uintptr_t stack_value);
-diff --git a/CoreFoundation/Collections.subproj/CFStorage.c b/CoreFoundation/Collections.subproj/CFStorage.c
-index 74948eba..6730ac76 100644
---- a/CoreFoundation/Collections.subproj/CFStorage.c
-+++ b/CoreFoundation/Collections.subproj/CFStorage.c
-@@ -149,8 +149,10 @@ CF_INLINE void __CFStorageAllocLeafNodeMemory(CFAllocatorRef allocator, CFStorag
- #define ASSERT(x) do { if (0 && ! (x)) { } } while(0)
- #endif
- 
-+#if __BLOCKS__
- static void __CFStorageCheckIntegrity(CFStorageRef storage);
- #define CHECK_INTEGRITY() do { if (0) __CFStorageCheckIntegrity(storage); } while (0)
-+#endif
- 
- static void __CFStorageCheckNodeIntegrity(ConstCFStorageRef storage, const CFStorageNode *node);
- #define CHECK_NODE_INTEGRITY(X) do { if (0) __CFStorageCheckNodeIntegrity(storage, X); } while (0)
-@@ -972,6 +974,7 @@ static CFStringRef __CFStorageCopyDescription(CFTypeRef cf) {
-     return result;
- }
- 
-+#if __BLOCKS__
- /* Returns true if enumeration should stop, false if it should continue. */
- static bool __CFStorageEnumerateNodesInByteRangeWithBlock(CFStorageRef storage, CFStorageNode *node, CFIndex globalOffsetOfNode, CFRange range, CFIndex concurrencyToken, CFStorageApplierBlock applier) {
-     bool stop = false;
-@@ -1034,6 +1037,7 @@ static bool __CFStorageEnumerateNodesInByteRangeWithBlock(CFStorageRef storage,
-     }
-     return stop;
- }
-+#endif
- 
- static CFStorageNode *_CFStorageFindNodeContainingByteRange(ConstCFStorageRef storage, const CFStorageNode *node, CFRange nodeRange, CFIndex globalOffsetOfNode, CFRange *outGlobalByteRangeOfResult) {
-     if (! node->isLeaf) {
-@@ -1329,6 +1333,7 @@ unsigned long _CFStorageFastEnumeration(CFStorageRef storage, struct __objcFastE
-     return leafRange.length;
- }
- 
-+#if __BLOCKS__
- void CFStorageApplyFunction(CFStorageRef storage, CFRange range, CFStorageApplierFunction applier, void *context) {
-     CHECK_INTEGRITY();
-     CFIndex valueSize = storage->valueSize;
-@@ -1350,6 +1355,7 @@ void CFStorageApplyBlock(CFStorageRef storage, CFRange range, CFStorageEnumerati
-     }
-     __CFStorageEnumerateNodesInByteRangeWithBlock(storage, &storage->rootNode, 0/*globalOffsetOfNode*/, byteRange, concurrencyToken, applier);
- }
-+#endif
- 
- void CFStorageReplaceValues(CFStorageRef storage, CFRange range, const void *values) {
-     CHECK_INTEGRITY();
-@@ -1367,6 +1373,7 @@ void CFStorageReplaceValues(CFStorageRef storage, CFRange range, const void *val
-     }
- }
- 
-+#if __BLOCKS__
- static void __CFStorageApplyNodeBlockInterior(CFStorageRef storage, CFStorageNode *node, void (^block)(CFStorageRef storage, CFStorageNode *node)) {
-     block(storage, node);
-     if (! node->isLeaf) {
-@@ -1380,6 +1387,7 @@ static void __CFStorageApplyNodeBlockInterior(CFStorageRef storage, CFStorageNod
- static void __CFStorageApplyNodeBlock(CFStorageRef storage, void (^block)(CFStorageRef storage, CFStorageNode *node)) {
-     __CFStorageApplyNodeBlockInterior(storage, &storage->rootNode, block);
- }
-+#endif
- 
- void __CFStorageSetAlwaysFrozen(CFStorageRef storage, bool alwaysFrozen) {
-     storage->alwaysFrozen = alwaysFrozen;
-@@ -1415,11 +1423,13 @@ static void __CFStorageCheckNodeIntegrity(ConstCFStorageRef storage, const CFSto
-     }
- }
- 
-+#if __BLOCKS__
- static void __CFStorageCheckIntegrity(CFStorageRef storage) {
-     __CFStorageApplyNodeBlock(storage, ^(CFStorageRef storage, CFStorageNode *node) {
- 	__CFStorageCheckNodeIntegrity(storage, node);
-     });
- }
-+#endif
- 
- #undef COPYMEM
- #undef PAGE_LIMIT
-diff --git a/CoreFoundation/Collections.subproj/CFStorage.h b/CoreFoundation/Collections.subproj/CFStorage.h
-index a7361b84..c6c4a942 100644
---- a/CoreFoundation/Collections.subproj/CFStorage.h
-+++ b/CoreFoundation/Collections.subproj/CFStorage.h
-@@ -56,6 +56,7 @@ typedef struct CF_BRIDGED_MUTABLE_TYPE(id) __CFStorage *CFStorageRef;
- */
- typedef void (*CFStorageApplierFunction)(const void *val, void *context);
- 
-+#if __BLOCKS__
- /*!
- 	@typedef CFStorageRangeApplierBlock
- 	Type of the callback block used by the apply functions of
-@@ -67,7 +68,6 @@ typedef void (*CFStorageApplierFunction)(const void *val, void *context);
- 	 @param stop An "out" parameter that, if set to true from within the block, indicates that the enumeration may stop.
-  
- */
--#if __BLOCKS__
- typedef void (^CFStorageApplierBlock)(const void *vals, CFRange range, bool *stop);
- #endif
- 
-@@ -197,6 +197,7 @@ CF_EXPORT const void *CFStorageGetConstValueAtIndex(CFStorageRef storage, CFInde
- */
- CF_EXPORT void CFStorageGetValues(CFStorageRef storage, CFRange range, void *values);
- 
-+#if __BLOCKS__
- /*!
- 	@function CFStorageApplyFunction
- 	Calls a function once for each value in the set.
-@@ -240,7 +241,6 @@ CF_EXPORT void CFStorageApplyFunction(CFStorageRef storage, CFRange range, CFSto
-   		the contents of the CFStorage, the behavior is undefined.
-  
-  */
--#if __BLOCKS__
- CF_EXPORT void CFStorageApplyBlock(CFStorageRef storage, CFRange range, CFStorageEnumerationOptionFlags options, CFStorageApplierBlock CF_NOESCAPE applier);
- #endif
- 
 diff --git a/CoreFoundation/Error.subproj/CFError.c b/CoreFoundation/Error.subproj/CFError.c
 index 7ff93ce4..6147d224 100644
 --- a/CoreFoundation/Error.subproj/CFError.c
@@ -831,25 +358,6 @@ index 7ff93ce4..6147d224 100644
  
 -
 -
--
-+#endif
-diff --git a/CoreFoundation/Locale.subproj/CFCalendar_Enumerate.c b/CoreFoundation/Locale.subproj/CFCalendar_Enumerate.c
-index 39df0384..0c5d9944 100644
---- a/CoreFoundation/Locale.subproj/CFCalendar_Enumerate.c
-+++ b/CoreFoundation/Locale.subproj/CFCalendar_Enumerate.c
-@@ -2120,6 +2120,8 @@ static CFDateRef _Nullable _CFCalendarCreateAdjustedDateForMismatches(CFCalendar
-     }
- }
- 
-+#if __BLOCKS__
-+
- #pragma mark -
- #pragma mark Enumerate Entry Point
- 
-@@ -2323,4 +2325,4 @@ CF_CROSS_PLATFORM_EXPORT void _CFCalendarEnumerateDates(CFCalendarRef calendar,
-     if (previouslyReturnedMatchDate) CFRelease(previouslyReturnedMatchDate);
-     CFRelease(searchingDate);
- }
 -
 +#endif
 diff --git a/CoreFoundation/Locale.subproj/CFDateFormatter.c b/CoreFoundation/Locale.subproj/CFDateFormatter.c
@@ -1770,18 +1278,9 @@ index a3aca9bb..cb78b9c9 100644
  #else
          CFStringEncoding *icuConverters = NULL;
 diff --git a/CoreFoundation/URL.subproj/CFURL.c b/CoreFoundation/URL.subproj/CFURL.c
-index 9b2dc82b..f8e58a4e 100644
+index 93d257c5..f8e58a4e 100644
 --- a/CoreFoundation/URL.subproj/CFURL.c
 +++ b/CoreFoundation/URL.subproj/CFURL.c
-@@ -22,7 +22,7 @@
- #include <stdlib.h>
- #include <stdio.h>
- #include <string.h>
--#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
-+#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
- #if TARGET_OS_OSX
- #include <CoreFoundation/CFNumberFormatter.h>
- #endif
 @@ -31,7 +31,7 @@
  #include <sys/types.h>
  #if __has_include(<sys/syslog.h>)
@@ -1791,72 +1290,6 @@ index 9b2dc82b..f8e58a4e 100644
  #include <syslog.h>
  #endif
  #include <CoreFoundation/CFURLPriv.h>
-@@ -53,9 +53,7 @@ static CFStringRef WindowsPathToURLPath(CFStringRef path, CFAllocatorRef alloc,
- static CFStringRef POSIXPathToURLPath(CFStringRef path, CFAllocatorRef alloc, Boolean isDirectory, Boolean isAbsolute, Boolean *posixAndUrlPathsMatch) CF_RETURNS_RETAINED;
- static CFStringRef CreateStringFromFileSystemRepresentationByAddingPercentEscapes(CFAllocatorRef alloc, const UInt8 *bytes, CFIndex numBytes, Boolean isDirectory, Boolean isAbsolute, Boolean windowsPath, Boolean *addedPercentEncoding) CF_RETURNS_RETAINED;
- CFStringRef CFURLCreateStringWithFileSystemPath(CFAllocatorRef allocator, CFURLRef anURL, CFURLPathStyle fsType, Boolean resolveAgainstBase) CF_RETURNS_RETAINED;
--#if !TARGET_OS_WASI
- CF_EXPORT CFURLRef _CFURLCreateCurrentDirectoryURL(CFAllocatorRef allocator) CF_RETURNS_RETAINED;
--#endif
- #if TARGET_OS_MAC
- static Boolean _CFURLHasFileURLScheme(CFURLRef url, Boolean *hasScheme);
- #endif
-@@ -2189,13 +2187,11 @@ static CFURLRef _CFURLCreateWithFileSystemPath(CFAllocatorRef allocator, CFStrin
-                 // if fileSystemPath is an absolute path, ignore baseURL (if provided)
-                 baseURL = NULL;
-             }
--#if !TARGET_OS_WASI
-             else if ( baseURL == NULL ) {
-                 // if fileSystemPath is a relative path and no baseURL is provided, use the current working directory
-                 baseURL = _CFURLCreateCurrentDirectoryURL(allocator);
-                 releaseBaseURL = true;
-             }
--#endif
-             
-             // override isDirectory if the path is to root
-             if ( !isDirectory && (len == 1) && (CFStringGetCharacterAtIndex(urlString, 0) == '/') ) {
-@@ -2282,7 +2278,7 @@ static CFURLRef _CFURLCreateWithFileSystemRepresentation(CFAllocatorRef allocato
- #endif
-     struct __CFURL *result = NULL;
-     if (bufLen > 0) {
--#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
-+#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-         Boolean isAbsolute = bufLen && (*buffer == '/');
-         Boolean addedPercentEncoding;
-         Boolean releaseBaseURL = false;
-@@ -2292,14 +2288,12 @@ static CFURLRef _CFURLCreateWithFileSystemRepresentation(CFAllocatorRef allocato
-             // if buffer contains an absolute path, ignore baseURL (if provided)
-             baseURL = NULL;
-             isFileReferencePath = _fileSystemRepresentationHasFileIDPrefix(buffer, bufLen);
--        }
--#if !TARGET_OS_WASI
--        else if ( baseURL == NULL ) {
-+        } else if ( baseURL == NULL ) {
-             // if buffer contains a relative path and no baseURL is provided, use the current working directory
-             baseURL = _CFURLCreateCurrentDirectoryURL(allocator);
-             releaseBaseURL = true;
-         }
--#endif
-+
-         CFStringRef urlString = CreateStringFromFileSystemRepresentationByAddingPercentEscapes(allocator, buffer, bufLen, isDirectory, isAbsolute, false /*windowsPath*/, &addedPercentEncoding);
-         if ( urlString ) {
-             // allocate the URL object with the appropriate number of ranges
-@@ -4367,7 +4361,6 @@ static CFStringRef _resolveFileSystemPaths(CFStringRef relativePath, CFStringRef
-     return _resolvedPath(buf, buf + baseLen + relLen, pathDelimiter, false, true, alloc);
- }
- 
--#if !TARGET_OS_WASI
- CFURLRef _CFURLCreateCurrentDirectoryURL(CFAllocatorRef allocator) {
-     CFURLRef url = NULL;
-     // CFMaxPathSize is OK here since we're getting the path from the file system
-@@ -4377,7 +4370,6 @@ CFURLRef _CFURLCreateCurrentDirectoryURL(CFAllocatorRef allocator) {
-     }
-     return url;
- }
--#endif
- 
- CFURLRef CFURLCreateWithFileSystemPath(CFAllocatorRef allocator, CFStringRef filePath, CFURLPathStyle fsType, Boolean isDirectory) {
-     CFURLRef result;
 diff --git a/CoreFoundation/URL.subproj/CFURLComponents.c b/CoreFoundation/URL.subproj/CFURLComponents.c
 index 69183075..cfbce155 100644
 --- a/CoreFoundation/URL.subproj/CFURLComponents.c
@@ -1978,18 +1411,6 @@ index 67223bfc..ea97b402 100644
 +}
 +
 +#endif
-diff --git a/Sources/Foundation/ByteCountFormatter.swift b/Sources/Foundation/ByteCountFormatter.swift
-index 70ab9247..12a6f764 100644
---- a/Sources/Foundation/ByteCountFormatter.swift
-+++ b/Sources/Foundation/ByteCountFormatter.swift
-@@ -7,7 +7,6 @@
- // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- //
- 
--
- extension ByteCountFormatter {
-     public struct Units : OptionSet {
-         public let rawValue : UInt
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
 index fc093ce0..77509d99 100644
 --- a/Sources/Foundation/CMakeLists.txt
@@ -2103,10 +1524,10 @@ index fc093ce0..77509d99 100644
  set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS Foundation)
  _install_target(Foundation)
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
-index 86585a3a..de5c0400 100644
+index 6e5bfdb6..5c7004f7 100644
 --- a/Sources/Foundation/Data.swift
 +++ b/Sources/Foundation/Data.swift
-@@ -603,16 +603,16 @@ internal class __NSSwiftData : NSData {
+@@ -604,16 +604,16 @@ internal class __NSSwiftData : NSData {
          _backing = backing
          _range = range
      }
@@ -2126,7 +1547,7 @@ index 86585a3a..de5c0400 100644
      override var length: Int {
          return _range.upperBound - _range.lowerBound
      }
-@@ -677,7 +677,7 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -678,7 +678,7 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
      @usableFromInline
      @frozen
      internal struct InlineData {
@@ -2135,7 +1556,7 @@ index 86585a3a..de5c0400 100644
          @usableFromInline typealias Buffer = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
                                                UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) //len  //enum
          @usableFromInline var bytes: Buffer
-@@ -2039,7 +2039,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2040,7 +2040,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
          }
      }
      
@@ -2143,7 +1564,7 @@ index 86585a3a..de5c0400 100644
      /// Initialize a `Data` with the contents of a `URL`.
      ///
      /// - parameter url: The `URL` to read.
-@@ -2052,7 +2051,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2053,7 +2052,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
              return Data(bytes: d.bytes, count: d.length)
          }
      }
@@ -2239,7 +1660,7 @@ index 520e2351..b5a30f6b 100644
  }
 +#endif
 diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
-index a538a297..4c42f26c 100644
+index 6da1d666..d882e078 100644
 --- a/Sources/Foundation/FileHandle.swift
 +++ b/Sources/Foundation/FileHandle.swift
 @@ -8,7 +8,9 @@
@@ -2252,23 +1673,7 @@ index a538a297..4c42f26c 100644
  
  // FileHandle has a .read(upToCount:) method. Just invoking read() will cause an ambiguity warning. Use _read instead.
  // Same with close()/.close().
-@@ -22,6 +24,15 @@ import Glibc
- fileprivate let _read = Glibc.read(_:_:_:)
- fileprivate let _write = Glibc.write(_:_:_:)
- fileprivate let _close = Glibc.close(_:)
-+#elseif canImport(WASILibc)
-+import WASILibc
-+fileprivate let _read = WASILibc.read(_:_:_:)
-+fileprivate let _write = WASILibc.write(_:_:_:)
-+fileprivate let _close = WASILibc.close(_:)
-+// wasi-libc's errno is defined as an usual TLS variable, so ClangImporter can import it through CoreFoundation
-+// while other platforms' are not importable due to their complex macro definition. Imported errno conflicts with
-+// WASILibc's errno definition, so define a Foundation internal version here to avoid ambiguity error.
-+internal var errno: Int32 { return WASILibc.errno }
- #endif
- 
- #if canImport(WinSDK)
-@@ -79,6 +90,7 @@ open class FileHandle : NSObject {
+@@ -89,6 +91,7 @@ open class FileHandle : NSObject {
  
      private var _closeOnDealloc: Bool
  
@@ -2276,7 +1681,7 @@ index a538a297..4c42f26c 100644
      private var currentBackgroundActivityOwner: AnyObject? // Guarded by privateAsyncVariablesLock
      
      private var readabilitySource: DispatchSourceProtocol? // Guarded by privateAsyncVariablesLock
-@@ -202,6 +214,7 @@ open class FileHandle : NSObject {
+@@ -212,6 +215,7 @@ open class FileHandle : NSObject {
              }
          }
      }
@@ -2284,7 +1689,7 @@ index a538a297..4c42f26c 100644
  
      open var availableData: Data {
          _checkFileHandle()
-@@ -615,6 +628,7 @@ open class FileHandle : NSObject {
+@@ -625,6 +629,7 @@ open class FileHandle : NSObject {
      }
      
      private func performOnQueueIfExists(_ block: () throws -> Void) throws {
@@ -2292,7 +1697,7 @@ index a538a297..4c42f26c 100644
          if let queue = queueIfExists {
              var theError: Swift.Error?
              queue.sync {
-@@ -626,6 +640,9 @@ open class FileHandle : NSObject {
+@@ -636,6 +641,9 @@ open class FileHandle : NSObject {
          } else {
              try block()
          }
@@ -2302,7 +1707,7 @@ index a538a297..4c42f26c 100644
      }
      
      @available(swift 5.0)
-@@ -640,6 +657,7 @@ open class FileHandle : NSObject {
+@@ -650,6 +658,7 @@ open class FileHandle : NSObject {
          guard self != FileHandle._nulldeviceFileHandle else { return }
          guard _isPlatformHandleValid else { return }
          
@@ -2310,7 +1715,7 @@ index a538a297..4c42f26c 100644
          privateAsyncVariablesLock.lock()
          writabilitySource?.cancel()
          readabilitySource?.cancel()
-@@ -648,6 +666,7 @@ open class FileHandle : NSObject {
+@@ -658,6 +667,7 @@ open class FileHandle : NSObject {
          writabilitySource = nil
          readabilitySource = nil
          privateAsyncVariablesLock.unlock()
@@ -2318,7 +1723,7 @@ index a538a297..4c42f26c 100644
  
  #if os(Windows)
              // SR-13822 - Not Closing the file descriptor on Windows causes a Stack Overflow
-@@ -831,6 +850,8 @@ extension NSExceptionName {
+@@ -841,6 +851,8 @@ extension NSExceptionName {
      public static let fileHandleOperationException = NSExceptionName(rawValue: "NSFileHandleOperationException")
  }
  
@@ -2327,7 +1732,7 @@ index a538a297..4c42f26c 100644
  extension Notification.Name {
      public static let NSFileHandleReadToEndOfFileCompletion = Notification.Name(rawValue: "NSFileHandleReadToEndOfFileCompletionNotification")
      public static let NSFileHandleConnectionAccepted = Notification.Name(rawValue: "NSFileHandleConnectionAcceptedNotification")
-@@ -890,22 +911,25 @@ extension FileHandle {
+@@ -900,22 +912,25 @@ extension FileHandle {
  #endif
              }
  
@@ -2354,7 +1759,7 @@ index a538a297..4c42f26c 100644
      open func readToEndOfFileInBackgroundAndNotify() {
          readToEndOfFileInBackgroundAndNotify(forModes: [.default])
      }
-@@ -1021,8 +1045,11 @@ extension FileHandle {
+@@ -1031,8 +1046,11 @@ extension FileHandle {
          
          owner.resume()
      }
@@ -2366,7 +1771,7 @@ index a538a297..4c42f26c 100644
  open class Pipe: NSObject {
      public let fileHandleForReading: FileHandle
      public let fileHandleForWriting: FileHandle
-@@ -1067,4 +1094,4 @@ open class Pipe: NSObject {
+@@ -1077,4 +1095,4 @@ open class Pipe: NSObject {
          super.init()
      }
  }
