@@ -58,8 +58,10 @@ class Secrets:
 
 
 class DarwinToolchainPackaging:
-    def __init__(self, secrets: Secrets, verbose: bool = False):
+    def __init__(self, secrets: Secrets,
+                 dry_run: bool = False, verbose: bool = False):
         self.secrets = secrets
+        self.dry_run = dry_run
         self.verbose = verbose
 
     async def package(self, toolchain_dir: str, tag_name: str, pkg_path: str,
@@ -231,7 +233,7 @@ class GitHub:
         return workflow_runs
 
     async def download_artifact(self, artifact, path: str):
-        curl_args = ["curl", "-L", "-s", "-o", path,
+        curl_args = ["curl", "-L", "-s", "--show-error", "-o", path,
                      artifact["archive_download_url"],
                      "--header", f"Authorization: Bearer {self.token}"]
         proc = await asyncio.subprocess.create_subprocess_exec(
@@ -421,8 +423,9 @@ class Distribution:
             if os.path.exists(pkg_path):
                 return pkg_path
             swift_source_dir = os.path.join(self.checkout_dir, "swift")
-            await DarwinToolchainPackaging(self.secrets).package(
-                artifact_path, tag_name, pkg_path, swift_source_dir)
+            await DarwinToolchainPackaging(
+                self.secrets, self.dry_run, self.verbose
+            ).package(artifact_path, tag_name, pkg_path, swift_source_dir)
             return pkg_path
         else:
             tarball_path = os.path.join(
