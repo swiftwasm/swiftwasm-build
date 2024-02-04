@@ -1,22 +1,22 @@
-From a0634a5c7956bace600bc7f40b34819eb8f60dd0 Mon Sep 17 00:00:00 2001
+From c55f98b0b22fdd484fb3f5b872fed078340e6710 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Sun, 4 Feb 2024 14:05:21 +0000
+Date: Sun, 4 Feb 2024 14:44:27 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
- CMakeLists.txt                                | 21 +++-
- CoreFoundation/Base.subproj/CFFileUtilities.c | 29 ++++--
+ CMakeLists.txt                                | 21 +++++-
+ CoreFoundation/Base.subproj/CFFileUtilities.c | 29 ++++++--
  CoreFoundation/Base.subproj/CFInternal.h      |  8 +-
- CoreFoundation/Base.subproj/CFPlatform.c      |  9 +-
- CoreFoundation/Base.subproj/CFRuntime.c       | 30 ++++--
+ CoreFoundation/Base.subproj/CFPlatform.c      |  9 ++-
+ CoreFoundation/Base.subproj/CFRuntime.c       | 30 ++++++--
  CoreFoundation/Base.subproj/CFSortFunctions.c |  5 +-
  .../Base.subproj/ForSwiftFoundationOnly.h     |  4 +-
- .../SwiftRuntime/CoreFoundation.h             | 10 ++
+ .../SwiftRuntime/CoreFoundation.h             | 10 +++
  .../static/wasm32-unknown-wasi.modulemap      |  8 ++
- CoreFoundation/CMakeLists.txt                 | 98 +++++++++++++------
- .../Collections.subproj/CFBasicHash.c         | 17 +++-
+ CoreFoundation/CMakeLists.txt                 | 73 +++++++++++++------
+ .../Collections.subproj/CFBasicHash.c         | 17 ++++-
  .../Collections.subproj/CFBasicHash.h         |  4 +
- .../Collections.subproj/CFStorage.c           | 10 ++
+ .../Collections.subproj/CFStorage.c           | 10 +++
  .../Collections.subproj/CFStorage.h           |  4 +-
  CoreFoundation/Error.subproj/CFError.c        |  7 +-
  .../Locale.subproj/CFCalendar_Enumerate.c     |  4 +-
@@ -31,7 +31,7 @@ Subject: [PATCH] WebAssembly Support
  .../PlugIn.subproj/CFBundle_Internal.h        |  5 +-
  .../PlugIn.subproj/CFBundle_Resources.c       |  4 +
  .../PlugIn.subproj/CFPlugIn_Factory.h         |  2 +-
- .../Preferences.subproj/CFPreferences.c       | 16 ++-
+ .../Preferences.subproj/CFPreferences.c       | 16 +++-
  .../CFXMLPreferencesDomain.c                  |  2 +-
  CoreFoundation/RunLoop.subproj/CFMachPort.h   |  2 +-
  .../RunLoop.subproj/CFMachPort_Lifetime.h     |  2 +-
@@ -43,48 +43,48 @@ Subject: [PATCH] WebAssembly Support
  .../Stream.subproj/CFStreamInternal.h         |  2 +-
  CoreFoundation/Stream.subproj/CFStreamPriv.h  |  2 +-
  .../String.subproj/CFCharacterSetData.S       |  8 ++
- CoreFoundation/String.subproj/CFString.c      | 16 +--
- .../String.subproj/CFStringUtilities.c        | 18 ++--
+ CoreFoundation/String.subproj/CFString.c      | 16 ++--
+ .../String.subproj/CFStringUtilities.c        | 18 ++---
  .../CFUniCharPropertyDatabase.S               |  8 ++
  CoreFoundation/String.subproj/CFUnicodeData.S |  8 ++
  .../CFPlatformConverters.c                    |  4 +-
  .../CFStringEncodingConverter.c               | 12 +--
- CoreFoundation/URL.subproj/CFURL.c            | 18 +---
- CoreFoundation/URL.subproj/CFURLComponents.c  |  9 +-
+ CoreFoundation/URL.subproj/CFURL.c            | 18 ++---
+ CoreFoundation/URL.subproj/CFURLComponents.c  |  9 ++-
  Sources/BlocksRuntime/runtime.c               |  5 +-
- Sources/CMakeLists.txt                        | 10 +-
- Sources/Foundation/Bundle.swift               | 40 ++++++++
+ Sources/CMakeLists.txt                        |  4 +-
+ Sources/Foundation/Bundle.swift               | 40 ++++++++++
  Sources/Foundation/ByteCountFormatter.swift   |  1 -
- Sources/Foundation/CMakeLists.txt             | 51 ++++++----
- Sources/Foundation/Data.swift                 | 10 +-
- Sources/Foundation/DateFormatter.swift        | 51 ++++++++++
+ Sources/Foundation/CMakeLists.txt             | 51 ++++++++-----
+ Sources/Foundation/Data.swift                 | 10 +--
+ Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++
  .../DispatchData+DataProtocol.swift           |  3 +-
- Sources/Foundation/FileHandle.swift           | 31 +++++-
+ Sources/Foundation/FileHandle.swift           | 31 +++++++-
  Sources/Foundation/FileManager.swift          |  2 +
  Sources/Foundation/NSCharacterSet.swift       |  6 +-
  Sources/Foundation/NSData.swift               |  8 +-
  Sources/Foundation/NSError.swift              |  2 +
  Sources/Foundation/NSKeyedArchiver.swift      |  8 +-
  Sources/Foundation/NSNumber.swift             |  4 +
- Sources/Foundation/NSObjCRuntime.swift        | 48 ++++-----
- Sources/Foundation/NSPathUtilities.swift      | 31 +++---
+ Sources/Foundation/NSObjCRuntime.swift        | 48 ++++++------
+ Sources/Foundation/NSPathUtilities.swift      | 31 +++++---
  Sources/Foundation/NSSet.swift                |  4 +
- Sources/Foundation/NSString.swift             | 10 +-
+ Sources/Foundation/NSString.swift             | 10 ++-
  Sources/Foundation/NSStringAPI.swift          |  4 +
  Sources/Foundation/NSSwiftRuntime.swift       |  3 +
- Sources/Foundation/NSTimeZone.swift           | 10 +-
- Sources/Foundation/NSURL.swift                | 27 +++--
+ Sources/Foundation/NSTimeZone.swift           | 10 ++-
+ Sources/Foundation/NSURL.swift                | 27 +++++--
  Sources/Foundation/Operation.swift            |  2 +
- Sources/Foundation/ProcessInfo.swift          | 10 ++
+ Sources/Foundation/ProcessInfo.swift          | 10 +++
  Sources/Foundation/Progress.swift             |  2 +
  .../PropertyListSerialization.swift           |  2 +
  Sources/Foundation/ScannerAPI.swift           |  2 +-
- Sources/Foundation/URL.swift                  |  9 +-
- Sources/Foundation/UserDefaults.swift         | 14 +++
+ Sources/Foundation/URL.swift                  |  9 ++-
+ Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
  Sources/FoundationXML/XMLDocument.swift       |  2 +
  Sources/FoundationXML/XMLParser.swift         |  4 +-
- 80 files changed, 670 insertions(+), 229 deletions(-)
+ 80 files changed, 648 insertions(+), 220 deletions(-)
  create mode 100644 CoreFoundation/Base.subproj/static/wasm32-unknown-wasi.modulemap
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
@@ -494,30 +494,10 @@ index 00000000..a1bd757b
 +    link "icui18n"
 +}
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index 18c2e508..8864ee5b 100644
+index c3413d67..8864ee5b 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
-@@ -28,11 +28,14 @@ endif()
- 
- if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-   find_package(LibXml2 REQUIRED)
--  find_package(CURL CONFIG)
--  if(CURL_FOUND)
--    set(CURL_VERSION_STRING ${CURL_VERSION})
--  else()
--    find_package(CURL REQUIRED)
-+
-+  if(BUILD_NETWORKING)
-+    find_package(CURL CONFIG)
-+    if(CURL_FOUND)
-+      set(CURL_VERSION_STRING ${CURL_VERSION})
-+    else()
-+      find_package(CURL REQUIRED)
-+    endif()
-   endif()
- endif()
- 
-@@ -117,6 +120,34 @@ else()
+@@ -120,6 +120,34 @@ else()
    set(FRAMEWORK_LIBRARY_TYPE STATIC)
  endif()
  
@@ -552,7 +532,7 @@ index 18c2e508..8864ee5b 100644
  add_framework(CoreFoundation
                  ${FRAMEWORK_LIBRARY_TYPE}
                FRAMEWORK_DIRECTORY
-@@ -207,7 +238,6 @@ add_framework(CoreFoundation
+@@ -210,7 +238,6 @@ add_framework(CoreFoundation
                  Locale.subproj/CFDateInterval.h
                  Locale.subproj/CFLocaleInternal.h
                  PlugIn.subproj/CFBundlePriv.h
@@ -560,7 +540,7 @@ index 18c2e508..8864ee5b 100644
                  String.subproj/CFCharacterSetPriv.h
                  String.subproj/CFRegularExpression.h
                  String.subproj/CFRunArray.h
-@@ -262,6 +292,7 @@ add_framework(CoreFoundation
+@@ -265,6 +292,7 @@ add_framework(CoreFoundation
                  RunLoop.subproj/CFRunLoop.h
                  RunLoop.subproj/CFSocket.h
                  # Stream
@@ -568,7 +548,7 @@ index 18c2e508..8864ee5b 100644
                  Stream.subproj/CFStream.h
                  # String
                  String.subproj/CFAttributedString.h
-@@ -319,36 +350,15 @@ add_framework(CoreFoundation
+@@ -322,36 +350,15 @@ add_framework(CoreFoundation
                  Parsing.subproj/CFBinaryPList.c
                  Parsing.subproj/CFOldStylePList.c
                  Parsing.subproj/CFPropertyList.c
@@ -606,7 +586,7 @@ index 18c2e508..8864ee5b 100644
                  # String
                  String.subproj/CFAttributedString.c
                  String.subproj/CFBurstTrie.c
-@@ -376,7 +386,9 @@ add_framework(CoreFoundation
+@@ -379,7 +386,9 @@ add_framework(CoreFoundation
                  URL.subproj/CFURLAccess.c
                  URL.subproj/CFURL.c
                  URL.subproj/CFURLComponents.c
@@ -617,7 +597,7 @@ index 18c2e508..8864ee5b 100644
  target_compile_definitions(CoreFoundation
                             PRIVATE
                               $<$<COMPILE_LANGUAGE:ASM>:CF_CHARACTERSET_BITMAP="CharacterSets/CFCharacterSetBitmaps.bitmap">
-@@ -386,6 +398,7 @@ target_compile_definitions(CoreFoundation
+@@ -389,6 +398,7 @@ target_compile_definitions(CoreFoundation
  target_include_directories(CoreFoundation
                             PRIVATE
                               ${PROJECT_SOURCE_DIR})
@@ -625,7 +605,7 @@ index 18c2e508..8864ee5b 100644
  target_link_libraries(CoreFoundation PRIVATE
    ${CMAKE_DL_LIBS}
    BlocksRuntime)
-@@ -396,6 +409,11 @@ if(HAS_LIBDISPATCH_API)
+@@ -399,6 +409,11 @@ if(HAS_LIBDISPATCH_API)
      dispatch)
  endif()
  
@@ -637,16 +617,7 @@ index 18c2e508..8864ee5b 100644
  if(CMAKE_SYSTEM_NAME STREQUAL Android)
    target_link_libraries(CoreFoundation PRIVATE
      log)
-@@ -438,7 +456,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
-                              PRIVATE
-                                CURL_STATICLIB)
- endif()
--if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-+if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin AND BUILD_NETWORKING)
-   target_link_libraries(CFURLSessionInterface PRIVATE
-     CURL::libcurl)
- endif()
-@@ -456,6 +474,8 @@ add_framework(CFXMLInterface
+@@ -459,6 +474,8 @@ add_framework(CFXMLInterface
                SOURCES
                  Parsing.subproj/CFXMLInterface.c)
  add_dependencies(CFXMLInterface CoreFoundation)
@@ -655,7 +626,7 @@ index 18c2e508..8864ee5b 100644
  if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CFXMLInterface PRIVATE
      LibXml2::LibXml2)
-@@ -523,6 +543,7 @@ if(HAS_LIBDISPATCH_API)
+@@ -526,6 +543,7 @@ if(HAS_LIBDISPATCH_API)
                          PRIVATE
                            dispatch)
  endif()
@@ -663,7 +634,7 @@ index 18c2e508..8864ee5b 100644
  if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CoreFoundation
                          PRIVATE
-@@ -538,12 +559,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -541,6 +559,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
                            -Xlinker;-alias_list;-Xlinker;Base.subproj/DarwinSymbolAliases;-twolevel_namespace;-sectcreate;__UNICODE;__csbitmaps;CharacterSets/CFCharacterSetBitmaps.bitmap;-sectcreate;__UNICODE;__properties;CharacterSets/CFUniCharPropertyDatabase.data;-sectcreate;__UNICODE;__data;CharacterSets/CFUnicodeData-L.mapping;-segprot;__UNICODE;r;r)
  endif()
  
@@ -676,21 +647,7 @@ index 18c2e508..8864ee5b 100644
 +
  install(TARGETS
            CoreFoundation
--          CFURLSessionInterface
            CFXMLInterface
-         DESTINATION
--          "${CMAKE_INSTALL_FULL_LIBDIR}")
-+          "${CMAKE_INSTALL_FULL_LIBDIR}/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>")
-+
-+if(BUILD_NETWORKING)
-+  install(TARGETS
-+            CFURLSessionInterface
-+          DESTINATION
-+            "${CMAKE_INSTALL_FULL_LIBDIR}/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>")
-+endif()
- 
- # Needed to avoid double slash "//" when CMAKE_INSTALL_PREFIX set to "/" and DESTDIR used to relocate whole installation.
- # Double slash raise CMake error "file called with network path DESTINATION //System/Library/Frameworks".
 diff --git a/CoreFoundation/Collections.subproj/CFBasicHash.c b/CoreFoundation/Collections.subproj/CFBasicHash.c
 index baf1e7b0..378238b3 100644
 --- a/CoreFoundation/Collections.subproj/CFBasicHash.c
@@ -1997,20 +1954,14 @@ index 1b7945b9..68a0d24a 100644
  // Called from CF to indicate MRR. Newer version uses a versioned structure, so we can add more functions
  // without defining a new entry point.
 diff --git a/Sources/CMakeLists.txt b/Sources/CMakeLists.txt
-index ab3a1bef..dab42cfd 100644
+index 94b85146..584d6bf0 100644
 --- a/Sources/CMakeLists.txt
 +++ b/Sources/CMakeLists.txt
-@@ -1,5 +1,11 @@
- add_subdirectory(UUID)
- add_subdirectory(Foundation)
--add_subdirectory(FoundationNetworking)
+@@ -4,4 +4,6 @@ if(BUILD_NETWORKING)
+   add_subdirectory(FoundationNetworking)
+ endif()
  add_subdirectory(FoundationXML)
 -add_subdirectory(Tools)
-+
-+if(BUILD_NETWORKING)
-+  add_subdirectory(FoundationNetworking)
-+endif()
-+
 +if(BUILD_TOOLS)
 +  add_subdirectory(Tools)
 +endif()
