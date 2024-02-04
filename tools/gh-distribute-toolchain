@@ -18,13 +18,6 @@ from build.build_support.actions import derive_options_from_args, REPO_ROOT
 USER_AGENT = "gh-distribute-toolchain by swiftwasm/swiftwasm-build"
 
 
-async def check_async_subprocess(program, *args):
-    proc = await asyncio.subprocess.create_subprocess_exec(program, *args)
-    retcode = await proc.wait()
-    if retcode != 0:
-        raise Exception(f"Failed to execute: {' '.join(args)}")
-
-
 @dataclass
 class Secrets:
     DARWIN_TOOLCHAIN_APPLICATION_CERT: str
@@ -65,8 +58,9 @@ class Secrets:
 
 
 class DarwinToolchainPackaging:
-    def __init__(self, secrets: Secrets):
+    def __init__(self, secrets: Secrets, verbose: bool = False):
         self.secrets = secrets
+        self.verbose = verbose
 
     async def package(self, toolchain_dir: str, tag_name: str, pkg_path: str,
                 swift_source_dir: str):
@@ -107,9 +101,9 @@ class DarwinToolchainPackaging:
                 path = os.path.join(root, file)
                 if not self.is_macho_binary(path):
                     continue
-                subprocess.run(codesign_args + [path], check=True)
+                self.subprocess_run(codesign_args + [path], check=True)
 
-        subprocess.run(codesign_args + [toolchain_dir], check=True)
+        self.subprocess_run(codesign_args + [toolchain_dir], check=True)
 
     async def create_installer(self, toolchain_dir: str, pkg_path: str,
                                tag_name: str, swift_source_dir: str):
@@ -128,7 +122,7 @@ class DarwinToolchainPackaging:
             f"{toolchain_dir}/Info.plist"
         ]).decode("utf-8")
 
-        subprocess.run([
+        self.subprocess_run([
             f"{swift_source_dir}/utils/toolchain-installer", toolchain_dir,
             toolchain_bundle_identifier,
             self.secrets.DARWIN_TOOLCHAIN_INSTALLER_CERT,
@@ -138,20 +132,35 @@ class DarwinToolchainPackaging:
             f"{swift_source_dir}/utils/darwin-installer-scripts"
         ], check=True)
 
-        notary_proc = await asyncio.subprocess.create_subprocess_exec(
+        await self.check_async_subprocess(
             "xcrun", "notarytool", "submit",
             toolchain_installer_package,
             "--wait",
             "--apple-id", self.secrets.DARWIN_TOOLCHAIN_NOTARIZE_EMAIL,
             "--team-id", self.secrets.DARWIN_TOOLCHAIN_NOTARIZE_TEAM_ID,
             "--password", self.secrets.DARWIN_TOOLCHAIN_NOTARIZE_PASSWORD)
-        notary_retcode = await notary_proc.wait()
-        if notary_retcode != 0:
-            raise Exception(
-                f"Notalization against {toolchain_installer_package} failed")
 
-        subprocess.run(["xcrun", "stapler", "staple",
-                        toolchain_installer_package], check=True)
+        self.subprocess_run(["xcrun", "stapler", "staple",
+                             toolchain_installer_package], check=True)
+
+    def subprocess_run(self, args, **kwargs):
+        """
+        Run a non-mutating subprocess and print the command if
+        verbose or dry_run is True.
+        """
+        if self.verbose or self.dry_run:
+            print(" ".join(args))
+        return subprocess.run(args, **kwargs)
+
+    async def check_async_subprocess(self, program, *args):
+        if self.verbose or self.dry_run:
+            print(f"[async] {program} {' '.join(args)}")
+        if self.dry_run:
+            return
+        proc = await asyncio.subprocess.create_subprocess_exec(program, *args)
+        retcode = await proc.wait()
+        if retcode != 0:
+            raise Exception(f"Failed to execute: {' '.join(args)}")
 
     def is_macho_binary(self, file_path):
         if not os.path.exists(file_path):
@@ -176,9 +185,21 @@ class GitHub:
         self.repo = repo
 
     def list_artifacts(self, run_id: str):
-        url = ("https://api.github.com"
-               f"/repos/{self.repo}/actions/runs/{run_id}/artifacts")
-        return self.json_request("GET", url)
+        page = 1
+        per_page = 30
+        artifacts = []
+        while True:
+            url = ("https://api.github.com"
+                   f"/repos/{self.repo}/actions/runs/{run_id}/artifacts"
+                   f"?page={page}&per_page={per_page}")
+            response = self.json_request("GET", url)
+            if "artifacts" not in response:
+                raise Exception(f"Unexpected response: {response}")
+            artifacts += response["artifacts"]
+            if len(response["artifacts"]) < per_page:
+                break
+            page += 1
+        return artifacts
 
     def revision_at_run(self, run_id: str):
         url = ("https://api.github.com"
@@ -261,7 +282,7 @@ class GitHub:
 
 class Distribution:
     def __init__(self, github: GitHub, swift_github: GitHub,
-                 run_id: str, secrets: Secrets, dry_run: bool = False):
+                 run_id: str, secrets: Secrets, dry_run: bool = False, verbose: bool = False):
         self.github = github
         self.swift_github = swift_github
         self.run_id = run_id
@@ -280,6 +301,7 @@ class Distribution:
             platform_suffix, scheme = derive_platform_suffix_and_scheme(
                 artifact["name"])
             if options.scheme != scheme:
+                print(f"Skipping {artifact['name']} because it's not scheme {options.scheme}")
                 # Skip unrelated artifact
                 continue
 
@@ -287,6 +309,8 @@ class Distribution:
                 downloaded_path = await self.download_artifact(artifact)
                 return [artifact, downloaded_path, platform_suffix]
 
+            print((f"Downloading {artifact['name']} from "
+                   f"{artifact['archive_download_url']}..."))
             downloads.append(
                 asyncio.create_task(download_work(artifact, platform_suffix)))
 
@@ -296,7 +320,12 @@ class Distribution:
             print(f"Download task failed: {e}, cancelling all tasks")
             for task in downloads:
                 task.cancel()
-            return
+            raise e
+
+        if options.verbose:
+            print("Downloaded paths:")
+            for artifact, artifact_path, platform_suffix in downloaded_paths:
+                print(f"  {artifact['name']} -> {artifact_path}")
 
         release = None
         tag_name = options.override_name
@@ -333,6 +362,7 @@ class Distribution:
                     return
                 self.upload_to_release(package, release)
 
+            print(f"Packaging {artifact['name']}...")
             packaging_tasks.append(
                 asyncio.create_task(package_sdk_work(downloaded)))
 
@@ -342,7 +372,7 @@ class Distribution:
             print(f"Some of packaging tasks failed: {e}, cancelling all tasks")
             for task in packaging_tasks:
                 task.cancel()
-            sys.exit(1)
+            raise e
 
         if options.only_swift_sdk:
             return
@@ -401,7 +431,7 @@ class Distribution:
             tar_args = ["tar", "cfz", tarball_path,
                         "-C", os.path.dirname(artifact_path),
                         os.path.basename(artifact_path)]
-            subprocess.run(tar_args, check=True)
+            self.subprocess_run(tar_args, check=True)
             return tarball_path
 
     async def package_artifactbundle(self, artifact_path: str, tag_name: str,
@@ -482,8 +512,8 @@ class Distribution:
             os.path.dirname(artifact_zip), content_name)
 
         if not os.path.exists(content_path):
-            subprocess.run(["unzip", artifact_zip, "-d",
-                           os.path.dirname(content_path)], check=True)
+            self.effect_run(["unzip", artifact_zip, "-d",
+                            os.path.dirname(content_path)], check=True)
         return [content_name, content_path]
 
     async def unpack_artifactbundle(self, zip_bundlezip):
@@ -493,7 +523,7 @@ class Distribution:
             print(f"Already unzipped: {bundle_path}")
             return bundle_path
         print(f"Unzipping .artifactbundle.zip: {bundlezip_path}")
-        await check_async_subprocess(
+        await self.check_async_subprocess(
             "unzip", "-q", bundlezip_path, "-d", os.path.dirname(bundle_path))
         return bundle_path
 
@@ -521,8 +551,6 @@ class Distribution:
         return os.path.join(tarball_output_dir, dirents[0])
 
     async def download_artifact(self, artifact):
-        print((f"Downloading {artifact['name']} from "
-               f"{artifact['archive_download_url']}..."))
         if not os.path.exists(self.artifacts_dir):
             os.makedirs(self.artifacts_dir, exist_ok=True)
         path = os.path.join(self.artifacts_dir, artifact["name"])
@@ -553,32 +581,32 @@ class Distribution:
         os.makedirs(self.checkout_dir, exist_ok=True)
         build_repo_dir = os.path.join(self.checkout_dir, "swiftwasm-build")
         if not os.path.exists(build_repo_dir):
-            subprocess.run(["git", "clone", build_repo,
-                           build_repo_dir], check=True)
+            self.subprocess_run(["git", "clone", build_repo,
+                                build_repo_dir], check=True)
 
-        subprocess.run(["git", "-C", build_repo_dir,
-                       "fetch", "origin"], check=True)
-        subprocess.run(["git", "-C", build_repo_dir,
-                       "checkout", build_rev], check=True)
+        self.subprocess_run(["git", "-C", build_repo_dir,
+                            "fetch", "origin"], check=True)
+        self.subprocess_run(["git", "-C", build_repo_dir,
+                             "checkout", build_rev], check=True)
 
         # Checkout swift repository and apply patches at the build revision
         git_swift_workspace = os.path.join(
             build_repo_dir, "tools", "git-swift-workspace")
-        subprocess.run([git_swift_workspace, "--scheme",
-                       options.scheme], check=True)
+        self.subprocess_run([git_swift_workspace, "--scheme",
+                            options.scheme], check=True)
 
         swift_repo_dir = os.path.join(self.checkout_dir, "swift")
 
         fork_repo = 'git@github.com:swiftwasm/swift.git'
-        status = subprocess.run(['git', '-C', swift_repo_dir,
-                                 'remote', 'get-url', 'swiftwasm']).returncode
+        status = self.subprocess_run(['git', '-C', swift_repo_dir,
+                                      'remote', 'get-url', 'swiftwasm']).returncode
         if status != 0:
             self.effect_run(['git', '-C', swift_repo_dir, 'remote',
                             'add', 'swiftwasm', fork_repo], check=True)
 
         # Fetch the tag from the fork. This can fail if the tag doesn't exist
-        subprocess.run(['git', '-C', swift_repo_dir,
-                        'fetch', 'swiftwasm', 'tag', tag_name, '--no-tags'])
+        self.subprocess_run(['git', '-C', swift_repo_dir,
+                            'fetch', 'swiftwasm', 'tag', tag_name, '--no-tags'])
 
         status = subprocess.run([
             'git', '-C', swift_repo_dir,
@@ -604,20 +632,43 @@ class Distribution:
         self.swift_github.upload_release_asset(release['id'], artifact_path)
 
     def toolchain_artifacts(self, options):
-        data = self.github.list_artifacts(self.run_id)
-        for artifact in data["artifacts"]:
+        artifacts = self.github.list_artifacts(self.run_id)
+        for artifact in artifacts:
             artifact_name = artifact["name"]
             should_yield = artifact_name.endswith("-artifactbundle") or \
                 artifact_name.endswith("-installable")
             if should_yield:
                 yield artifact
 
-    def effect_run(self, args, **kwargs):
-        if self.dry_run:
+    def subprocess_run(self, args, **kwargs):
+        """
+        Run a non-mutating subprocess and print the command if
+        verbose or dry_run is True.
+        """
+        if self.verbose or self.dry_run:
             print(" ".join(args))
+        return subprocess.run(args, **kwargs)
+
+    def effect_run(self, args, **kwargs):
+        """
+        Run a mutating subprocess and print the command if
+        verbose or dry_run is True.
+        """
+        if self.verbose or self.dry_run:
+            print(" ".join(args))
+        if self.dry_run:
             return
         return subprocess.run(args, **kwargs)
 
+    async def check_async_subprocess(self, program, *args):
+        if self.verbose or self.dry_run:
+            print(f"[async] {program} {' '.join(args)}")
+        if self.dry_run:
+            return
+        proc = await asyncio.subprocess.create_subprocess_exec(program, *args)
+        retcode = await proc.wait()
+        if retcode != 0:
+            raise Exception(f"Failed to execute: {' '.join(args)}")
 
 
 def derive_platform_suffix_and_scheme(artifact_name: str):
@@ -655,9 +706,7 @@ def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: s
         if "conclusion" not in run or run["conclusion"] != "success":
             continue
         artifacts = gh.list_artifacts(run["id"])
-        if not artifacts["artifacts"]:
-            continue
-        for artifact in artifacts["artifacts"]:
+        for artifact in artifacts:
             artifact_name = artifact["name"]
             if not artifact_name.endswith("-installable"):
                 continue
@@ -688,7 +737,9 @@ async def main():
         run_id = latest_success_run_id(
             gh, workflow_name="build-toolchain.yml", branch="main", scheme=options.scheme)
         run_id = str(run_id)
-    await Distribution(gh, swift_gh, run_id, secrets, options.dry_run).run(options)
+        print(f"Automatically determined run_id: {run_id}")
+    await Distribution(gh, swift_gh, run_id, secrets,
+                       options.dry_run, options.verbose).run(options)
 
 
 if __name__ == '__main__':
