@@ -1,4 +1,4 @@
-From a3dbe8aa7654f8abbe3fa1223157e1a048c4ad01 Mon Sep 17 00:00:00 2001
+From a4cb22f09bcb1e632b2dd3860e337444f000d12a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Feb 2024 17:22:59 +0000
 Subject: [PATCH] WebAssembly Support
@@ -68,9 +68,7 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/URL.swift                  |  9 ++-
  Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
- Sources/FoundationXML/XMLDocument.swift       |  2 +
- Sources/FoundationXML/XMLParser.swift         |  4 +-
- 66 files changed, 528 insertions(+), 178 deletions(-)
+ 64 files changed, 523 insertions(+), 177 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 3a4f4914..0c4319de 100644
@@ -2722,48 +2720,6 @@ index 944ea258..abdf054b 100644
  
  set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS FoundationXML)
  _install_target(FoundationXML)
-diff --git a/Sources/FoundationXML/XMLDocument.swift b/Sources/FoundationXML/XMLDocument.swift
-index 6e9e8683..538ff7f3 100644
---- a/Sources/FoundationXML/XMLDocument.swift
-+++ b/Sources/FoundationXML/XMLDocument.swift
-@@ -85,6 +85,7 @@ open class XMLDocument : XMLNode {
-         try self.init(data: data, options: mask)
-     }
- 
-+#if !os(WASI)
-     /*!
-         @method initWithContentsOfURL:options:error:
-         @abstract Returns a document created from the contents of an XML or HTML URL. Connection problems such as 404, parse errors are returned in <tt>error</tt>.
-@@ -95,6 +96,7 @@ open class XMLDocument : XMLNode {
- 
-         try self.init(data: data, options: mask)
-     }
-+#endif
- 
-     /*!
-         @method initWithData:options:error:
-diff --git a/Sources/FoundationXML/XMLParser.swift b/Sources/FoundationXML/XMLParser.swift
-index 501c9670..56d9ef14 100644
---- a/Sources/FoundationXML/XMLParser.swift
-+++ b/Sources/FoundationXML/XMLParser.swift
-@@ -409,7 +409,8 @@ open class XMLParser : NSObject {
-     internal var _delegateAborted = false
-     internal var _url: URL?
-     internal var _namespaces = [[String:String]]()
--    
-+
-+#if !os(WASI)
-     // initializes the parser with the specified URL.
-     public convenience init?(contentsOf url: URL) {
- #if os(WASI)
-@@ -434,6 +435,7 @@ open class XMLParser : NSObject {
-         }
- #endif
-     }
-+#endif
-     
-     // create the parser from data
-     public init(data: Data) {
 -- 
 2.43.0
 
