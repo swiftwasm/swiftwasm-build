@@ -24,7 +24,7 @@ If you are new to Swift compiler development, please read [Getting Started with 
    @swift-ci Please smoke test
    ```
    ```
-   preset=buildbot_incremental_linux_crosscompile_wasm
+   preset=buildbot_linux_crosscompile_wasm
    @swift-ci Please test with preset Linux Platform
    ```
 4. If the CI is green and got approval from the upstream reviewers, merge the PR.
