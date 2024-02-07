@@ -1,4 +1,4 @@
-From 8f9e37bee5d247faafbe95dc2b0d88583db96489 Mon Sep 17 00:00:00 2001
+From 6ba026ac7d16fe4721937f7e31c034d727af28b3 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:17:42 +0000
 Subject: [PATCH] [wasm] Port `CoreFoundation/Base.subproj/CFInternal.h`
@@ -9,10 +9,10 @@ Guard out the use of `libdispatch` types
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFInternal.h b/CoreFoundation/Base.subproj/CFInternal.h
-index c235b1f1..f78c2edc 100644
+index 6f4a47ae..2bbce872 100644
 --- a/CoreFoundation/Base.subproj/CFInternal.h
 +++ b/CoreFoundation/Base.subproj/CFInternal.h
-@@ -1201,12 +1201,13 @@ CF_INLINE dispatch_queue_t __CFDispatchQueueGetGenericBackground(void) {
+@@ -1202,12 +1202,13 @@ CF_INLINE dispatch_queue_t __CFDispatchQueueGetGenericBackground(void) {
      return dispatch_get_global_queue(QOS_CLASS_UTILITY, DISPATCH_QUEUE_OVERCOMMIT);
  }
  

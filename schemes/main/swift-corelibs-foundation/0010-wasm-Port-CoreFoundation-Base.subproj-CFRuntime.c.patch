@@ -1,4 +1,4 @@
-From ea25352493b8456d3ced34c0c50f135ac55ca503 Mon Sep 17 00:00:00 2001
+From ddf2bcbaee40b29539bb630fbd29d945ef1e17b1 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:32:44 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/Base.subproj/CFRuntime.c
@@ -8,7 +8,7 @@ Subject: [PATCH] [wasm] Port CoreFoundation/Base.subproj/CFRuntime.c
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
-index 1189f0b0..3a4f4914 100644
+index 74605577..68b62a2b 100644
 --- a/CoreFoundation/Base.subproj/CFRuntime.c
 +++ b/CoreFoundation/Base.subproj/CFRuntime.c
 @@ -52,7 +52,7 @@ __kCFRetainEvent = 28,

@@ -1,4 +1,4 @@
-From 972effe45a04043fc1aba1eaa9209ac85b3f9c85 Mon Sep 17 00:00:00 2001
+From aa40aec097cd8ce3d58d617986ee46d1568cada7 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Feb 2024 16:35:42 +0000
 Subject: [PATCH] [wasm][build] Exclude Tools from build when BUILD_TOOLS is
