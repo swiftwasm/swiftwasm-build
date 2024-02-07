@@ -1,0 +1,43 @@
+From c22e31c72f24e4dfb622a01da59752a0bf3f863a Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 7 Feb 2024 17:19:00 +0000
+Subject: [PATCH] [wasm] Port BlocksRuntime for no dlfcn.h platforms
+
+BlocksRuntime uses dlsym to find objc_destructInstance, which is not
+available on all platforms. This change adds a check for dlfcn.h and
+only uses dlsym if it is available and otherwise crashes the program.
+
+The crash will not usually happen, as `_Block_use_RR` is only called
+from objc-auto, which is not available for such platforms.
+---
+ Sources/BlocksRuntime/runtime.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/Sources/BlocksRuntime/runtime.c b/Sources/BlocksRuntime/runtime.c
+index 1b7945b9..29d0acea 100644
+--- a/Sources/BlocksRuntime/runtime.c
++++ b/Sources/BlocksRuntime/runtime.c
+@@ -15,7 +15,7 @@
+ #if TARGET_OS_WIN32
+ #include <Windows.h>
+ #include <Psapi.h>
+-#else
++#elif __has_include(<dlfcn.h>)
+ #include <dlfcn.h>
+ #endif
+ #if __has_include(<os/assumes.h>)
+@@ -268,7 +268,11 @@ void _Block_use_RR( void (*retain)(const void *),
+         break;
+     }
+ #else
++# if __has_include(<dlfcn.h>)
+     _Block_destructInstance = dlsym(RTLD_DEFAULT, "objc_destructInstance");
++# else
++    assert(0 && "No way to find objc_destructInstance on this platform");
++# endif
+ #endif
+ }
+ 
+-- 
+2.43.0
+

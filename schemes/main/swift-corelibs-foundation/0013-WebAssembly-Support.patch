@@ -1,6 +1,6 @@
-From 560b03a926eb3d0a7aad5280493f47957572b70d Mon Sep 17 00:00:00 2001
+From a3dbe8aa7654f8abbe3fa1223157e1a048c4ad01 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Wed, 7 Feb 2024 16:37:02 +0000
+Date: Wed, 7 Feb 2024 17:22:59 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
@@ -40,7 +40,6 @@ Subject: [PATCH] WebAssembly Support
  .../CFStringEncodingConverter.c               | 12 +--
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
  CoreFoundation/URL.subproj/CFURLComponents.c  |  9 ++-
- Sources/BlocksRuntime/runtime.c               |  5 +-
  Sources/Foundation/Bundle.swift               | 40 ++++++++++
  Sources/Foundation/CMakeLists.txt             | 51 ++++++++-----
  Sources/Foundation/Data.swift                 | 10 +--
@@ -71,7 +70,7 @@ Subject: [PATCH] WebAssembly Support
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
  Sources/FoundationXML/XMLDocument.swift       |  2 +
  Sources/FoundationXML/XMLParser.swift         |  4 +-
- 67 files changed, 531 insertions(+), 180 deletions(-)
+ 66 files changed, 528 insertions(+), 178 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 3a4f4914..0c4319de 100644
@@ -1313,36 +1312,6 @@ index 69183075..cfbce155 100644
              CFIndex namesLength = CFArrayGetCount(names);
              Boolean first = true;
              for (CFIndex i = 0; i < namesLength; i++) {
-diff --git a/Sources/BlocksRuntime/runtime.c b/Sources/BlocksRuntime/runtime.c
-index 1b7945b9..68a0d24a 100644
---- a/Sources/BlocksRuntime/runtime.c
-+++ b/Sources/BlocksRuntime/runtime.c
-@@ -15,7 +15,7 @@
- #if TARGET_OS_WIN32
- #include <Windows.h>
- #include <Psapi.h>
--#else
-+#elif !defined(__wasi__)
- #include <dlfcn.h>
- #endif
- #if __has_include(<os/assumes.h>)
-@@ -241,7 +241,7 @@ void _Block_use_GC5( void *(*alloc)(size_t, const bool isOne, const bool isObjec
-     _Block_use_GC(alloc, setHasRefcount, gc_assign, gc_assign_weak, _Block_memmove_gc_broken);
- }
- 
-- 
-+#if !defined(__wasi__)
- // Called from objc-auto to alternatively turn on retain/release.
- // Prior to this the only "object" support we can provide is for those
- // super special objects that live in libSystem, namely dispatch queues.
-@@ -271,6 +271,7 @@ void _Block_use_RR( void (*retain)(const void *),
-     _Block_destructInstance = dlsym(RTLD_DEFAULT, "objc_destructInstance");
- #endif
- }
-+#endif
- 
- // Called from CF to indicate MRR. Newer version uses a versioned structure, so we can add more functions
- // without defining a new entry point.
 diff --git a/Sources/Foundation/Bundle.swift b/Sources/Foundation/Bundle.swift
 index 67223bfc..ea97b402 100644
 --- a/Sources/Foundation/Bundle.swift
