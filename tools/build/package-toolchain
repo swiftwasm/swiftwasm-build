@@ -4,6 +4,7 @@ import sys
 import os
 import argparse
 import json
+from typing import Optional
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 from build_support.platform import PlatformInfo
 from build_support.llvm_tools import WASM_SPECIFIC_TOOLS_TO_INSTALL
@@ -47,6 +48,7 @@ class PackageAction(Action):
         base_toolchain_path = os.path.join(packaging_dir, 'base-snapshot')
         target_toolchain_path = os.path.join(packaging_dir, 'target-toolchain')
         dist_toolchain_path = os.path.join(packaging_dir, 'dist-toolchain', self.snapshot_info.toolchain_name)
+        llvm_toolchain_path = os.path.join(packaging_dir, 'llvm-toolchain')
         llvm_tools_path = os.path.join('..', 'build', 'llvm-tools')
         build_sdk_path = os.path.join('..', 'build-sdk')
 
@@ -82,17 +84,33 @@ class PackageAction(Action):
         wasi_sysroot_path = os.path.join('..', 'build-sdk', 'wasi-sysroot')
         # Now dist toolchain always has cross compiler regardless of whether
         # host compiler is built by ourselves or just downloaded from swift.org
-        self.make_swift_sdk(
-            base_toolchain_path,
-            dist_toolchain_path,
-            target_toolchain_path,
-            wasi_sysroot_path)
+        if self.options.scheme in ['release-5.9', 'release-5.10']:
+            # We still need to distribute custom built cross compiler tools
+            # for 5.9 and 5.10.
+            self.make_swift_sdk(
+                base_toolchain_path,
+                dist_toolchain_path,
+                target_toolchain_path,
+                wasi_sysroot_path)
+        else:
+            shutil.rmtree(llvm_toolchain_path, ignore_errors=True)
+            os.makedirs(llvm_toolchain_path, exist_ok=True)
+            self.install_extra_llvm_tools(llvm_tools_path, llvm_toolchain_path)
+            self.make_swift_sdk(
+                base_toolchain_path,
+                llvm_toolchain_path,
+                target_toolchain_path,
+                wasi_sysroot_path)
 
         shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
 
     def rsync(self, *args):
         import subprocess
-        subprocess.check_call(['rsync'] + list(args))
+        args = ['rsync'] + list(args)
+        if self.options.dry_run:
+            print(' '.join(args))
+            return
+        subprocess.check_call(args)
 
     def copy_icu_libs(self, build_sdk_path, dist_toolchain_path):
         import shutil
@@ -110,15 +128,23 @@ class PackageAction(Action):
         print(f"=====> Installing extra LLVM tools")
         llvm_tools_bin_dir = os.path.join(llvm_tools_path, 'bin')
         install_bin_dir = os.path.join(dist_toolchain_path, 'usr', 'bin')
+        os.makedirs(install_bin_dir, exist_ok=True)
         for tool_name in WASM_SPECIFIC_TOOLS_TO_INSTALL:
             # Skip installing if the tool already exists
             if os.path.exists(os.path.join(install_bin_dir, tool_name)):
                 continue
 
             tool_path = os.path.join(llvm_tools_bin_dir, tool_name)
-            # Copy the tool while preserving the symlink
-            print(f"Copying {tool_path} to {install_bin_dir}")
-            shutil.copy(tool_path, install_bin_dir, follow_symlinks=False)
+            if os.path.islink(tool_path) and \
+                    os.path.dirname(os.readlink(tool_path)) != "":
+                # Copy the tool with following the symlink if it points to a file
+                # that does not beside the symlink
+                print(f"Copying {tool_path} to {install_bin_dir} (following symlink)")
+                shutil.copy(tool_path, install_bin_dir, follow_symlinks=True)
+            else:
+                # Copy the tool while preserving the symlink
+                print(f"Copying {tool_path} to {install_bin_dir}")
+                shutil.copy(tool_path, install_bin_dir, follow_symlinks=False)
 
             # If it's a symlink, copy the direct symlink target too
             if os.path.islink(tool_path):
@@ -132,7 +158,7 @@ class PackageAction(Action):
     def make_swift_sdk(
         self,
         base_toolchain_path: str,
-        host_toolchain_path: str,
+        host_toolchain_path: Optional[str],
         target_toolchain_path: str,
         wasi_sysroot_path: str
     ):
@@ -158,7 +184,7 @@ class PackageAction(Action):
             "--target-swift-package-path", target_toolchain_path,
             "--host-swift-package-path", host_toolchain_path,
             "--wasi-sysroot", wasi_sysroot_path,
-            "--host", self.get_default_target_triple(host_toolchain_path),
+            "--host", self.get_default_target_triple(base_toolchain_path),
             "--target", "wasm32-unknown-wasi",
             "--swift-version", self.snapshot_info.swift_version,
             "--sdk-name", self.snapshot_info.swift_sdk_name,
