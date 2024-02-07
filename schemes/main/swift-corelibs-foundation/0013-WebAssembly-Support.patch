@@ -1,4 +1,4 @@
-From a4cb22f09bcb1e632b2dd3860e337444f000d12a Mon Sep 17 00:00:00 2001
+From df81b14f5fbf27d4acb1f3c30b354efdfa95ca66 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Feb 2024 17:22:59 +0000
 Subject: [PATCH] WebAssembly Support
@@ -71,7 +71,7 @@ Subject: [PATCH] WebAssembly Support
  64 files changed, 523 insertions(+), 177 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
-index 3a4f4914..0c4319de 100644
+index 68b62a2b..f4372dd1 100644
 --- a/CoreFoundation/Base.subproj/CFRuntime.c
 +++ b/CoreFoundation/Base.subproj/CFRuntime.c
 @@ -227,18 +227,18 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
@@ -105,7 +105,7 @@ index 3a4f4914..0c4319de 100644
      [_kCFRuntimeIDCFAttributedString] = &__CFAttributedStringClass,
      [_kCFRuntimeIDCFRunArray] = &__CFRunArrayClass,
      [_kCFRuntimeIDCFCharacterSet] = &__CFCharacterSetClass,
-@@ -1314,7 +1316,9 @@ void __CFInitialize(void) {
+@@ -1316,7 +1318,9 @@ void __CFInitialize(void) {
  #endif
          }
  
@@ -115,7 +115,7 @@ index 3a4f4914..0c4319de 100644
  
          __CFOAInitialize();
          
-@@ -1785,6 +1789,18 @@ struct _NSCFXMLBridgeUntyped __NSCFXMLBridgeUntyped = {
+@@ -1787,6 +1791,18 @@ struct _NSCFXMLBridgeUntyped __NSCFXMLBridgeUntyped = {
    &kCFErrorLocalizedDescriptionKey,
  };
  
@@ -135,7 +135,7 @@ index 3a4f4914..0c4319de 100644
  CF_CROSS_PLATFORM_EXPORT void _CFDeinit(CFTypeRef cf) {
      __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index b2ba6e01..04ea85b7 100644
+index 80c881be..fdb3ea72 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 @@ -83,6 +83,8 @@
@@ -178,10 +178,10 @@ index b373875a..72a1f795 100644
  #include <stdarg.h>
  #include <assert.h>
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index c3413d67..8864ee5b 100644
+index 4b47317f..fe40426b 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
-@@ -120,6 +120,34 @@ else()
+@@ -124,6 +124,34 @@ else()
    set(FRAMEWORK_LIBRARY_TYPE STATIC)
  endif()
  
@@ -216,7 +216,7 @@ index c3413d67..8864ee5b 100644
  add_framework(CoreFoundation
                  ${FRAMEWORK_LIBRARY_TYPE}
                FRAMEWORK_DIRECTORY
-@@ -210,7 +238,6 @@ add_framework(CoreFoundation
+@@ -214,7 +242,6 @@ add_framework(CoreFoundation
                  Locale.subproj/CFDateInterval.h
                  Locale.subproj/CFLocaleInternal.h
                  PlugIn.subproj/CFBundlePriv.h
@@ -224,7 +224,7 @@ index c3413d67..8864ee5b 100644
                  String.subproj/CFCharacterSetPriv.h
                  String.subproj/CFRegularExpression.h
                  String.subproj/CFRunArray.h
-@@ -265,6 +292,7 @@ add_framework(CoreFoundation
+@@ -269,6 +296,7 @@ add_framework(CoreFoundation
                  RunLoop.subproj/CFRunLoop.h
                  RunLoop.subproj/CFSocket.h
                  # Stream
@@ -232,7 +232,7 @@ index c3413d67..8864ee5b 100644
                  Stream.subproj/CFStream.h
                  # String
                  String.subproj/CFAttributedString.h
-@@ -322,36 +350,15 @@ add_framework(CoreFoundation
+@@ -326,36 +354,15 @@ add_framework(CoreFoundation
                  Parsing.subproj/CFBinaryPList.c
                  Parsing.subproj/CFOldStylePList.c
                  Parsing.subproj/CFPropertyList.c
@@ -270,7 +270,7 @@ index c3413d67..8864ee5b 100644
                  # String
                  String.subproj/CFAttributedString.c
                  String.subproj/CFBurstTrie.c
-@@ -379,7 +386,9 @@ add_framework(CoreFoundation
+@@ -383,7 +390,9 @@ add_framework(CoreFoundation
                  URL.subproj/CFURLAccess.c
                  URL.subproj/CFURL.c
                  URL.subproj/CFURLComponents.c
@@ -281,7 +281,7 @@ index c3413d67..8864ee5b 100644
  target_compile_definitions(CoreFoundation
                             PRIVATE
                               $<$<COMPILE_LANGUAGE:ASM>:CF_CHARACTERSET_BITMAP="CharacterSets/CFCharacterSetBitmaps.bitmap">
-@@ -389,6 +398,7 @@ target_compile_definitions(CoreFoundation
+@@ -393,6 +402,7 @@ target_compile_definitions(CoreFoundation
  target_include_directories(CoreFoundation
                             PRIVATE
                               ${PROJECT_SOURCE_DIR})
@@ -289,7 +289,7 @@ index c3413d67..8864ee5b 100644
  target_link_libraries(CoreFoundation PRIVATE
    ${CMAKE_DL_LIBS}
    BlocksRuntime)
-@@ -399,6 +409,11 @@ if(HAS_LIBDISPATCH_API)
+@@ -403,6 +413,11 @@ if(HAS_LIBDISPATCH_API)
      dispatch)
  endif()
  
@@ -301,7 +301,7 @@ index c3413d67..8864ee5b 100644
  if(CMAKE_SYSTEM_NAME STREQUAL Android)
    target_link_libraries(CoreFoundation PRIVATE
      log)
-@@ -459,6 +474,8 @@ add_framework(CFXMLInterface
+@@ -463,6 +478,8 @@ add_framework(CFXMLInterface
                SOURCES
                  Parsing.subproj/CFXMLInterface.c)
  add_dependencies(CFXMLInterface CoreFoundation)
@@ -310,7 +310,7 @@ index c3413d67..8864ee5b 100644
  if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CFXMLInterface PRIVATE
      LibXml2::LibXml2)
-@@ -526,6 +543,7 @@ if(HAS_LIBDISPATCH_API)
+@@ -530,6 +547,7 @@ if(HAS_LIBDISPATCH_API)
                          PRIVATE
                            dispatch)
  endif()
@@ -318,7 +318,7 @@ index c3413d67..8864ee5b 100644
  if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CoreFoundation
                          PRIVATE
-@@ -541,6 +559,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -545,6 +563,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
                            -Xlinker;-alias_list;-Xlinker;Base.subproj/DarwinSymbolAliases;-twolevel_namespace;-sectcreate;__UNICODE;__csbitmaps;CharacterSets/CFCharacterSetBitmaps.bitmap;-sectcreate;__UNICODE;__properties;CharacterSets/CFUniCharPropertyDatabase.data;-sectcreate;__UNICODE;__data;CharacterSets/CFUnicodeData-L.mapping;-segprot;__UNICODE;r;r)
  endif()
  
@@ -1366,7 +1366,7 @@ index 67223bfc..ea97b402 100644
 +
 +#endif
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
-index fc093ce0..77509d99 100644
+index 2accd566..75f25c77 100644
 --- a/Sources/Foundation/CMakeLists.txt
 +++ b/Sources/Foundation/CMakeLists.txt
 @@ -1,3 +1,23 @@
@@ -1458,7 +1458,7 @@ index fc093ce0..77509d99 100644
    UUID.swift
    WinSDK+Extensions.swift)
  target_compile_definitions(Foundation PRIVATE
-@@ -213,6 +218,18 @@ elseif(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -218,6 +223,18 @@ elseif(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_options(Foundation PRIVATE "SHELL:-no-toolchain-stdlib-rpath")
  endif()
  

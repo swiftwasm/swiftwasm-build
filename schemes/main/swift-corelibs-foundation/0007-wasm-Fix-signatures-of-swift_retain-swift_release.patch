@@ -1,4 +1,4 @@
-From f48742663e921eb18a302ca72987265c838e6d33 Mon Sep 17 00:00:00 2001
+From 3d9b16b95b2479e7056cd27d2e5950da42e42ba8 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:20:24 +0000
 Subject: [PATCH] [wasm] Fix signatures of `swift_retain`/`swift_release`
@@ -9,7 +9,7 @@ Subject: [PATCH] [wasm] Fix signatures of `swift_retain`/`swift_release`
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFPlatform.c b/CoreFoundation/Base.subproj/CFPlatform.c
-index bc535cf4..05dab0be 100644
+index bbb3cdba..fd893462 100644
 --- a/CoreFoundation/Base.subproj/CFPlatform.c
 +++ b/CoreFoundation/Base.subproj/CFPlatform.c
 @@ -1625,7 +1625,7 @@ CF_PRIVATE int asprintf(char **ret, const char *format, ...) {
@@ -20,12 +20,12 @@ index bc535cf4..05dab0be 100644
 +extern void *swift_retain(void *);
  extern void swift_release(void *);
  
- #if !TARGET_OS_WASI
+ #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
-index 37e9e65e..1189f0b0 100644
+index 61e6b293..74605577 100644
 --- a/CoreFoundation/Base.subproj/CFRuntime.c
 +++ b/CoreFoundation/Base.subproj/CFRuntime.c
-@@ -1409,7 +1409,7 @@ int DllMain( HINSTANCE hInstance, DWORD dwReason, LPVOID pReserved ) {
+@@ -1411,7 +1411,7 @@ int DllMain( HINSTANCE hInstance, DWORD dwReason, LPVOID pReserved ) {
  #endif
  
  #if DEPLOYMENT_RUNTIME_SWIFT

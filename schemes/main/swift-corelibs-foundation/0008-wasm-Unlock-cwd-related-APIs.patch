@@ -1,4 +1,4 @@
-From 1bfee353bb91ddd9ab92a28fa6884130c8bb925f Mon Sep 17 00:00:00 2001
+From 94af5c9d09d80b8f9cee22f483fd4e39a9035303 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:23:50 +0000
 Subject: [PATCH] [wasm] Unlock cwd-related APIs
@@ -11,7 +11,7 @@ guard cwd-related APIs.
  2 files changed, 4 insertions(+), 14 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFPlatform.c b/CoreFoundation/Base.subproj/CFPlatform.c
-index 05dab0be..982c4e06 100644
+index fd893462..11b5f0cf 100644
 --- a/CoreFoundation/Base.subproj/CFPlatform.c
 +++ b/CoreFoundation/Base.subproj/CFPlatform.c
 @@ -62,11 +62,9 @@ int _CFArgc(void) { return *_NSGetArgc(); }
