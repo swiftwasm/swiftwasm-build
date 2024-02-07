@@ -1,6 +1,6 @@
-From aeecdacdcbd2b4672eba2367684e5a18734029fc Mon Sep 17 00:00:00 2001
+From 560b03a926eb3d0a7aad5280493f47957572b70d Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Sun, 4 Feb 2024 16:33:00 +0000
+Date: Wed, 7 Feb 2024 16:37:02 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
@@ -41,7 +41,6 @@ Subject: [PATCH] WebAssembly Support
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
  CoreFoundation/URL.subproj/CFURLComponents.c  |  9 ++-
  Sources/BlocksRuntime/runtime.c               |  5 +-
- Sources/CMakeLists.txt                        |  4 +-
  Sources/Foundation/Bundle.swift               | 40 ++++++++++
  Sources/Foundation/CMakeLists.txt             | 51 ++++++++-----
  Sources/Foundation/Data.swift                 | 10 +--
@@ -72,7 +71,7 @@ Subject: [PATCH] WebAssembly Support
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
  Sources/FoundationXML/XMLDocument.swift       |  2 +
  Sources/FoundationXML/XMLParser.swift         |  4 +-
- 68 files changed, 534 insertions(+), 181 deletions(-)
+ 67 files changed, 531 insertions(+), 180 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 3a4f4914..0c4319de 100644
@@ -1344,18 +1343,6 @@ index 1b7945b9..68a0d24a 100644
  
  // Called from CF to indicate MRR. Newer version uses a versioned structure, so we can add more functions
  // without defining a new entry point.
-diff --git a/Sources/CMakeLists.txt b/Sources/CMakeLists.txt
-index 94b85146..584d6bf0 100644
---- a/Sources/CMakeLists.txt
-+++ b/Sources/CMakeLists.txt
-@@ -4,4 +4,6 @@ if(BUILD_NETWORKING)
-   add_subdirectory(FoundationNetworking)
- endif()
- add_subdirectory(FoundationXML)
--add_subdirectory(Tools)
-+if(BUILD_TOOLS)
-+  add_subdirectory(Tools)
-+endif()
 diff --git a/Sources/Foundation/Bundle.swift b/Sources/Foundation/Bundle.swift
 index 67223bfc..ea97b402 100644
 --- a/Sources/Foundation/Bundle.swift
