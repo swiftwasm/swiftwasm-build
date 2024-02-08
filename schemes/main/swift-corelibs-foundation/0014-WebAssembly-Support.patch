@@ -1,4 +1,4 @@
-From cd8618e050f310b611c2e224c3f683ef890bef8a Mon Sep 17 00:00:00 2001
+From 1d42abfc68592054ee40beb6b105ebef3399de29 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Feb 2024 17:22:59 +0000
 Subject: [PATCH] WebAssembly Support
@@ -30,7 +30,7 @@ Subject: [PATCH] WebAssembly Support
  .../CFStringEncodingConverter.c               | 12 ++--
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
  Sources/Foundation/Bundle.swift               | 40 +++++++++++
- Sources/Foundation/CMakeLists.txt             | 45 ++++++++----
+ Sources/Foundation/CMakeLists.txt             | 33 ++++++---
  Sources/Foundation/Data.swift                 | 10 ++-
  Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++
  .../DispatchData+DataProtocol.swift           |  3 +-
@@ -39,8 +39,9 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/NSCharacterSet.swift       |  6 +-
  Sources/Foundation/NSData.swift               |  8 +--
  Sources/Foundation/NSKeyedArchiver.swift      |  8 ++-
+ Sources/Foundation/NSNotification.swift       | 15 ++++
  Sources/Foundation/NSNumber.swift             |  4 ++
- Sources/Foundation/NSObjCRuntime.swift        | 48 +++++++------
+ Sources/Foundation/NSObjCRuntime.swift        | 38 +++++-----
  Sources/Foundation/NSPathUtilities.swift      | 31 +++++---
  Sources/Foundation/NSSet.swift                |  4 ++
  Sources/Foundation/NSString.swift             | 10 ++-
@@ -48,16 +49,19 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/NSSwiftRuntime.swift       |  3 +
  Sources/Foundation/NSTimeZone.swift           | 10 +--
  Sources/Foundation/NSURL.swift                | 27 +++++--
- Sources/Foundation/Operation.swift            |  2 +
+ Sources/Foundation/NotificationQueue.swift    | 13 +++-
+ Sources/Foundation/Operation.swift            |  9 +++
+ Sources/Foundation/Port.swift                 |  7 ++
+ Sources/Foundation/Process.swift              | 11 ++-
  Sources/Foundation/ProcessInfo.swift          | 10 +++
  Sources/Foundation/Progress.swift             |  2 +
  .../PropertyListSerialization.swift           |  2 +
- Sources/Foundation/RunLoop.swift              | 21 +++++-
+ Sources/Foundation/RunLoop.swift              |  9 ++-
  Sources/Foundation/ScannerAPI.swift           |  2 +-
  Sources/Foundation/URL.swift                  |  9 ++-
  Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
- 53 files changed, 508 insertions(+), 159 deletions(-)
+ 57 files changed, 536 insertions(+), 150 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..f4372dd1 100644
@@ -1134,22 +1138,16 @@ index 67223bfc..ea97b402 100644
 +
 +#endif
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
-index 2accd566..9abdd2b7 100644
+index 2accd566..0c4c1e16 100644
 --- a/Sources/Foundation/CMakeLists.txt
 +++ b/Sources/Foundation/CMakeLists.txt
-@@ -1,3 +1,21 @@
+@@ -1,3 +1,15 @@
 +if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
 +list(APPEND FOUNDATION_WASI_UNAVAILABLE_SOURCES
 +  FileManager+POSIX.swift
 +  FileManager+Win32.swift
 +  FileManager+XDG.swift
 +  Host.swift
-+  Notification.swift
-+  NotificationQueue.swift
-+  NSNotification.swift
-+  Port.swift
-+  PortMessage.swift
-+  Process.swift
 +  PropertyListEncoder.swift
 +  Stream.swift
 +  Thread.swift
@@ -1159,7 +1157,7 @@ index 2accd566..9abdd2b7 100644
  add_library(Foundation
    AffineTransform.swift
    Array.swift
-@@ -32,13 +50,9 @@ add_library(Foundation
+@@ -32,13 +44,9 @@ add_library(Foundation
    ExtraStringAPIs.swift
    FileHandle.swift
    FileManager.swift
@@ -1173,30 +1171,7 @@ index 2accd566..9abdd2b7 100644
    IndexPath.swift
    IndexSet.swift
    ISO8601DateFormatter.swift
-@@ -52,8 +66,6 @@ add_library(Foundation
-   Measurement.swift
-   MeasurementFormatter.swift
-   Morphology.swift
--  Notification.swift
--  NotificationQueue.swift
-   NSArray.swift
-   NSAttributedString.swift
-   NSCache.swift
-@@ -90,7 +102,6 @@ add_library(Foundation
-   NSLock.swift
-   NSLog.swift
-   NSMeasurement.swift
--  NSNotification.swift
-   NSNull.swift
-   NSNumber.swift
-   NSObjCRuntime.swift
-@@ -121,23 +132,17 @@ add_library(Foundation
-   PersonNameComponents.swift
-   PersonNameComponentsFormatter.swift
-   Pointers+DataProtocol.swift
--  Port.swift
--  PortMessage.swift
--  Process.swift
+@@ -127,17 +135,14 @@ add_library(Foundation
    ProcessInfo.swift
    Progress.swift
    ProgressFraction.swift
@@ -1639,6 +1614,62 @@ index 8433b138..cddc5d30 100644
      }
      
      /// Returns the encoded data for the archiver.
+diff --git a/Sources/Foundation/NSNotification.swift b/Sources/Foundation/NSNotification.swift
+index 15b2e78f..8ed392b6 100644
+--- a/Sources/Foundation/NSNotification.swift
++++ b/Sources/Foundation/NSNotification.swift
+@@ -86,7 +86,9 @@ private class NSNotificationReceiver : NSObject {
+     fileprivate var name: Notification.Name?
+     fileprivate var block: ((Notification) -> Void)?
+     fileprivate var sender: AnyObject?
++    #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
+     fileprivate var queue: OperationQueue?
++    #endif
+ }
+ 
+ private let _defaultCenter: NotificationCenter = NotificationCenter()
+@@ -127,12 +129,16 @@ open class NotificationCenter: NSObject {
+                     return
+                 }
+                 
++                #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
+                 if let queue = observer.queue, queue != OperationQueue.current {
+                     queue.addOperation { block(notification) }
+                     queue.waitUntilAllOperationsAreFinished()
+                 } else {
+                     block(notification)
+                 }
++                #else
++                block(notification)
++                #endif
+             }
+         }
+     }
+@@ -169,15 +175,24 @@ open class NotificationCenter: NSObject {
+ 
+     @available(*, unavailable, renamed: "addObserver(forName:object:queue:using:)")
+     open func addObserver(forName name: NSNotification.Name?, object obj: Any?, queue: OperationQueue?, usingBlock block: @escaping (Notification) -> Void) -> NSObjectProtocol {
++        #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
+         return addObserver(forName: name, object: obj, queue: queue, using: block)
++        #else
++        fatalError("This method is unavailable on this platform.")
++        #endif
+     }
+ 
++    #if !SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
++    @available(*, unavailable, message: "This method is unavailable on this platform.")
++    #endif
+     open func addObserver(forName name: NSNotification.Name?, object obj: Any?, queue: OperationQueue?, using block: @escaping (Notification) -> Void) -> NSObjectProtocol {
+         let newObserver = NSNotificationReceiver()
+         newObserver.name = name
+         newObserver.block = block
+         newObserver.sender = __SwiftValue.store(obj)
++        #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
+         newObserver.queue = queue
++        #endif
+         
+         let notificationNameIdentifier: AnyHashable = name.map({ AnyHashable($0) }) ?? _nilHashable
+         let senderIdentifier: ObjectIdentifier = newObserver.sender.map({ ObjectIdentifier($0) }) ?? _nilIdentifier
 diff --git a/Sources/Foundation/NSNumber.swift b/Sources/Foundation/NSNumber.swift
 index 883a44c2..6b5b51ba 100644
 --- a/Sources/Foundation/NSNumber.swift
@@ -1676,18 +1707,19 @@ index 883a44c2..6b5b51ba 100644
  
  extension CFNumber : _NSBridgeable {
 diff --git a/Sources/Foundation/NSObjCRuntime.swift b/Sources/Foundation/NSObjCRuntime.swift
-index bc388d40..765ad6f1 100644
+index bc388d40..a584a556 100644
 --- a/Sources/Foundation/NSObjCRuntime.swift
 +++ b/Sources/Foundation/NSObjCRuntime.swift
-@@ -261,40 +261,19 @@ internal let _NSClassesRenamedByObjCAPINotesInNetworkingOrXML: [(swiftName: Stri
+@@ -261,40 +261,25 @@ internal let _NSClassesRenamedByObjCAPINotesInNetworkingOrXML: [(swiftName: Stri
  
  internal let _NSClassesRenamedByObjCAPINotes: [(class: AnyClass, objCName: String)] = {
      var map: [(AnyClass, String)] = [
 -        (ProcessInfo.self, "NSProcessInfo"),
--        (Port.self, "NSPort"),
--        (PortMessage.self, "NSPortMessage"),
+         (Port.self, "NSPort"),
+         (PortMessage.self, "NSPortMessage"),
 -        (SocketPort.self, "NSSocketPort"),
 -        (Bundle.self, "NSBundle"),
++        (ProcessInfo.self, "NSProcessInfo"),
          (ByteCountFormatter.self, "NSByteCountFormatter"),
 -        (Host.self, "NSHost"),
          (DateFormatter.self, "NSDateFormatter"),
@@ -1701,7 +1733,7 @@ index bc388d40..765ad6f1 100644
          (JSONSerialization.self, "NSJSONSerialization"),
          (LengthFormatter.self, "NSLengthFormatter"),
          (MassFormatter.self, "NSMassFormatter"),
--        (NotificationQueue.self, "NSNotificationQueue"),
+         (NotificationQueue.self, "NSNotificationQueue"),
          (NumberFormatter.self, "NSNumberFormatter"),
 -        (Operation.self, "NSOperation"),
 -        (OperationQueue.self, "NSOperationQueue"),
@@ -1710,17 +1742,17 @@ index bc388d40..765ad6f1 100644
 -        (Pipe.self, "NSPipe"),
 -        (Progress.self, "NSProgress"),
          (PropertyListSerialization.self, "NSPropertyListSerialization"),
--        (RunLoop.self, "NSRunLoop"),
+         (RunLoop.self, "NSRunLoop"),
          (Scanner.self, "NSScanner"),
 -        (Stream.self, "NSStream"),
 -        (Thread.self, "NSThread"),
--        (Timer.self, "NSTimer"),
+         (Timer.self, "NSTimer"),
 -        (UserDefaults.self, "NSUserDefaults"),
 -        (FileManager.DirectoryEnumerator.self, "NSDirectoryEnumerator"),
          (Dimension.self, "NSDimension"),
          (Unit.self, "NSUnit"),
          (UnitAcceleration.self, "NSUnitAcceleration"),
-@@ -322,8 +301,33 @@ internal let _NSClassesRenamedByObjCAPINotes: [(class: AnyClass, objCName: Strin
+@@ -322,8 +307,27 @@ internal let _NSClassesRenamedByObjCAPINotes: [(class: AnyClass, objCName: Strin
          (UnitVolume.self, "NSUnitVolume"),
          (UnitTemperature.self, "NSUnitTemperature"),
      ]
@@ -1736,20 +1768,14 @@ index bc388d40..765ad6f1 100644
 +        (FileManager.DirectoryEnumerator.self, "NSDirectoryEnumerator"),
 +        (Host.self, "NSHost"),
 +        (InputStream.self, "NSInputStream"),
-+        (NotificationQueue.self, "NSNotificationQueue"),
 +        (Operation.self, "NSOperation"),
 +        (OperationQueue.self, "NSOperationQueue"),
 +        (OutputStream.self, "NSOutputStream"),
 +        (Pipe.self, "NSPipe"),
-+        (Port.self, "NSPort"),
-+        (PortMessage.self, "NSPortMessage"),
 +        (SocketPort.self, "NSSocketPort"),
-+        (ProcessInfo.self, "NSProcessInfo"),
 +        (Progress.self, "NSProgress"),
-+        (RunLoop.self, "NSRunLoop"),
 +        (Stream.self, "NSStream"),
 +        (Thread.self, "NSThread"),
-+        (Timer.self, "NSTimer"),
 +        (UserDefaults.self, "NSUserDefaults"),
 +    ]
  #endif
@@ -2205,23 +2231,135 @@ index 9b121d66..1b99cf0d 100644
      open var resolvingSymlinksInPath: URL? {
          return _resolveSymlinksInPath(excludeSystemDirs: true)
      }
+diff --git a/Sources/Foundation/NotificationQueue.swift b/Sources/Foundation/NotificationQueue.swift
+index a6cc935e..9281ffb0 100644
+--- a/Sources/Foundation/NotificationQueue.swift
++++ b/Sources/Foundation/NotificationQueue.swift
+@@ -47,21 +47,33 @@ open class NotificationQueue: NSObject {
+         }
+     }()
+ 
++    #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
+     // The NSNotificationQueue instance is associated with current thread.
+     // The _notificationQueueList represents a list of notification queues related to the current thread.
+     private static var _notificationQueueList = NSThreadSpecific<NSMutableArray>()
++    #endif
+     internal static var notificationQueueList: NotificationQueueList {
++        #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
+         return _notificationQueueList.get() {
+             return NSMutableArray()
+         }
++        #else
++        return NSMutableArray()
++        #endif
+     }
+ 
++    #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
+     // The default notification queue for the current thread.
+     private static var _defaultQueue = NSThreadSpecific<NotificationQueue>()
++    #endif
+     open class var `default`: NotificationQueue {
++        #if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
+         return _defaultQueue.get() {
+             return NotificationQueue(notificationCenter: NotificationCenter.default)
+         }
++        #else
++        return NotificationQueue(notificationCenter: NotificationCenter.default)
++        #endif
+     }
+     
+     public init(notificationCenter: NotificationCenter) {
+@@ -174,5 +186,4 @@ open class NotificationQueue: NSObject {
+         }
+         self.notificationQueueList.remove(notificationQueue)
+     }
+-
+ }
 diff --git a/Sources/Foundation/Operation.swift b/Sources/Foundation/Operation.swift
-index 0945253b..d6a5d7b8 100644
+index 0945253b..379cbd9d 100644
 --- a/Sources/Foundation/Operation.swift
 +++ b/Sources/Foundation/Operation.swift
 @@ -7,6 +7,7 @@
  // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
  //
  
-+#if !os(WASI)
++#if SWIFT_CORELIBS_FOUNDATION_HAS_THREADS
  import Dispatch
  
  internal let _NSOperationIsFinished = "isFinished"
-@@ -1438,3 +1439,4 @@ extension OperationQueue {
+@@ -1438,3 +1439,11 @@ extension OperationQueue {
+         }
+     }
+ }
++#else
++@available(*, unavailable, message: "Operation is not available on this platform")
++public typealias Operation = AnyObject
++@available(*, unavailable, message: "BlockOperation is not available on this platform")
++public typealias BlockOperation = AnyObject
++@available(*, unavailable, message: "OperationQueue is not available on this platform")
++public typealias OperationQueue = AnyObject
++#endif
+diff --git a/Sources/Foundation/Port.swift b/Sources/Foundation/Port.swift
+index c481f966..0ec34250 100644
+--- a/Sources/Foundation/Port.swift
++++ b/Sources/Foundation/Port.swift
+@@ -351,6 +351,12 @@ struct DarwinAddress: Hashable {
+ 
+ // MARK: SocketPort
+ 
++#if os(WASI)
++@available(*, unavailable, message: "SocketPort is not available on this platform.")
++open class SocketPort : Port {}
++
++#else
++
+ // A subclass of Port which can be used for remote
+ // message sending on all platforms.
+ 
+@@ -1084,6 +1090,7 @@ open class SocketPort : Port {
          }
      }
  }
 +#endif
+ 
+ fileprivate extension Data {
+     subscript(offset value: Int) -> Data.Element {
+diff --git a/Sources/Foundation/Process.swift b/Sources/Foundation/Process.swift
+index 542cc94c..72292bca 100644
+--- a/Sources/Foundation/Process.swift
++++ b/Sources/Foundation/Process.swift
+@@ -64,7 +64,7 @@ extension CFSocketError {
+     }
+ }
+ 
+-#if !canImport(Darwin) && !os(Windows)
++#if !canImport(Darwin) && !os(Windows) && !os(WASI)
+ private func findMaximumOpenFromProcSelfFD() -> CInt? {
+     guard let dirPtr = opendir("/proc/self/fd") else {
+         return nil
+@@ -219,6 +219,14 @@ private func quoteWindowsCommandLine(_ commandLine: [String]) -> String {
+ }
+ #endif
+ 
++#if os(WASI)
++open class Process: NSObject {
++    @available(*, unavailable)
++    public override init() {
++        fatalError("Process is not supported on WASI")
++    }
++}
++#else
+ open class Process: NSObject {
+     private static func setup() {
+         struct Once {
+@@ -1169,6 +1177,7 @@ open class Process: NSObject {
+         }
+     }
+ }
++#endif
+ 
+ extension Process {
+     
 diff --git a/Sources/Foundation/ProcessInfo.swift b/Sources/Foundation/ProcessInfo.swift
 index dcbf6e1e..bb813b05 100644
 --- a/Sources/Foundation/ProcessInfo.swift
@@ -2313,36 +2451,10 @@ index 7f742a6a..5f93be38 100644
      open class func propertyList(from data: Data, options opt: ReadOptions = [], format: UnsafeMutablePointer<PropertyListFormat>?) throws -> Any {
          var fmt = kCFPropertyListBinaryFormat_v1_0
 diff --git a/Sources/Foundation/RunLoop.swift b/Sources/Foundation/RunLoop.swift
-index 5ad595e6..ccd4ce0c 100644
+index 5ad595e6..bb79bb77 100644
 --- a/Sources/Foundation/RunLoop.swift
 +++ b/Sources/Foundation/RunLoop.swift
-@@ -78,6 +78,17 @@ open class RunLoop: NSObject {
-         _cfRunLoopStorage = cfObject
-     }
- 
-+    #if os(WASI)
-+    @available(*, unavailable, message: "RunLoop is not available on WASI")
-+    open class var current: RunLoop {
-+        fatalError("RunLoop is not available on WASI")
-+    }
-+
-+    @available(*, unavailable, message: "RunLoop is not available on WASI")
-+    open class var main: RunLoop {
-+        fatalError("RunLoop is not available on WASI")
-+    }
-+    #else
-     open class var current: RunLoop {
-         return _CFRunLoopGet2(CFRunLoopGetCurrent()) as! RunLoop
-     }
-@@ -85,6 +96,7 @@ open class RunLoop: NSObject {
-     open class var main: RunLoop {
-         return _CFRunLoopGet2(_mainRunLoop._cfRunLoop) as! RunLoop
-     }
-+    #endif // os(WASI)
- 
-     open var currentMode: RunLoop.Mode? {
-         if let mode = CFRunLoopCopyCurrentMode(_cfRunLoop) {
-@@ -117,10 +129,16 @@ open class RunLoop: NSObject {
+@@ -117,10 +117,16 @@ open class RunLoop: NSObject {
          CFRunLoopAddTimer(_cfRunLoop, timer._cfObject, mode._cfStringUniquingKnown)
      }
  
@@ -2360,7 +2472,7 @@ index 5ad595e6..ccd4ce0c 100644
      open func add(_ aPort: Port, forMode mode: RunLoop.Mode) {
          var shouldSchedule = false
          monitoredPortsWithModesLock.synchronized {
-@@ -175,6 +193,7 @@ open class RunLoop: NSObject {
+@@ -175,6 +181,7 @@ open class RunLoop: NSObject {
              aPort.remove(from: self, forMode: mode)
          }
      }
