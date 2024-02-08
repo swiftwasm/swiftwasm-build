@@ -1,4 +1,4 @@
-From 6c64045bb8ab7a80c2b11d9b2edc13bbed0ed8d6 Mon Sep 17 00:00:00 2001
+From cd8618e050f310b611c2e224c3f683ef890bef8a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Feb 2024 17:22:59 +0000
 Subject: [PATCH] WebAssembly Support
@@ -8,45 +8,45 @@ Subject: [PATCH] WebAssembly Support
  .../Base.subproj/ForFoundationOnly.h          |  4 +-
  .../Base.subproj/ForSwiftFoundationOnly.h     |  4 +-
  .../SwiftRuntime/CoreFoundation.h             | 13 ++++
- CoreFoundation/CMakeLists.txt                 | 73 +++++++++++++------
+ CoreFoundation/CMakeLists.txt                 | 71 +++++++++++++------
  CoreFoundation/Locale.subproj/CFLocale.c      |  6 +-
- CoreFoundation/NumberDate.subproj/CFDate.c    | 12 +--
- .../Parsing.subproj/CFPropertyList.c          | 11 ++-
+ CoreFoundation/NumberDate.subproj/CFDate.c    | 12 ++--
+ .../Parsing.subproj/CFPropertyList.c          | 11 +--
  .../PlugIn.subproj/CFBundle_BinaryTypes.h     |  1 +
  .../PlugIn.subproj/CFBundle_Executable.c      |  2 +-
- .../PlugIn.subproj/CFBundle_InfoPlist.c       |  8 +-
+ .../PlugIn.subproj/CFBundle_InfoPlist.c       |  8 ++-
  .../PlugIn.subproj/CFBundle_Internal.h        |  3 +
- .../PlugIn.subproj/CFBundle_Resources.c       |  4 +
- .../Preferences.subproj/CFPreferences.c       | 16 +++-
+ .../PlugIn.subproj/CFBundle_Resources.c       |  4 ++
+ .../Preferences.subproj/CFPreferences.c       | 16 ++++-
  .../CFXMLPreferencesDomain.c                  |  2 +-
  CoreFoundation/RunLoop.subproj/CFRunLoop.c    |  2 +-
  CoreFoundation/Stream.subproj/CFStream.h      |  6 +-
- .../String.subproj/CFCharacterSetData.S       |  8 ++
- CoreFoundation/String.subproj/CFString.c      | 16 ++--
+ .../String.subproj/CFCharacterSetData.S       |  8 +++
+ CoreFoundation/String.subproj/CFString.c      | 16 ++---
  .../String.subproj/CFStringUtilities.c        | 18 ++---
- .../CFUniCharPropertyDatabase.S               |  8 ++
- CoreFoundation/String.subproj/CFUnicodeData.S |  8 ++
+ .../CFUniCharPropertyDatabase.S               |  8 +++
+ CoreFoundation/String.subproj/CFUnicodeData.S |  8 +++
  .../CFPlatformConverters.c                    |  4 +-
- .../CFStringEncodingConverter.c               | 12 +--
+ .../CFStringEncodingConverter.c               | 12 ++--
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
- Sources/Foundation/Bundle.swift               | 40 ++++++++++
- Sources/Foundation/CMakeLists.txt             | 47 ++++++++----
- Sources/Foundation/Data.swift                 | 10 +--
+ Sources/Foundation/Bundle.swift               | 40 +++++++++++
+ Sources/Foundation/CMakeLists.txt             | 45 ++++++++----
+ Sources/Foundation/Data.swift                 | 10 ++-
  Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++
  .../DispatchData+DataProtocol.swift           |  3 +-
  Sources/Foundation/FileHandle.swift           | 22 +++++-
  Sources/Foundation/FileManager.swift          |  2 +
  Sources/Foundation/NSCharacterSet.swift       |  6 +-
- Sources/Foundation/NSData.swift               |  8 +-
- Sources/Foundation/NSKeyedArchiver.swift      |  8 +-
- Sources/Foundation/NSNumber.swift             |  4 +
- Sources/Foundation/NSObjCRuntime.swift        | 48 ++++++------
+ Sources/Foundation/NSData.swift               |  8 +--
+ Sources/Foundation/NSKeyedArchiver.swift      |  8 ++-
+ Sources/Foundation/NSNumber.swift             |  4 ++
+ Sources/Foundation/NSObjCRuntime.swift        | 48 +++++++------
  Sources/Foundation/NSPathUtilities.swift      | 31 +++++---
- Sources/Foundation/NSSet.swift                |  4 +
+ Sources/Foundation/NSSet.swift                |  4 ++
  Sources/Foundation/NSString.swift             | 10 ++-
- Sources/Foundation/NSStringAPI.swift          |  4 +
+ Sources/Foundation/NSStringAPI.swift          |  4 ++
  Sources/Foundation/NSSwiftRuntime.swift       |  3 +
- Sources/Foundation/NSTimeZone.swift           | 10 ++-
+ Sources/Foundation/NSTimeZone.swift           | 10 +--
  Sources/Foundation/NSURL.swift                | 27 +++++--
  Sources/Foundation/Operation.swift            |  2 +
  Sources/Foundation/ProcessInfo.swift          | 10 +++
@@ -57,7 +57,7 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/URL.swift                  |  9 ++-
  Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
- 53 files changed, 510 insertions(+), 161 deletions(-)
+ 53 files changed, 508 insertions(+), 159 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..f4372dd1 100644
@@ -206,7 +206,7 @@ index b373875a..6ad26f20 100644
  #include <CoreFoundation/CFSocket.h>
  #include <CoreFoundation/CFMachPort.h>
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index 4b47317f..fe40426b 100644
+index 4b47317f..453f82d1 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
 @@ -124,6 +124,34 @@ else()
@@ -244,22 +244,6 @@ index 4b47317f..fe40426b 100644
  add_framework(CoreFoundation
                  ${FRAMEWORK_LIBRARY_TYPE}
                FRAMEWORK_DIRECTORY
-@@ -214,7 +242,6 @@ add_framework(CoreFoundation
-                 Locale.subproj/CFDateInterval.h
-                 Locale.subproj/CFLocaleInternal.h
-                 PlugIn.subproj/CFBundlePriv.h
--                Stream.subproj/CFStreamPriv.h
-                 String.subproj/CFCharacterSetPriv.h
-                 String.subproj/CFRegularExpression.h
-                 String.subproj/CFRunArray.h
-@@ -269,6 +296,7 @@ add_framework(CoreFoundation
-                 RunLoop.subproj/CFRunLoop.h
-                 RunLoop.subproj/CFSocket.h
-                 # Stream
-+                Stream.subproj/CFStreamPriv.h
-                 Stream.subproj/CFStream.h
-                 # String
-                 String.subproj/CFAttributedString.h
 @@ -326,36 +354,15 @@ add_framework(CoreFoundation
                  Parsing.subproj/CFBinaryPList.c
                  Parsing.subproj/CFOldStylePList.c
@@ -1150,7 +1134,7 @@ index 67223bfc..ea97b402 100644
 +
 +#endif
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
-index 2accd566..9c8dc27d 100644
+index 2accd566..9abdd2b7 100644
 --- a/Sources/Foundation/CMakeLists.txt
 +++ b/Sources/Foundation/CMakeLists.txt
 @@ -1,3 +1,21 @@
@@ -1213,12 +1197,11 @@ index 2accd566..9c8dc27d 100644
 -  Port.swift
 -  PortMessage.swift
 -  Process.swift
--  ProcessInfo.swift
+   ProcessInfo.swift
    Progress.swift
    ProgressFraction.swift
 -  PropertyListEncoder.swift
    PropertyListSerialization.swift
-+  ProcessInfo.swift
    ReferenceConvertible.swift
    RunLoop.swift
    Scanner.swift
