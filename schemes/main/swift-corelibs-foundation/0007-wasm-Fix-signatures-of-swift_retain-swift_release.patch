@@ -1,4 +1,4 @@
-From 3d9b16b95b2479e7056cd27d2e5950da42e42ba8 Mon Sep 17 00:00:00 2001
+From 6e19f0dd7080950ea2cea39e743a95de84c344e7 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:20:24 +0000
 Subject: [PATCH] [wasm] Fix signatures of `swift_retain`/`swift_release`

@@ -1,4 +1,4 @@
-From 38a2717b9dd9bc37d55428e98357f3de783e6e0e Mon Sep 17 00:00:00 2001
+From 2ce10b7610e4962f6c5cb9fa12c951e9816c8af4 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:31:06 +0000
 Subject: [PATCH] [wasm] Use `__wasilibc_get_environ` to get environ

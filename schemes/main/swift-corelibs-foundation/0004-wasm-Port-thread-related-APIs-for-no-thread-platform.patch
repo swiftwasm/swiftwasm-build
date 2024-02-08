@@ -1,4 +1,4 @@
-From c5d9ac3f9d224d05c5fd7a1445ef1f46d072610e Mon Sep 17 00:00:00 2001
+From 0cd2af1030baa1ff69739483c937884eed885a4a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 29 Oct 2023 00:39:31 +0000
 Subject: [PATCH] [wasm] Port thread-related APIs for no thread platform
