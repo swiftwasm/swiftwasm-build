@@ -1,34 +1,26 @@
-From 6e955a69783484a314e8675f52eb1530f199bfed Mon Sep 17 00:00:00 2001
+From 6c64045bb8ab7a80c2b11d9b2edc13bbed0ed8d6 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Feb 2024 17:22:59 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
  CoreFoundation/Base.subproj/CFRuntime.c       | 22 +++++-
+ .../Base.subproj/ForFoundationOnly.h          |  4 +-
  .../Base.subproj/ForSwiftFoundationOnly.h     |  4 +-
- .../SwiftRuntime/CoreFoundation.h             | 10 +++
+ .../SwiftRuntime/CoreFoundation.h             | 13 ++++
  CoreFoundation/CMakeLists.txt                 | 73 +++++++++++++------
  CoreFoundation/Locale.subproj/CFLocale.c      |  6 +-
  CoreFoundation/NumberDate.subproj/CFDate.c    | 12 +--
  .../Parsing.subproj/CFPropertyList.c          | 11 ++-
- CoreFoundation/PlugIn.subproj/CFBundlePriv.h  |  2 +-
- .../PlugIn.subproj/CFBundle_BinaryTypes.h     |  3 +-
+ .../PlugIn.subproj/CFBundle_BinaryTypes.h     |  1 +
  .../PlugIn.subproj/CFBundle_Executable.c      |  2 +-
  .../PlugIn.subproj/CFBundle_InfoPlist.c       |  8 +-
- .../PlugIn.subproj/CFBundle_Internal.h        |  5 +-
+ .../PlugIn.subproj/CFBundle_Internal.h        |  3 +
  .../PlugIn.subproj/CFBundle_Resources.c       |  4 +
- .../PlugIn.subproj/CFPlugIn_Factory.h         |  2 +-
  .../Preferences.subproj/CFPreferences.c       | 16 +++-
  .../CFXMLPreferencesDomain.c                  |  2 +-
- CoreFoundation/RunLoop.subproj/CFMachPort.h   |  2 +-
- .../RunLoop.subproj/CFMachPort_Lifetime.h     |  2 +-
- .../RunLoop.subproj/CFMessagePort.h           |  2 +-
- CoreFoundation/RunLoop.subproj/CFRunLoop.h    |  2 +-
- CoreFoundation/RunLoop.subproj/CFSocket.h     |  2 +-
- CoreFoundation/Stream.subproj/CFStream.h      |  8 +-
- .../Stream.subproj/CFStreamAbstract.h         |  2 +-
- .../Stream.subproj/CFStreamInternal.h         |  2 +-
- CoreFoundation/Stream.subproj/CFStreamPriv.h  |  2 +-
+ CoreFoundation/RunLoop.subproj/CFRunLoop.c    |  2 +-
+ CoreFoundation/Stream.subproj/CFStream.h      |  6 +-
  .../String.subproj/CFCharacterSetData.S       |  8 ++
  CoreFoundation/String.subproj/CFString.c      | 16 ++--
  .../String.subproj/CFStringUtilities.c        | 18 ++---
@@ -38,7 +30,7 @@ Subject: [PATCH] WebAssembly Support
  .../CFStringEncodingConverter.c               | 12 +--
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
  Sources/Foundation/Bundle.swift               | 40 ++++++++++
- Sources/Foundation/CMakeLists.txt             | 51 ++++++++-----
+ Sources/Foundation/CMakeLists.txt             | 47 ++++++++----
  Sources/Foundation/Data.swift                 | 10 +--
  Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++
  .../DispatchData+DataProtocol.swift           |  3 +-
@@ -60,11 +52,12 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/ProcessInfo.swift          | 10 +++
  Sources/Foundation/Progress.swift             |  2 +
  .../PropertyListSerialization.swift           |  2 +
+ Sources/Foundation/RunLoop.swift              | 21 +++++-
  Sources/Foundation/ScannerAPI.swift           |  2 +-
  Sources/Foundation/URL.swift                  |  9 ++-
  Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
- 60 files changed, 500 insertions(+), 171 deletions(-)
+ 53 files changed, 510 insertions(+), 161 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..f4372dd1 100644
@@ -130,6 +123,34 @@ index 68b62a2b..f4372dd1 100644
  // Call out to the CF-level finalizer, because the object is going to go away.
  CF_CROSS_PLATFORM_EXPORT void _CFDeinit(CFTypeRef cf) {
      __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
+diff --git a/CoreFoundation/Base.subproj/ForFoundationOnly.h b/CoreFoundation/Base.subproj/ForFoundationOnly.h
+index 40847559..86fa81ec 100644
+--- a/CoreFoundation/Base.subproj/ForFoundationOnly.h
++++ b/CoreFoundation/Base.subproj/ForFoundationOnly.h
+@@ -28,10 +28,8 @@
+ #include <CoreFoundation/CFBag.h>
+ #include <CoreFoundation/CFCalendar.h>
+ 
+-#if !TARGET_OS_WASI
+ #include <CoreFoundation/CFStreamPriv.h>
+ #include <CoreFoundation/CFRuntime.h>
+-#endif
+ #include <math.h>
+ #include <limits.h>
+ 
+@@ -651,11 +649,11 @@ CF_CROSS_PLATFORM_EXPORT void _CFURLInitWithFileSystemPathRelativeToBase(CFURLRe
+ CF_CROSS_PLATFORM_EXPORT Boolean _CFURLInitWithURLString(CFURLRef url, CFStringRef string, Boolean checkForLegalCharacters, _Nullable CFURLRef baseURL);
+ CF_CROSS_PLATFORM_EXPORT Boolean _CFURLInitAbsoluteURLWithBytes(CFURLRef url, const UInt8 *relativeURLBytes, CFIndex length, CFStringEncoding encoding, _Nullable CFURLRef baseURL);
+ 
+-#if !TARGET_OS_WASI
+ CF_EXPORT Boolean _CFRunLoopFinished(CFRunLoopRef rl, CFStringRef mode);
+ CF_EXPORT CFTypeRef _CFRunLoopGet2(CFRunLoopRef rl);
+ CF_EXPORT Boolean _CFRunLoopIsCurrent(CFRunLoopRef rl);
+ 
++#if !TARGET_OS_WASI
+ CF_EXPORT CFIndex _CFStreamInstanceSize(void);
+ CF_EXPORT void _CFReadStreamInitialize(CFReadStreamRef readStream);
+ CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 index 80c881be..fdb3ea72 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
@@ -153,7 +174,7 @@ index 80c881be..fdb3ea72 100644
  #endif
  CF_CROSS_PLATFORM_EXPORT void *_CFReallocf(void *ptr, size_t size);
 diff --git a/CoreFoundation/Base.subproj/SwiftRuntime/CoreFoundation.h b/CoreFoundation/Base.subproj/SwiftRuntime/CoreFoundation.h
-index b373875a..72a1f795 100644
+index b373875a..6ad26f20 100644
 --- a/CoreFoundation/Base.subproj/SwiftRuntime/CoreFoundation.h
 +++ b/CoreFoundation/Base.subproj/SwiftRuntime/CoreFoundation.h
 @@ -22,6 +22,16 @@
@@ -173,6 +194,17 @@ index b373875a..72a1f795 100644
  #include <sys/types.h>
  #include <stdarg.h>
  #include <assert.h>
+@@ -91,7 +101,10 @@
+ #include <CoreFoundation/CFPlugIn.h>
+ #include <CoreFoundation/CFMessagePort.h>
+ #include <CoreFoundation/CFPreferences.h>
++#endif
++
+ #include <CoreFoundation/CFRunLoop.h>
++#if !TARGET_OS_WASI
+ #include <CoreFoundation/CFStream.h>
+ #include <CoreFoundation/CFSocket.h>
+ #include <CoreFoundation/CFMachPort.h>
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
 index 4b47317f..fe40426b 100644
 --- a/CoreFoundation/CMakeLists.txt
@@ -473,32 +505,10 @@ index 1a402990..9c6d3ae0 100644
  CFIndex CFPropertyListWrite(CFPropertyListRef propertyList, CFWriteStreamRef stream, CFPropertyListFormat format, CFOptionFlags options, CFErrorRef *error) {
      CFAssert1(stream != NULL, __kCFLogAssertion, "%s(): NULL stream not allowed", __PRETTY_FUNCTION__);
      CFAssert1(format != kCFPropertyListOpenStepFormat, __kCFLogAssertion, "%s(): kCFPropertyListOpenStepFormat not supported for writing", __PRETTY_FUNCTION__);
-diff --git a/CoreFoundation/PlugIn.subproj/CFBundlePriv.h b/CoreFoundation/PlugIn.subproj/CFBundlePriv.h
-index 3edfdf9b..f5c63d7c 100644
---- a/CoreFoundation/PlugIn.subproj/CFBundlePriv.h
-+++ b/CoreFoundation/PlugIn.subproj/CFBundlePriv.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFBUNDLEPRIV__)
-+#if !defined(__COREFOUNDATION_CFBUNDLEPRIV__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFBUNDLEPRIV__ 1
- 
- #include <CoreFoundation/CFBase.h>
 diff --git a/CoreFoundation/PlugIn.subproj/CFBundle_BinaryTypes.h b/CoreFoundation/PlugIn.subproj/CFBundle_BinaryTypes.h
-index 7528e80e..4e649778 100644
+index 7528e80e..33e74b3f 100644
 --- a/CoreFoundation/PlugIn.subproj/CFBundle_BinaryTypes.h
 +++ b/CoreFoundation/PlugIn.subproj/CFBundle_BinaryTypes.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFBUNDLE_BINARYTYPES__)
-+#if !defined(__COREFOUNDATION_CFBUNDLE_BINARYTYPES__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFBUNDLE_BINARYTYPES__ 1
- 
- CF_EXTERN_C_BEGIN
 @@ -28,6 +28,7 @@ CF_EXTERN_C_BEGIN
  #define BINARY_SUPPORT_DLL 1
  #elif TARGET_OS_LINUX || TARGET_OS_BSD
@@ -561,18 +571,9 @@ index 3a9e0101..7be06173 100644
  #error Unknown or unspecified DEPLOYMENT_TARGET
  #endif
 diff --git a/CoreFoundation/PlugIn.subproj/CFBundle_Internal.h b/CoreFoundation/PlugIn.subproj/CFBundle_Internal.h
-index def3aafc..28641f19 100644
+index def3aafc..7707d166 100644
 --- a/CoreFoundation/PlugIn.subproj/CFBundle_Internal.h
 +++ b/CoreFoundation/PlugIn.subproj/CFBundle_Internal.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFBUNDLE_INTERNAL__)
-+#if !defined(__COREFOUNDATION_CFBUNDLE_INTERNAL__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFBUNDLE_INTERNAL__ 1
- 
- #include <CoreFoundation/CFDate.h>
 @@ -38,6 +38,7 @@ CF_EXTERN_C_BEGIN
  #elif TARGET_OS_MAC
  #define _CFBundleFHSSharedLibraryFilenamePrefix CFSTR("lib")
@@ -619,19 +620,6 @@ index 601d014a..acccefea 100644
  #else
  #error Unknown or unspecified DEPLOYMENT_TARGET
  #endif
-diff --git a/CoreFoundation/PlugIn.subproj/CFPlugIn_Factory.h b/CoreFoundation/PlugIn.subproj/CFPlugIn_Factory.h
-index eddce1fa..3590f698 100644
---- a/CoreFoundation/PlugIn.subproj/CFPlugIn_Factory.h
-+++ b/CoreFoundation/PlugIn.subproj/CFPlugIn_Factory.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFPLUGIN_FACTORY__)
-+#if !defined(__COREFOUNDATION_CFPLUGIN_FACTORY__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFPLUGIN_FACTORY__ 1
- 
- #include "CFBundle_Internal.h"
 diff --git a/CoreFoundation/Preferences.subproj/CFPreferences.c b/CoreFoundation/Preferences.subproj/CFPreferences.c
 index e8f88bcb..f2b5bf6f 100644
 --- a/CoreFoundation/Preferences.subproj/CFPreferences.c
@@ -719,84 +707,25 @@ index 2c037657..c7a87de5 100644
      struct timespec input;
      input.tv_sec = msecs / 1000;
      input.tv_nsec = (msecs - input.tv_sec * 1000) * 1000000;
-diff --git a/CoreFoundation/RunLoop.subproj/CFMachPort.h b/CoreFoundation/RunLoop.subproj/CFMachPort.h
-index 99c19e03..abb97cb7 100644
---- a/CoreFoundation/RunLoop.subproj/CFMachPort.h
-+++ b/CoreFoundation/RunLoop.subproj/CFMachPort.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
+diff --git a/CoreFoundation/RunLoop.subproj/CFRunLoop.c b/CoreFoundation/RunLoop.subproj/CFRunLoop.c
+index f202dda2..f63a6fff 100644
+--- a/CoreFoundation/RunLoop.subproj/CFRunLoop.c
++++ b/CoreFoundation/RunLoop.subproj/CFRunLoop.c
+@@ -62,9 +62,9 @@ extern dispatch_queue_t _dispatch_runloop_root_queue_create_4CF(const char *_Nul
+ #if TARGET_OS_MAC
+ extern mach_port_t _dispatch_runloop_root_queue_get_port_4CF(dispatch_queue_t queue);
+ #endif
+-#endif
+ extern void _dispatch_source_set_runloop_timer_4CF(dispatch_source_t source, dispatch_time_t start, uint64_t interval, uint64_t leeway);
+ extern bool _dispatch_runloop_root_queue_perform_4CF(dispatch_queue_t queue);
++#endif
  
--#if !defined(__COREFOUNDATION_CFMACHPORT__)
-+#if !defined(__COREFOUNDATION_CFMACHPORT__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFMACHPORT__ 1
- 
- #include <CoreFoundation/CFRunLoop.h>
-diff --git a/CoreFoundation/RunLoop.subproj/CFMachPort_Lifetime.h b/CoreFoundation/RunLoop.subproj/CFMachPort_Lifetime.h
-index b34ef6d2..2e45a459 100644
---- a/CoreFoundation/RunLoop.subproj/CFMachPort_Lifetime.h
-+++ b/CoreFoundation/RunLoop.subproj/CFMachPort_Lifetime.h
-@@ -8,7 +8,7 @@
-     and dispatch_sources.
- */
- 
--#if !defined(__COREFOUNDATION_CFMACHPORT_LIFETIME__)
-+#if !defined(__COREFOUNDATION_CFMACHPORT_LIFETIME__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFMACHPORT_LIFETIME__ 1
- 
- CF_EXTERN_C_BEGIN
-diff --git a/CoreFoundation/RunLoop.subproj/CFMessagePort.h b/CoreFoundation/RunLoop.subproj/CFMessagePort.h
-index 5ec1fc84..ded2fe2b 100644
---- a/CoreFoundation/RunLoop.subproj/CFMessagePort.h
-+++ b/CoreFoundation/RunLoop.subproj/CFMessagePort.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFMESSAGEPORT__)
-+#if !defined(__COREFOUNDATION_CFMESSAGEPORT__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFMESSAGEPORT__ 1
- 
- #include <CoreFoundation/CFString.h>
-diff --git a/CoreFoundation/RunLoop.subproj/CFRunLoop.h b/CoreFoundation/RunLoop.subproj/CFRunLoop.h
-index 9e012c3b..44a95d46 100644
---- a/CoreFoundation/RunLoop.subproj/CFRunLoop.h
-+++ b/CoreFoundation/RunLoop.subproj/CFRunLoop.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFRUNLOOP__)
-+#if !defined(__COREFOUNDATION_CFRUNLOOP__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFRUNLOOP__ 1
- 
- #include <CoreFoundation/CFBase.h>
-diff --git a/CoreFoundation/RunLoop.subproj/CFSocket.h b/CoreFoundation/RunLoop.subproj/CFSocket.h
-index 5ffba978..e66429de 100644
---- a/CoreFoundation/RunLoop.subproj/CFSocket.h
-+++ b/CoreFoundation/RunLoop.subproj/CFSocket.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFSOCKET__)
-+#if !defined(__COREFOUNDATION_CFSOCKET__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFSOCKET__ 1
- 
- #include <CoreFoundation/CFRunLoop.h>
+ #if TARGET_OS_MAC
+ typedef mach_port_t dispatch_runloop_handle_t;
 diff --git a/CoreFoundation/Stream.subproj/CFStream.h b/CoreFoundation/Stream.subproj/CFStream.h
-index b3ed2378..d7fcbe87 100644
+index b3ed2378..feeef1f5 100644
 --- a/CoreFoundation/Stream.subproj/CFStream.h
 +++ b/CoreFoundation/Stream.subproj/CFStream.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFSTREAM__)
-+#if !defined(__COREFOUNDATION_CFSTREAM__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFSTREAM__ 1
- 
- #include <CoreFoundation/CFBase.h>
 @@ -17,7 +17,10 @@
  #include <CoreFoundation/CFRunLoop.h>
  #include <CoreFoundation/CFSocket.h>
@@ -825,45 +754,6 @@ index b3ed2378..d7fcbe87 100644
  
  
  /* The following API is deprecated starting in 10.5; please use CFRead/WriteStreamCopyError(), above, instead */
-diff --git a/CoreFoundation/Stream.subproj/CFStreamAbstract.h b/CoreFoundation/Stream.subproj/CFStreamAbstract.h
-index 458dc401..b1a38796 100644
---- a/CoreFoundation/Stream.subproj/CFStreamAbstract.h
-+++ b/CoreFoundation/Stream.subproj/CFStreamAbstract.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFSTREAMABSTRACT__)
-+#if !defined(__COREFOUNDATION_CFSTREAMABSTRACT__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFSTREAMABSTRACT__ 1
- 
- #include <CoreFoundation/CFStream.h>
-diff --git a/CoreFoundation/Stream.subproj/CFStreamInternal.h b/CoreFoundation/Stream.subproj/CFStreamInternal.h
-index 6e3a155f..6e155165 100644
---- a/CoreFoundation/Stream.subproj/CFStreamInternal.h
-+++ b/CoreFoundation/Stream.subproj/CFStreamInternal.h
-@@ -6,7 +6,7 @@
- 	See http://swift.org/LICENSE.txt for license information
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
-  */
--#if !defined(__COREFOUNDATION_CFSTREAMINTERNAL__)
-+#if !defined(__COREFOUNDATION_CFSTREAMINTERNAL__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFSTREAMINTERNAL__ 1
- 
- #include <CoreFoundation/CFStreamAbstract.h>
-diff --git a/CoreFoundation/Stream.subproj/CFStreamPriv.h b/CoreFoundation/Stream.subproj/CFStreamPriv.h
-index f4a24a88..0b2f4563 100644
---- a/CoreFoundation/Stream.subproj/CFStreamPriv.h
-+++ b/CoreFoundation/Stream.subproj/CFStreamPriv.h
-@@ -7,7 +7,7 @@
- 	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- */
- 
--#if !defined(__COREFOUNDATION_CFSTREAMPRIV__)
-+#if !defined(__COREFOUNDATION_CFSTREAMPRIV__) && !defined(__wasi__)
- #define __COREFOUNDATION_CFSTREAMPRIV__ 1
- 
- #include <CoreFoundation/CFStream.h>
 diff --git a/CoreFoundation/String.subproj/CFCharacterSetData.S b/CoreFoundation/String.subproj/CFCharacterSetData.S
 index 6cc016c3..53c71993 100644
 --- a/CoreFoundation/String.subproj/CFCharacterSetData.S
@@ -1260,10 +1150,10 @@ index 67223bfc..ea97b402 100644
 +
 +#endif
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
-index 2accd566..75f25c77 100644
+index 2accd566..9c8dc27d 100644
 --- a/Sources/Foundation/CMakeLists.txt
 +++ b/Sources/Foundation/CMakeLists.txt
-@@ -1,3 +1,23 @@
+@@ -1,3 +1,21 @@
 +if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
 +list(APPEND FOUNDATION_WASI_UNAVAILABLE_SOURCES
 +  FileManager+POSIX.swift
@@ -1277,17 +1167,15 @@ index 2accd566..75f25c77 100644
 +  PortMessage.swift
 +  Process.swift
 +  PropertyListEncoder.swift
-+  RunLoop.swift
 +  Stream.swift
 +  Thread.swift
-+  Timer.swift
 +  UserDefaults.swift)
 +endif()
 +
  add_library(Foundation
    AffineTransform.swift
    Array.swift
-@@ -32,13 +52,9 @@ add_library(Foundation
+@@ -32,13 +50,9 @@ add_library(Foundation
    ExtraStringAPIs.swift
    FileHandle.swift
    FileManager.swift
@@ -1301,7 +1189,7 @@ index 2accd566..75f25c77 100644
    IndexPath.swift
    IndexSet.swift
    ISO8601DateFormatter.swift
-@@ -52,8 +68,6 @@ add_library(Foundation
+@@ -52,8 +66,6 @@ add_library(Foundation
    Measurement.swift
    MeasurementFormatter.swift
    Morphology.swift
@@ -1310,7 +1198,7 @@ index 2accd566..75f25c77 100644
    NSArray.swift
    NSAttributedString.swift
    NSCache.swift
-@@ -90,7 +104,6 @@ add_library(Foundation
+@@ -90,7 +102,6 @@ add_library(Foundation
    NSLock.swift
    NSLog.swift
    NSMeasurement.swift
@@ -1318,7 +1206,7 @@ index 2accd566..75f25c77 100644
    NSNull.swift
    NSNumber.swift
    NSObjCRuntime.swift
-@@ -121,31 +134,23 @@ add_library(Foundation
+@@ -121,23 +132,17 @@ add_library(Foundation
    PersonNameComponents.swift
    PersonNameComponentsFormatter.swift
    Pointers+DataProtocol.swift
@@ -1332,7 +1220,7 @@ index 2accd566..75f25c77 100644
    PropertyListSerialization.swift
 +  ProcessInfo.swift
    ReferenceConvertible.swift
--  RunLoop.swift
+   RunLoop.swift
    Scanner.swift
    ScannerAPI.swift
    Set.swift
@@ -1340,10 +1228,10 @@ index 2accd566..75f25c77 100644
    String.swift
    StringEncodings.swift
 -  Thread.swift
--  Timer.swift
+   Timer.swift
    TimeZone.swift
    Unit.swift
-   URL.swift
+@@ -145,7 +150,7 @@ add_library(Foundation
    URLComponents.swift
    URLQueryItem.swift
    URLResourceKey.swift
@@ -2441,6 +2329,62 @@ index 7f742a6a..5f93be38 100644
  
      open class func propertyList(from data: Data, options opt: ReadOptions = [], format: UnsafeMutablePointer<PropertyListFormat>?) throws -> Any {
          var fmt = kCFPropertyListBinaryFormat_v1_0
+diff --git a/Sources/Foundation/RunLoop.swift b/Sources/Foundation/RunLoop.swift
+index 5ad595e6..ccd4ce0c 100644
+--- a/Sources/Foundation/RunLoop.swift
++++ b/Sources/Foundation/RunLoop.swift
+@@ -78,6 +78,17 @@ open class RunLoop: NSObject {
+         _cfRunLoopStorage = cfObject
+     }
+ 
++    #if os(WASI)
++    @available(*, unavailable, message: "RunLoop is not available on WASI")
++    open class var current: RunLoop {
++        fatalError("RunLoop is not available on WASI")
++    }
++
++    @available(*, unavailable, message: "RunLoop is not available on WASI")
++    open class var main: RunLoop {
++        fatalError("RunLoop is not available on WASI")
++    }
++    #else
+     open class var current: RunLoop {
+         return _CFRunLoopGet2(CFRunLoopGetCurrent()) as! RunLoop
+     }
+@@ -85,6 +96,7 @@ open class RunLoop: NSObject {
+     open class var main: RunLoop {
+         return _CFRunLoopGet2(_mainRunLoop._cfRunLoop) as! RunLoop
+     }
++    #endif // os(WASI)
+ 
+     open var currentMode: RunLoop.Mode? {
+         if let mode = CFRunLoopCopyCurrentMode(_cfRunLoop) {
+@@ -117,10 +129,16 @@ open class RunLoop: NSObject {
+         CFRunLoopAddTimer(_cfRunLoop, timer._cfObject, mode._cfStringUniquingKnown)
+     }
+ 
++    #if os(WASI)
++    @available(*, unavailable, message: "Port API is not available on WASI")
++    open func add(_ aPort: Any, forMode mode: RunLoop.Mode) {
++        fatalError("Ports are not supported on WASI")
++    }
++    #else
+     private let monitoredPortsWithModesLock = NSLock() // guards:
+     private var monitoredPortsWithModes: [Port: Set<RunLoop.Mode>] = [:]
+     private var monitoredPortObservers:  [Port: NSObjectProtocol]  = [:]
+-    
++
+     open func add(_ aPort: Port, forMode mode: RunLoop.Mode) {
+         var shouldSchedule = false
+         monitoredPortsWithModesLock.synchronized {
+@@ -175,6 +193,7 @@ open class RunLoop: NSObject {
+             aPort.remove(from: self, forMode: mode)
+         }
+     }
++    #endif // os(WASI)
+ 
+     open func limitDate(forMode mode: RunLoop.Mode) -> Date? {
+         if _cfRunLoop !== CFRunLoopGetCurrent() {
 diff --git a/Sources/Foundation/ScannerAPI.swift b/Sources/Foundation/ScannerAPI.swift
 index d3fe75ed..500b2f1d 100644
 --- a/Sources/Foundation/ScannerAPI.swift
