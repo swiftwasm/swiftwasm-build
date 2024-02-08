@@ -1,4 +1,4 @@
-From 0f36722d80d2aa315829917cb564ab2773d2a9a3 Mon Sep 17 00:00:00 2001
+From b26fff3f396a8259fb49d27141bd29ff3f5d6bf5 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 14:42:43 +0000
 Subject: [PATCH] [wasm][build] Disable networking targets from CMake build

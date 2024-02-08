@@ -1,4 +1,4 @@
-From df81b14f5fbf27d4acb1f3c30b354efdfa95ca66 Mon Sep 17 00:00:00 2001
+From 6e955a69783484a314e8675f52eb1530f199bfed Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Feb 2024 17:22:59 +0000
 Subject: [PATCH] WebAssembly Support
@@ -8,8 +8,6 @@ Subject: [PATCH] WebAssembly Support
  .../Base.subproj/ForSwiftFoundationOnly.h     |  4 +-
  .../SwiftRuntime/CoreFoundation.h             | 10 +++
  CoreFoundation/CMakeLists.txt                 | 73 +++++++++++++------
- CoreFoundation/Error.subproj/CFError.c        |  7 +-
- .../Locale.subproj/CFDateFormatter.c          | 11 ++-
  CoreFoundation/Locale.subproj/CFLocale.c      |  6 +-
  CoreFoundation/NumberDate.subproj/CFDate.c    | 12 +--
  .../Parsing.subproj/CFPropertyList.c          | 11 ++-
@@ -39,7 +37,6 @@ Subject: [PATCH] WebAssembly Support
  .../CFPlatformConverters.c                    |  4 +-
  .../CFStringEncodingConverter.c               | 12 +--
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
- CoreFoundation/URL.subproj/CFURLComponents.c  |  9 ++-
  Sources/Foundation/Bundle.swift               | 40 ++++++++++
  Sources/Foundation/CMakeLists.txt             | 51 ++++++++-----
  Sources/Foundation/Data.swift                 | 10 +--
@@ -49,7 +46,6 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/FileManager.swift          |  2 +
  Sources/Foundation/NSCharacterSet.swift       |  6 +-
  Sources/Foundation/NSData.swift               |  8 +-
- Sources/Foundation/NSError.swift              |  2 +
  Sources/Foundation/NSKeyedArchiver.swift      |  8 +-
  Sources/Foundation/NSNumber.swift             |  4 +
  Sources/Foundation/NSObjCRuntime.swift        | 48 ++++++------
@@ -68,7 +64,7 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/URL.swift                  |  9 ++-
  Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
- 64 files changed, 523 insertions(+), 177 deletions(-)
+ 60 files changed, 500 insertions(+), 171 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..f4372dd1 100644
@@ -332,84 +328,6 @@ index 4b47317f..fe40426b 100644
  install(TARGETS
            CoreFoundation
            CFXMLInterface
-diff --git a/CoreFoundation/Error.subproj/CFError.c b/CoreFoundation/Error.subproj/CFError.c
-index 7ff93ce4..6147d224 100644
---- a/CoreFoundation/Error.subproj/CFError.c
-+++ b/CoreFoundation/Error.subproj/CFError.c
-@@ -548,9 +548,10 @@ static CFTypeRef _CFErrorMachCallBack(CFErrorRef err, CFStringRef key) CF_RETURN
- }
- #endif
- 
--
-+#if !TARGET_OS_WASI
- static const void *blockCopyValueCallBack(CFAllocatorRef allocator, const void *value) {return _Block_copy(value);}
- static void blockReleaseValueCallBack(CFAllocatorRef allocator, const void *value) {_Block_release(value);}
-+
- static void __CFErrorSetCallBackForDomainNoLock(CFStringRef domainName, CFErrorUserInfoKeyCallBack callBack);
- 
- /* This initialize function is meant to be called lazily, the first time a callback is registered or requested. It creates the table and registers the built-in callbacks. Clearly doing this non-lazily in _CFErrorInitialize() would be simpler, but this is a fine example of something that should not have to happen at launch time.
-@@ -642,6 +643,4 @@ CFErrorUserInfoKeyCallBack CFErrorGetCallBackForDomain(CFStringRef domainName) {
-     return NULL;
- }
- 
--
--
--
-+#endif
-diff --git a/CoreFoundation/Locale.subproj/CFDateFormatter.c b/CoreFoundation/Locale.subproj/CFDateFormatter.c
-index 4ffcad40..4ee4bb7a 100644
---- a/CoreFoundation/Locale.subproj/CFDateFormatter.c
-+++ b/CoreFoundation/Locale.subproj/CFDateFormatter.c
-@@ -56,6 +56,7 @@ CFArrayRef CFDateFormatterCreateDateFormatsFromTemplates(CFAllocatorRef allocato
-     return (CFArrayRef)CFDateFormatterCreateDateFormatFromTemplate(allocator, (CFStringRef)tmplates, options, locale);
- }
- 
-+#if __BLOCKS__
- static Boolean useTemplatePatternGenerator(CFLocaleRef locale, void(^work)(UDateTimePatternGenerator *ptg)) {
-     static UDateTimePatternGenerator *ptg;
-     static _CFMutex ptgLock = _CF_MUTEX_STATIC_INITIALIZER;
-@@ -91,6 +92,7 @@ static Boolean useTemplatePatternGenerator(CFLocaleRef locale, void(^work)(UDate
-     _CFMutexUnlock(&ptgLock);
-     return result;
- }
-+#endif
- 
- /*
-  1) Scan the string for an AM/PM indicator
-@@ -122,6 +124,7 @@ static void _CFDateFormatterStripAMPMIndicators(UniChar **bpat, int32_t *bpatlen
-     }
- }
- 
-+#if __BLOCKS__
- CFStringRef CFDateFormatterCreateDateFormatFromTemplate(CFAllocatorRef allocator, CFStringRef tmplate, CFOptionFlags options, CFLocaleRef locale) {
-     if (allocator) __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
-     if (locale) __CFGenericValidateType(locale, CFLocaleGetTypeID());
-@@ -198,6 +201,7 @@ CFStringRef CFDateFormatterCreateDateFormatFromTemplate(CFAllocatorRef allocator
-     
-     return (CFStringRef)result;
- }
-+#endif
- 
- struct __CFDateFormatter {
-     CFRuntimeBase _base;
-@@ -1230,11 +1234,16 @@ static CFStringRef __CFDateFormatterCreateForcedString(CFDateFormatterRef format
- #endif
-     if (options == UDATPG_MATCH_NO_OPTIONS) return (CFStringRef)CFRetain(inString);
-     
--    static CFCharacterSetRef hourCharacters;
-+    static CFCharacterSetRef hourCharacters = NULL;
-+
-+#if __BLOCKS__
-     static dispatch_once_t onceToken;
-     dispatch_once(&onceToken, ^{
-         hourCharacters = CFCharacterSetCreateWithCharactersInString(kCFAllocatorSystemDefault, CFSTR("hHkK"));
-     });
-+#else
-+    hourCharacters = CFCharacterSetCreateWithCharactersInString(kCFAllocatorSystemDefault, CFSTR("hHkK"));
-+#endif
-     
-     CFRange hourRange = CFRangeMake(kCFNotFound, 0);
-     if (!CFStringFindCharacterFromSet(inString, hourCharacters, CFRangeMake(0, CFStringGetLength(inString)), 0, &hourRange) || hourRange.location == kCFNotFound) {
 diff --git a/CoreFoundation/Locale.subproj/CFLocale.c b/CoreFoundation/Locale.subproj/CFLocale.c
 index c5c555c9..7bfcafa7 100644
 --- a/CoreFoundation/Locale.subproj/CFLocale.c
@@ -1286,30 +1204,6 @@ index 93d257c5..f8e58a4e 100644
  #include <syslog.h>
  #endif
  #include <CoreFoundation/CFURLPriv.h>
-diff --git a/CoreFoundation/URL.subproj/CFURLComponents.c b/CoreFoundation/URL.subproj/CFURLComponents.c
-index 69183075..cfbce155 100644
---- a/CoreFoundation/URL.subproj/CFURLComponents.c
-+++ b/CoreFoundation/URL.subproj/CFURLComponents.c
-@@ -1386,11 +1386,18 @@ static Boolean _CFURLComponentsSetQueryItemsInternal(CFURLComponentsRef componen
-             CFStringInitAppendBuffer(kCFAllocatorDefault, &buf);
-             UniChar chars[1];
-             static CFMutableCharacterSetRef queryNameValueAllowed = NULL;
-+#if __BLOCKS__
-             static dispatch_once_t onceToken;
-             dispatch_once(&onceToken, ^{
-+#else
-+            if (!queryNameValueAllowed) {
-+#endif
-                 queryNameValueAllowed = CFCharacterSetCreateMutableCopy(kCFAllocatorSystemDefault, _CFURLComponentsGetURLQueryAllowedCharacterSet());
-                 CFCharacterSetRemoveCharactersInString(queryNameValueAllowed, CFSTR("&="));
--            });
-+            }
-+#if __BLOCKS__
-+            );
-+#endif
-             CFIndex namesLength = CFArrayGetCount(names);
-             Boolean first = true;
-             for (CFIndex i = 0; i < namesLength; i++) {
 diff --git a/Sources/Foundation/Bundle.swift b/Sources/Foundation/Bundle.swift
 index 67223bfc..ea97b402 100644
 --- a/Sources/Foundation/Bundle.swift
@@ -1840,26 +1734,6 @@ index ed9e7f05..1f79e974 100644
  
      public override init?(base64Encoded base64Data: Data, options: NSData.Base64DecodingOptions = []) {
          super.init(base64Encoded: base64Data, options: options)
-diff --git a/Sources/Foundation/NSError.swift b/Sources/Foundation/NSError.swift
-index 3ec150e6..55ab9c49 100644
---- a/Sources/Foundation/NSError.swift
-+++ b/Sources/Foundation/NSError.swift
-@@ -976,6 +976,7 @@ extension URLError {
-     public static var backgroundSessionWasDisconnected:         URLError.Code { return .backgroundSessionWasDisconnected }
- }
- 
-+#if !os(WASI)
- /// Describes an error in the POSIX error domain.
- public struct POSIXError : _BridgedStoredNSError {
-     
-@@ -1386,6 +1387,7 @@ extension POSIXError {
-     public static var EQFULL: POSIXError.Code { return .EQFULL }
-     #endif
- }
-+#endif
- 
- enum UnknownNSError: Error {
-     case missingError
 diff --git a/Sources/Foundation/NSKeyedArchiver.swift b/Sources/Foundation/NSKeyedArchiver.swift
 index 8433b138..cddc5d30 100644
 --- a/Sources/Foundation/NSKeyedArchiver.swift
