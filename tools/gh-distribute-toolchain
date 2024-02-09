@@ -587,13 +587,15 @@ class Distribution:
 
     def make_release_note(self, swift_version, swiftwasm_build_version):
         projects = [
-            ["apple/swift", swift_version],
-            ["swiftwasm/swiftwasm-build", swiftwasm_build_version]
+            ["apple/swift",
+                f"commit/{swift_version}"],
+            ["swiftwasm/swiftwasm-build",
+                f"releases/tag/{swiftwasm_build_version}"]
         ]
         body = "| Project | Version |\n"
         body += "|:--|:--|\n"
-        for repo, version in projects:
-            body += f"| `{repo}` | https://github.com/{repo}/commit/{version} |\n"
+        for repo, subpath in projects:
+            body += f"| `{repo}` | https://github.com/{repo}/{subpath} |\n"
         return body
 
     def git_push_swift_source(self, options, tag_name):
