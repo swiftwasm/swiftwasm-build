@@ -10,6 +10,7 @@ import sys
 import subprocess
 import tarfile
 import asyncio
+import json
 from dataclasses import dataclass
 from typing import Optional
 from build.build_support.actions import derive_options_from_args, REPO_ROOT
@@ -214,12 +215,13 @@ class GitHub:
                f"/repos/{self.repo}/releases/tags/{tag_name}")
         return self.json_request("GET", url)
 
-    def create_prerelease(self, tag_name: str):
+    def create_prerelease(self, tag_name: str, body: str):
         url = f"https://api.github.com/repos/{self.repo}/releases"
         return self.json_request("POST", url, body={
             "tag_name": tag_name,
             "name": tag_name,
             "prerelease": True,
+            "body": body
         })
 
     def workflow_runs(self, workflow_name: str, branch: str):
@@ -569,7 +571,8 @@ class Distribution:
 
     def create_tag_and_prerelease(self, tag_name, options):
         print(f"Creating tag for {tag_name}...")
-        self.git_push_swift_source(options, tag_name)
+        swift_version, swiftwasm_build_version = \
+            self.git_push_swift_source(options, tag_name)
         try:
             # If release already exists, use it
             release = self.swift_github.get_release(tag_name)
@@ -578,7 +581,20 @@ class Distribution:
         except Exception:
             pass
         print(f"Creating prerelease for {tag_name}...")
-        return self.swift_github.create_prerelease(tag_name)
+        body = self.make_release_note(swift_version, swiftwasm_build_version)
+        print(f"Release note:\n{body}")
+        return self.swift_github.create_prerelease(tag_name, body)
+
+    def make_release_note(self, swift_version, swiftwasm_build_version):
+        projects = [
+            ["apple/swift", swift_version],
+            ["swiftwasm/swiftwasm-build", swiftwasm_build_version]
+        ]
+        body = "| Project | Version |\n"
+        body += "|:--|:--|\n"
+        for repo, version in projects:
+            body += f"| `{repo}` | https://github.com/{repo}/commit/{version} |\n"
+        return body
 
     def git_push_swift_source(self, options, tag_name):
         build_repo = "https://github.com/swiftwasm/swiftwasm-build.git"
@@ -617,13 +633,20 @@ class Distribution:
         status = subprocess.run([
             'git', '-C', swift_repo_dir,
             'tag', '--list', '--contains', tag_name]).returncode
-        if status == 0:
+        if status != 0:
+            self.effect_run(["git", "-C", swift_repo_dir, "tag", tag_name], check=True)
+            self.effect_run(["git", "-C", swift_repo_dir,
+                            "push", "swiftwasm", tag_name], check=True)
+        else:
             print(f"Tag {tag_name} already exists")
-            return
 
-        self.effect_run(["git", "-C", swift_repo_dir, "tag", tag_name], check=True)
-        self.effect_run(["git", "-C", swift_repo_dir,
-                        "push", "swiftwasm", tag_name], check=True)
+        manifest = os.path.join(
+            build_repo_dir, "schemes", options.scheme, "manifest.json")
+        with open(manifest, "r") as f:
+            manifest_json = json.load(f)
+            base_tag = manifest_json["base-tag"]
+
+        return [base_tag, build_rev]
 
     def upload_to_release(self, artifact_path, release):
         name = os.path.basename(artifact_path)
