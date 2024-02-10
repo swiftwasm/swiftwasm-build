@@ -588,9 +588,9 @@ class Distribution:
     def make_release_note(self, swift_version, swiftwasm_build_version):
         projects = [
             ["apple/swift",
-                f"commit/{swift_version}"],
+                f"releases/tag/{swift_version}"],
             ["swiftwasm/swiftwasm-build",
-                f"releases/tag/{swiftwasm_build_version}"]
+                f"commit/{swiftwasm_build_version}"]
         ]
         body = "| Project | Version |\n"
         body += "|:--|:--|\n"
