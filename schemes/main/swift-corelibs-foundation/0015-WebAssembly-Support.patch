@@ -1,6 +1,6 @@
-From cd8618e050f310b611c2e224c3f683ef890bef8a Mon Sep 17 00:00:00 2001
+From bbe32c0321d881f5c25afc1c2f0ea49d6d5645d7 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Wed, 7 Feb 2024 17:22:59 +0000
+Date: Tue, 13 Feb 2024 15:54:28 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
@@ -30,34 +30,33 @@ Subject: [PATCH] WebAssembly Support
  .../CFStringEncodingConverter.c               | 12 ++--
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
  Sources/Foundation/Bundle.swift               | 40 +++++++++++
- Sources/Foundation/CMakeLists.txt             | 45 ++++++++----
+ Sources/Foundation/CMakeLists.txt             | 39 +++++++---
  Sources/Foundation/Data.swift                 | 10 ++-
  Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++
  .../DispatchData+DataProtocol.swift           |  3 +-
  Sources/Foundation/FileHandle.swift           | 22 +++++-
- Sources/Foundation/FileManager.swift          |  2 +
  Sources/Foundation/NSCharacterSet.swift       |  6 +-
- Sources/Foundation/NSData.swift               |  8 +--
+ Sources/Foundation/NSData.swift               |  7 --
  Sources/Foundation/NSKeyedArchiver.swift      |  8 ++-
  Sources/Foundation/NSNumber.swift             |  4 ++
  Sources/Foundation/NSObjCRuntime.swift        | 48 +++++++------
- Sources/Foundation/NSPathUtilities.swift      | 31 +++++---
+ Sources/Foundation/NSPathUtilities.swift      | 29 +++++---
  Sources/Foundation/NSSet.swift                |  4 ++
  Sources/Foundation/NSString.swift             | 10 ++-
  Sources/Foundation/NSStringAPI.swift          |  4 ++
  Sources/Foundation/NSSwiftRuntime.swift       |  3 +
  Sources/Foundation/NSTimeZone.swift           | 10 +--
- Sources/Foundation/NSURL.swift                | 27 +++++--
+ Sources/Foundation/NSURL.swift                | 13 ++--
  Sources/Foundation/Operation.swift            |  2 +
- Sources/Foundation/ProcessInfo.swift          | 10 +++
+ Sources/Foundation/ProcessInfo.swift          |  6 ++
  Sources/Foundation/Progress.swift             |  2 +
  .../PropertyListSerialization.swift           |  2 +
  Sources/Foundation/RunLoop.swift              | 21 +++++-
  Sources/Foundation/ScannerAPI.swift           |  2 +-
- Sources/Foundation/URL.swift                  |  9 ++-
+ Sources/Foundation/URL.swift                  |  7 +-
  Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
- 53 files changed, 508 insertions(+), 159 deletions(-)
+ 52 files changed, 480 insertions(+), 156 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..f4372dd1 100644
@@ -152,10 +151,10 @@ index 40847559..86fa81ec 100644
  CF_EXPORT void _CFReadStreamInitialize(CFReadStreamRef readStream);
  CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index 80c881be..fdb3ea72 100644
+index 6aca2f14..b6cd8e3f 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-@@ -83,6 +83,8 @@
+@@ -87,6 +87,8 @@
  #include <sys/stat.h>
  #endif // not __NR_statx
  
@@ -164,7 +163,7 @@ index 80c881be..fdb3ea72 100644
  #endif // TARGET_OS_LINUX
  
  #include <stdlib.h>
-@@ -558,7 +560,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
+@@ -562,7 +564,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
  
  #if TARGET_OS_WIN32
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode);
@@ -1134,15 +1133,12 @@ index 67223bfc..ea97b402 100644
 +
 +#endif
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
-index 2accd566..9abdd2b7 100644
+index 2accd566..babfcf98 100644
 --- a/Sources/Foundation/CMakeLists.txt
 +++ b/Sources/Foundation/CMakeLists.txt
-@@ -1,3 +1,21 @@
+@@ -1,3 +1,18 @@
 +if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
 +list(APPEND FOUNDATION_WASI_UNAVAILABLE_SOURCES
-+  FileManager+POSIX.swift
-+  FileManager+Win32.swift
-+  FileManager+XDG.swift
 +  Host.swift
 +  Notification.swift
 +  NotificationQueue.swift
@@ -1159,13 +1155,7 @@ index 2accd566..9abdd2b7 100644
  add_library(Foundation
    AffineTransform.swift
    Array.swift
-@@ -32,13 +50,9 @@ add_library(Foundation
-   ExtraStringAPIs.swift
-   FileHandle.swift
-   FileManager.swift
--  FileManager+POSIX.swift
--  FileManager+Win32.swift
--  FileManager+XDG.swift
+@@ -38,7 +53,6 @@ add_library(Foundation
    Formatter.swift
    AttributedString/FoundationAttributes.swift
    FoundationErrors.swift
@@ -1243,7 +1233,7 @@ index 2accd566..9abdd2b7 100644
  set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS Foundation)
  _install_target(Foundation)
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
-index 6e5bfdb6..5c7004f7 100644
+index f0f1c3d2..1a30d29c 100644
 --- a/Sources/Foundation/Data.swift
 +++ b/Sources/Foundation/Data.swift
 @@ -604,16 +604,16 @@ internal class __NSSwiftData : NSData {
@@ -1379,7 +1369,7 @@ index 520e2351..b5a30f6b 100644
  }
 +#endif
 diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
-index 6da1d666..d882e078 100644
+index 328a45d2..696cb428 100644
 --- a/Sources/Foundation/FileHandle.swift
 +++ b/Sources/Foundation/FileHandle.swift
 @@ -8,7 +8,9 @@
@@ -1392,7 +1382,7 @@ index 6da1d666..d882e078 100644
  
  // FileHandle has a .read(upToCount:) method. Just invoking read() will cause an ambiguity warning. Use _read instead.
  // Same with close()/.close().
-@@ -89,6 +91,7 @@ open class FileHandle : NSObject {
+@@ -85,6 +87,7 @@ open class FileHandle : NSObject {
  
      private var _closeOnDealloc: Bool
  
@@ -1400,7 +1390,7 @@ index 6da1d666..d882e078 100644
      private var currentBackgroundActivityOwner: AnyObject? // Guarded by privateAsyncVariablesLock
      
      private var readabilitySource: DispatchSourceProtocol? // Guarded by privateAsyncVariablesLock
-@@ -212,6 +215,7 @@ open class FileHandle : NSObject {
+@@ -208,6 +211,7 @@ open class FileHandle : NSObject {
              }
          }
      }
@@ -1408,7 +1398,7 @@ index 6da1d666..d882e078 100644
  
      open var availableData: Data {
          _checkFileHandle()
-@@ -625,6 +629,7 @@ open class FileHandle : NSObject {
+@@ -621,6 +625,7 @@ open class FileHandle : NSObject {
      }
      
      private func performOnQueueIfExists(_ block: () throws -> Void) throws {
@@ -1416,7 +1406,7 @@ index 6da1d666..d882e078 100644
          if let queue = queueIfExists {
              var theError: Swift.Error?
              queue.sync {
-@@ -636,6 +641,9 @@ open class FileHandle : NSObject {
+@@ -632,6 +637,9 @@ open class FileHandle : NSObject {
          } else {
              try block()
          }
@@ -1426,7 +1416,7 @@ index 6da1d666..d882e078 100644
      }
      
      @available(swift 5.0)
-@@ -650,6 +658,7 @@ open class FileHandle : NSObject {
+@@ -646,6 +654,7 @@ open class FileHandle : NSObject {
          guard self != FileHandle._nulldeviceFileHandle else { return }
          guard _isPlatformHandleValid else { return }
          
@@ -1434,7 +1424,7 @@ index 6da1d666..d882e078 100644
          privateAsyncVariablesLock.lock()
          writabilitySource?.cancel()
          readabilitySource?.cancel()
-@@ -658,6 +667,7 @@ open class FileHandle : NSObject {
+@@ -654,6 +663,7 @@ open class FileHandle : NSObject {
          writabilitySource = nil
          readabilitySource = nil
          privateAsyncVariablesLock.unlock()
@@ -1442,7 +1432,7 @@ index 6da1d666..d882e078 100644
  
  #if os(Windows)
              // SR-13822 - Not Closing the file descriptor on Windows causes a Stack Overflow
-@@ -841,6 +851,8 @@ extension NSExceptionName {
+@@ -837,6 +847,8 @@ extension NSExceptionName {
      public static let fileHandleOperationException = NSExceptionName(rawValue: "NSFileHandleOperationException")
  }
  
@@ -1451,7 +1441,7 @@ index 6da1d666..d882e078 100644
  extension Notification.Name {
      public static let NSFileHandleReadToEndOfFileCompletion = Notification.Name(rawValue: "NSFileHandleReadToEndOfFileCompletionNotification")
      public static let NSFileHandleConnectionAccepted = Notification.Name(rawValue: "NSFileHandleConnectionAcceptedNotification")
-@@ -900,22 +912,25 @@ extension FileHandle {
+@@ -896,22 +908,25 @@ extension FileHandle {
  #endif
              }
  
@@ -1478,7 +1468,7 @@ index 6da1d666..d882e078 100644
      open func readToEndOfFileInBackgroundAndNotify() {
          readToEndOfFileInBackgroundAndNotify(forModes: [.default])
      }
-@@ -1031,8 +1046,11 @@ extension FileHandle {
+@@ -1027,8 +1042,11 @@ extension FileHandle {
          
          owner.resume()
      }
@@ -1490,28 +1480,11 @@ index 6da1d666..d882e078 100644
  open class Pipe: NSObject {
      public let fileHandleForReading: FileHandle
      public let fileHandleForWriting: FileHandle
-@@ -1077,4 +1095,4 @@ open class Pipe: NSObject {
+@@ -1073,4 +1091,4 @@ open class Pipe: NSObject {
          super.init()
      }
  }
 -
-+#endif
-diff --git a/Sources/Foundation/FileManager.swift b/Sources/Foundation/FileManager.swift
-index 1aa3038a..b3720b2e 100644
---- a/Sources/Foundation/FileManager.swift
-+++ b/Sources/Foundation/FileManager.swift
-@@ -29,6 +29,7 @@ internal typealias NativeFSRCharType = CChar
- internal let NativeFSREncoding = String.Encoding.utf8.rawValue
- #endif
- 
-+#if !os(WASI)
- open class FileManager : NSObject {
-     
-     /* Returns the default singleton instance.
-@@ -1483,3 +1484,4 @@ extension FileManager {
-         }
-     }
- }
 +#endif
 diff --git a/Sources/Foundation/NSCharacterSet.swift b/Sources/Foundation/NSCharacterSet.swift
 index 0148771b..b4f3e706 100644
@@ -1538,7 +1511,7 @@ index 0148771b..b4f3e706 100644
          return longCharacterIsMember(UInt32(aCharacter))
      }
 diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
-index ed9e7f05..1f79e974 100644
+index 808811b8..c2f36e9e 100644
 --- a/Sources/Foundation/NSData.swift
 +++ b/Sources/Foundation/NSData.swift
 @@ -151,7 +151,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
@@ -1581,15 +1554,7 @@ index ed9e7f05..1f79e974 100644
      internal static func readBytesFromFileWithExtendedAttributes(_ path: String, options: ReadingOptions) throws -> NSDataReadResult {
          guard let handle = FileHandle(path: path, flags: O_RDONLY, createMode: 0) else {
              throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: nil)
-@@ -449,6 +444,7 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
-     }
- 
- 
-+#if !os(WASI)
-     /// Writes the data object's bytes to the file specified by a given path.
-     open func write(toFile path: String, options writeOptionsMask: WritingOptions = []) throws {
- 
-@@ -1010,7 +1006,6 @@ open class NSMutableData : NSData {
+@@ -1011,7 +1006,6 @@ open class NSMutableData : NSData {
          super.init(data: data)
      }
  
@@ -1597,7 +1562,7 @@ index ed9e7f05..1f79e974 100644
      public override init?(contentsOfFile path: String) {
          super.init(contentsOfFile: path)
      }
-@@ -1026,7 +1021,6 @@ open class NSMutableData : NSData {
+@@ -1027,7 +1021,6 @@ open class NSMutableData : NSData {
      public override init(contentsOf url: URL, options: NSData.ReadingOptions = []) throws {
          try super.init(contentsOf: url, options: options)
      }
@@ -1756,7 +1721,7 @@ index bc388d40..765ad6f1 100644
      return map
  }()
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index 1726b351..5fd6f789 100644
+index 99b6f141..a48a6423 100644
 --- a/Sources/Foundation/NSPathUtilities.swift
 +++ b/Sources/Foundation/NSPathUtilities.swift
 @@ -194,21 +194,23 @@ extension String {
@@ -1845,14 +1810,7 @@ index 1726b351..5fd6f789 100644
      public func stringsByAppendingPaths(_ paths: [String]) -> [String] {
          if self == "" {
              return paths
-@@ -725,12 +728,16 @@ public func NSSearchPathForDirectoriesInDomains(_ directory: FileManager.SearchP
-         return path
-     }
- }
-+#endif
- 
- public func NSHomeDirectory() -> String {
-     return NSHomeDirectoryForUser(nil)!
+@@ -730,6 +733,9 @@ public func NSHomeDirectory() -> String {
  }
  
  public func NSHomeDirectoryForUser(_ user: String?) -> String? {
@@ -1862,17 +1820,14 @@ index 1726b351..5fd6f789 100644
      let userName = user?._cfObject
      guard let homeDir = CFCopyHomeDirectoryURLForUser(userName)?.takeRetainedValue() else {
          return nil
-@@ -738,8 +745,10 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
+@@ -737,6 +743,7 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
      
      let url: URL = homeDir._swiftObject
      return url.path
 +#endif
  }
  
-+#if !os(WASI)
  public func NSUserName() -> String {
-     let userName = CFCopyUserName().takeRetainedValue()
-     return userName._swiftObject
 diff --git a/Sources/Foundation/NSSet.swift b/Sources/Foundation/NSSet.swift
 index 7f2318d6..6e65ad28 100644
 --- a/Sources/Foundation/NSSet.swift
@@ -2057,40 +2012,18 @@ index df429993..0633d9e3 100644
          // We do not encode details of the local time zone, merely the placeholder object.
      }
 diff --git a/Sources/Foundation/NSURL.swift b/Sources/Foundation/NSURL.swift
-index 9b121d66..1b99cf0d 100644
+index 07cd02c9..0e728d0c 100644
 --- a/Sources/Foundation/NSURL.swift
 +++ b/Sources/Foundation/NSURL.swift
-@@ -104,6 +104,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-         }
-     }
-     
-+#if !os(WASI)
-     var _resourceStorage: URLResourceValuesStorage? {
-         guard isFileURL else { return nil }
-         
-@@ -127,6 +128,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-             return nil
-         }
-     }
-+#endif
-     
-     open override var hash: Int {
-         return Int(bitPattern: CFHash(_cfObject))
-@@ -156,10 +158,13 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+@@ -156,6 +156,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
      open func copy(with zone: NSZone? = nil) -> Any {
          if isFileURL {
              let newURL = CFURLCreateWithString(kCFAllocatorSystemDefault, relativeString._cfObject, self.baseURL?._cfObject)!
 +
-+#if !os(WASI)
              if let storage = _resourceStorageIfPresent {
                  let newStorage = URLResourceValuesStorage(copying: storage)
                  _CFURLSetResourceInfo(newURL, newStorage)
-             }
-+#endif
-             return newURL._nsObject
-         } else {
-             return self
-@@ -189,7 +194,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+@@ -189,7 +190,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
          aCoder.encode(self.baseURL?._nsObject, forKey:"NS.base")
          aCoder.encode(self.relativeString._bridgeToObjectiveC(), forKey:"NS.relative")
      }
@@ -2099,7 +2032,7 @@ index 9b121d66..1b99cf0d 100644
      public init(fileURLWithPath path: String, isDirectory isDir: Bool, relativeTo baseURL: URL?) {
          super.init()
          
-@@ -201,7 +206,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+@@ -201,7 +202,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
              _CFURLInitWithFileSystemPathRelativeToBase(_cfObject, baseURL.path._cfObject, kCFURLPlatformPathStyle, baseURL.hasDirectoryPath, nil)
          }
      }
@@ -2108,7 +2041,7 @@ index 9b121d66..1b99cf0d 100644
      public convenience init(fileURLWithPath path: String, relativeTo baseURL: URL?) {
          let thePath = _standardizedPath(path)
          
-@@ -250,7 +255,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+@@ -250,7 +251,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
          let pathString = String(cString: path)
          self.init(fileURLWithPath: pathString, isDirectory: isDir, relativeTo: baseURL)
      }
@@ -2117,77 +2050,16 @@ index 9b121d66..1b99cf0d 100644
      public convenience init?(string URLString: String) {
          self.init(string: URLString, relativeTo:nil)
      }
-@@ -540,13 +545,16 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-             components.path = _pathByRemovingDots(pathComponents!)
-         }
- 
-+#if !os(WASI)
-         if let filePath = components.path, isFileURL {
-             return URL(fileURLWithPath: filePath, isDirectory: hasDirectoryPath, relativeTo: baseURL)
-         }
-+#endif
- 
-         return components.url(relativeTo: baseURL)
-     }
-     
-+#if !os(WASI)
-     /* Returns whether the URL's resource exists and is reachable. This method synchronously checks if the resource's backing store is reachable. Checking reachability is appropriate when making decisions that do not require other immediate operations on the resource, e.g. periodic maintenance of UI state that depends on the existence of a specific document. When performing operations such as opening a file or copying resource properties, it is more efficient to simply try the operation and handle failures. If this method returns NO, the optional error is populated. This method is currently applicable only to URLs for file system resources. For other URL types, NO is returned. Symbol is present in iOS 4, but performs no operation.
-     */
-     /// - Experiment: This is a draft API currently under consideration for official import into Foundation as a suitable alternative
-@@ -574,6 +582,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-         return true
- #endif
-     }
-+#endif
- 
-     /* Returns a file path URL that refers to the same resource as a specified URL. File path URLs use a file system style path. An error will occur if the url parameter is not a file URL. A file reference URL's resource must exist and be reachable to be converted to a file path URL. Symbol is present in iOS 4, but performs no operation.
-     */
-@@ -589,6 +598,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-         return CFURLGetTypeID()
-     }
- 
-+#if !os(WASI)
-     open func removeAllCachedResourceValues() {
-         _resourceStorage?.removeAllCachedResourceValues()
-     }
-@@ -615,8 +625,10 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-         guard let storage = _resourceStorage else { return }
-         storage.setTemporaryResourceValue(value, forKey: key)
-     }
-+#endif
- }
- 
-+#if !os(WASI)
- internal class URLResourceValuesStorage: NSObject {
-     let valuesCacheLock = NSLock()
-     var valuesCache: [URLResourceKey: Any] = [:]
-@@ -726,6 +738,7 @@ internal class URLResourceValuesStorage: NSObject {
-         super.init()
-     }
- }
-+#endif
- 
- extension NSCharacterSet {
-     
-@@ -776,7 +789,8 @@ extension NSString {
+@@ -774,7 +775,7 @@ extension NSString {
  }
  
  extension NSURL {
 -    
 +
-+#if !os(WASI)
+ #if !os(WASI)
      /* The following methods work on the path portion of a URL in the same manner that the NSPathUtilities methods on NSString do.
      */
-     open class func fileURL(withPathComponents components: [String]) -> URL? {
-@@ -787,6 +801,7 @@ extension NSURL {
-             return URL(fileURLWithPath: path)
-         }
-     }
-+#endif
-     
-     internal func _pathByFixingSlashes(compress : Bool = true, stripTrailing: Bool = true) -> String? {
-         guard let p = path else {
-@@ -890,7 +905,7 @@ extension NSURL {
+@@ -890,7 +891,7 @@ extension NSURL {
      open var deletingPathExtension: URL? {
          return CFURLCreateCopyDeletingPathExtension(kCFAllocatorSystemDefault, _cfObject)?._swiftObject
      }
@@ -2196,7 +2068,7 @@ index 9b121d66..1b99cf0d 100644
      /* The following methods work only on `file:` scheme URLs; for non-`file:` scheme URLs, these methods return the URL unchanged.
      */
      open var standardizingPath: URL? {
-@@ -898,7 +913,7 @@ extension NSURL {
+@@ -898,7 +899,7 @@ extension NSURL {
          // In remaining cases it works just like URLByResolvingSymlinksInPath.
          return _resolveSymlinksInPath(excludeSystemDirs: true, preserveDirectoryFlag: true)
      }
@@ -2223,10 +2095,10 @@ index 0945253b..d6a5d7b8 100644
  }
 +#endif
 diff --git a/Sources/Foundation/ProcessInfo.swift b/Sources/Foundation/ProcessInfo.swift
-index dcbf6e1e..bb813b05 100644
+index dcbf6e1e..8c712fb0 100644
 --- a/Sources/Foundation/ProcessInfo.swift
 +++ b/Sources/Foundation/ProcessInfo.swift
-@@ -61,14 +61,20 @@ open class ProcessInfo: NSObject {
+@@ -61,11 +61,15 @@ open class ProcessInfo: NSObject {
      }
      
      open var hostName: String {
@@ -2241,13 +2113,8 @@ index dcbf6e1e..bb813b05 100644
 +#endif
      }
      
-+#if !os(WASI)
      open var processName: String = _CFProcessNameString()._swiftObject
-+#endif
-     
-     open var processIdentifier: Int32 {
- #if os(Windows)
-@@ -296,6 +302,7 @@ open class ProcessInfo: NSObject {
+@@ -296,6 +300,7 @@ open class ProcessInfo: NSObject {
          return CFGetSystemUptime()
      }
      
@@ -2255,7 +2122,7 @@ index dcbf6e1e..bb813b05 100644
      open var userName: String {
          return NSUserName()
      }
-@@ -303,6 +310,7 @@ open class ProcessInfo: NSObject {
+@@ -303,6 +308,7 @@ open class ProcessInfo: NSObject {
      open var fullUserName: String {
          return NSFullUserName()
      }
@@ -2263,18 +2130,6 @@ index dcbf6e1e..bb813b05 100644
  
  
  #if os(Linux)
-@@ -367,9 +375,11 @@ open class ProcessInfo: NSObject {
- #endif
- }
- 
-+#if !os(WASI)
- // SPI for TestFoundation
- internal extension ProcessInfo {
-   var _processPath: String {
-     return String(cString: _CFProcessPath())
-   }
- }
-+#endif
 diff --git a/Sources/Foundation/Progress.swift b/Sources/Foundation/Progress.swift
 index 11b96ca7..618171d2 100644
 --- a/Sources/Foundation/Progress.swift
@@ -2382,7 +2237,7 @@ index d3fe75ed..500b2f1d 100644
              return Int(value)
          }
 diff --git a/Sources/Foundation/URL.swift b/Sources/Foundation/URL.swift
-index 9ef15f9b..c9b5c750 100644
+index 9ef15f9b..57e5e6a1 100644
 --- a/Sources/Foundation/URL.swift
 +++ b/Sources/Foundation/URL.swift
 @@ -504,7 +504,7 @@ public struct URL : ReferenceConvertible, Equatable {
@@ -2407,23 +2262,7 @@ index 9ef15f9b..c9b5c750 100644
      
      public func hash(into hasher: inout Hasher) {
          hasher.combine(_url)
-@@ -880,6 +882,7 @@ public struct URL : ReferenceConvertible, Equatable {
-         self = self.standardized
-     }
-     
-+#if !os(WASI)
-     /// Standardizes the path of a file URL.
-     ///
-     /// If the `isFileURL` is false, this method returns `self`.
-@@ -956,6 +959,7 @@ public struct URL : ReferenceConvertible, Equatable {
-     public func checkResourceIsReachable() throws -> Bool {
-         return try _url.checkResourceIsReachable()
-     }
-+#endif
-     
-     // MARK: - Bridging Support
-     
-@@ -1046,7 +1050,7 @@ extension URL : Codable {
+@@ -1046,7 +1048,7 @@ extension URL : Codable {
      }
  }
  
@@ -2432,7 +2271,7 @@ index 9ef15f9b..c9b5c750 100644
  //===----------------------------------------------------------------------===//
  // File references, for playgrounds.
  //===----------------------------------------------------------------------===//
-@@ -1058,3 +1062,4 @@ extension URL : _ExpressibleByFileReferenceLiteral {
+@@ -1058,3 +1060,4 @@ extension URL : _ExpressibleByFileReferenceLiteral {
  }
  
  public typealias _FileReferenceLiteralType = URL
