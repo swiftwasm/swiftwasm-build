@@ -44,6 +44,7 @@ class UpdateCheckoutAction(Action):
                 '--tag', self.options.tag]
         if self.options.skip_history:
             args += ['--skip-history']
+        args += self.options.extra_update_checkout_args
         self.system(*args)
 
 class ApplyPatchesAction(Action):

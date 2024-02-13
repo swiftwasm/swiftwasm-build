@@ -14,6 +14,11 @@ from build.build_support.actions import *
 
 def main():
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
+    parser.add_argument("-Xupdate-checkout",
+                        dest="extra_update_checkout_args",
+                        help="Pass additional arguments to update-checkout",
+                        action="append",
+                        default=[])
     options = derive_options_from_args(sys.argv[1:], parser)
     actions = [
         CloneAction(options), UpdateCheckoutAction(options),
