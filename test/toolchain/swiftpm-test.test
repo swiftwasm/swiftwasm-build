@@ -1,0 +1,7 @@
+# Skipping, see https://github.com/swiftwasm/swift/issues/5551
+XFAIL: *
+
+RUN: rm -rf %t.dir
+RUN: mkdir -p %t.dir
+RUN: %{swift} package init --package-path %t.dir --name Example
+RUN: %{swift} build --package-path %t.dir --triple wasm32-unknown-wasi --build-tests -Xswiftc -resource-dir -Xswiftc %{package_path}/usr/lib/swift_static
