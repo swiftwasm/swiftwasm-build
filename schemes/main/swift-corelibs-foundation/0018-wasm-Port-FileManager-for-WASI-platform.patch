@@ -1,17 +1,17 @@
-From 6b1696f99c327c97fe5409a8b9c0d4d0426b56cf Mon Sep 17 00:00:00 2001
+From 7d47f871d6b96302bb824cd320e7d56d074e308c Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:42:51 +0000
 Subject: [PATCH] [wasm] Port FileManager for WASI platform
 
 ---
  .../Base.subproj/ForSwiftFoundationOnly.h     | 16 ++++-
- Sources/Foundation/Data.swift                 |  2 -
+ Sources/Foundation/Data.swift                 |  4 --
  Sources/Foundation/FileManager+POSIX.swift    | 69 +++++++++++++++++++
  Sources/Foundation/FileManager.swift          | 13 +++-
  Sources/Foundation/NSData.swift               |  3 +-
  Sources/Foundation/NSPathUtilities.swift      |  2 -
  Sources/Foundation/NSURL.swift                | 14 ----
- 7 files changed, 95 insertions(+), 24 deletions(-)
+ 7 files changed, 95 insertions(+), 26 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 index 4a9e5536..6aca2f14 100644
@@ -63,10 +63,26 @@ index 4a9e5536..6aca2f14 100644
  
  #endif
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
-index 6e5bfdb6..f0f1c3d2 100644
+index 6e5bfdb6..f82ecbc6 100644
 --- a/Sources/Foundation/Data.swift
 +++ b/Sources/Foundation/Data.swift
-@@ -2317,7 +2317,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2040,7 +2040,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+         }
+     }
+     
+-#if !os(WASI)
+     /// Initialize a `Data` with the contents of a `URL`.
+     ///
+     /// - parameter url: The `URL` to read.
+@@ -2053,7 +2052,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+             return Data(bytes: d.bytes, count: d.length)
+         }
+     }
+-#endif
+     
+     /// Initialize a `Data` from a Base-64 encoded String using the given options.
+     ///
+@@ -2317,7 +2315,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
      }
  #endif
      
@@ -74,7 +90,7 @@ index 6e5bfdb6..f0f1c3d2 100644
      /// Write the contents of the `Data` to a location.
      ///
      /// - parameter url: The location to write the data into.
-@@ -2338,7 +2337,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2338,7 +2335,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
  #endif
          }
      }
