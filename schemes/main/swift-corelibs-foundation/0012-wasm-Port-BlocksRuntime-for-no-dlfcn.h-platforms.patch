@@ -1,4 +1,4 @@
-From d39c49390683b3eb12d9562a81d40f49b5d50ca2 Mon Sep 17 00:00:00 2001
+From 95b6d8d152d280509340d9889515a4fcc088d134 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 7 Feb 2024 17:19:00 +0000
 Subject: [PATCH] [wasm] Port BlocksRuntime for no dlfcn.h platforms
