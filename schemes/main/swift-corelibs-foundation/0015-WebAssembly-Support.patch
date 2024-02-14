@@ -1,4 +1,4 @@
-From bbe32c0321d881f5c25afc1c2f0ea49d6d5645d7 Mon Sep 17 00:00:00 2001
+From c0ae5fb8b717e679828bf6340d1701a1ed7a956a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 13 Feb 2024 15:54:28 +0000
 Subject: [PATCH] WebAssembly Support

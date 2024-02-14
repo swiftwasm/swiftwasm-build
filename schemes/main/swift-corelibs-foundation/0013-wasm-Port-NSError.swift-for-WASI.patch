@@ -1,4 +1,4 @@
-From 0a3cfa4433b4dfc57c6c188396315884d61da0b9 Mon Sep 17 00:00:00 2001
+From 01ce6964836ca9f768c813f1ad218a4eb1e5ca10 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Thu, 8 Feb 2024 06:13:11 +0000
 Subject: [PATCH] [wasm] Port NSError.swift for WASI
