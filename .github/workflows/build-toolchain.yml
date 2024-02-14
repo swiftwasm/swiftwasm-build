@@ -312,4 +312,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run integration tests
         if: ${{ matrix.run_e2e_test }}
-        run: ${{ github.workspace }}/llvm-project/llvm/utils/lit/lit.py --param package-path=$TOOLCHAIN ${{ github.workspace }}/swiftwasm-build/test -vv
+        run: ${{ github.workspace }}/llvm-project/llvm/utils/lit/lit.py --param package-path=$TOOLCHAIN --param scheme=${{ matrix.scheme }} ${{ github.workspace }}/swiftwasm-build/test -vv
