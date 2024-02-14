@@ -1,203 +1,23 @@
-From 09c7497b810cdf384d2050b3fee53bfe163a6e17 Mon Sep 17 00:00:00 2001
+From 6b1696f99c327c97fe5409a8b9c0d4d0426b56cf Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Tue, 13 Feb 2024 15:53:00 +0000
-Subject: [PATCH] [wasm] Port FileManager.swift
+Date: Wed, 14 Feb 2024 12:42:51 +0000
+Subject: [PATCH] [wasm] Port FileManager for WASI platform
 
 ---
- CoreFoundation/Base.subproj/CFPlatform.c      | 46 +++++++++--
- CoreFoundation/Base.subproj/CFPriv.h          |  6 +-
- .../Base.subproj/ForSwiftFoundationOnly.h     | 36 ++++++++-
+ .../Base.subproj/ForSwiftFoundationOnly.h     | 16 ++++-
  Sources/Foundation/Data.swift                 |  2 -
- Sources/Foundation/FileHandle.swift           |  4 -
- Sources/Foundation/FileManager+POSIX.swift    | 81 ++++++++++++++++++-
- Sources/Foundation/FileManager.swift          | 13 ++-
+ Sources/Foundation/FileManager+POSIX.swift    | 69 +++++++++++++++++++
+ Sources/Foundation/FileManager.swift          | 13 +++-
  Sources/Foundation/NSData.swift               |  3 +-
- Sources/Foundation/NSPathUtilities.swift      |  7 +-
- Sources/Foundation/NSURL.swift                | 18 +----
- 10 files changed, 172 insertions(+), 44 deletions(-)
+ Sources/Foundation/NSPathUtilities.swift      |  2 -
+ Sources/Foundation/NSURL.swift                | 14 ----
+ 7 files changed, 95 insertions(+), 24 deletions(-)
 
-diff --git a/CoreFoundation/Base.subproj/CFPlatform.c b/CoreFoundation/Base.subproj/CFPlatform.c
-index acb5c709..d89d8192 100644
---- a/CoreFoundation/Base.subproj/CFPlatform.c
-+++ b/CoreFoundation/Base.subproj/CFPlatform.c
-@@ -105,7 +105,6 @@ CF_PRIVATE const wchar_t *_CFDLLPath(void) {
- }
- #endif // TARGET_OS_WIN32
- 
--#if !TARGET_OS_WASI
- static const char *__CFProcessPath = NULL;
- static const char *__CFprogname = NULL;
- 
-@@ -188,6 +187,31 @@ const char *_CFProcessPath(void) {
-         __CFprogname = __CFProcessPath;
-     }
-     return __CFProcessPath;
-+#elif TARGET_OS_WASI
-+    __wasi_errno_t err;
-+    size_t argc;
-+    size_t argv_buf_size;
-+    err = __wasi_args_sizes_get(&argc, &argv_buf_size);
-+    if (err != 0) {
-+        __CFProcessPath = "";
-+        __CFprogname = __CFProcessPath;
-+        return __CFProcessPath;
-+    }
-+    char *argv_buf = malloc(argv_buf_size);
-+    char **argv = calloc(argc, sizeof(char *));
-+    err = __wasi_args_get((uint8_t **)argv, (uint8_t *)argv_buf);
-+    if (err != 0) {
-+        __CFProcessPath = "";
-+        __CFprogname = __CFProcessPath;
-+        free(argv_buf);
-+        free(argv);
-+        return __CFProcessPath;
-+    }
-+    _CFSetProgramNameFromPath(argv[0]);
-+    free(argv_buf);
-+    free(argv);
-+    return __CFProcessPath;
-+
- #else // TARGET_OS_BSD
-     char *argv0 = NULL;
- 
-@@ -250,7 +274,6 @@ const char *_CFProcessPath(void) {
-     return __CFProcessPath;
- #endif
- }
--#endif // TARGET_OS_WASI
- 
- #if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_BSD
- CF_CROSS_PLATFORM_EXPORT Boolean _CFIsMainThread(void) {
-@@ -275,7 +298,6 @@ Boolean _CFIsMainThread(void) {
- }
- #endif // TARGET_OS_LINUX
- 
--#if !TARGET_OS_WASI
- CF_PRIVATE CFStringRef _CFProcessNameString(void) {
-     static CFStringRef __CFProcessNameString = NULL;
-     if (!__CFProcessNameString) {
-@@ -294,7 +316,6 @@ CF_PRIVATE CFStringRef _CFProcessNameString(void) {
-     }
-     return __CFProcessNameString;
- }
--#endif // !TARGET_OS_WASI
- 
- #if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
- 
-@@ -389,16 +410,20 @@ static CFURLRef _CFCopyHomeDirURLForUser(const char *username, bool fallBackToHo
- 
- #endif
- 
--#if !TARGET_OS_WASI
- #define CFMaxHostNameLength	256
- #define CFMaxHostNameSize	(CFMaxHostNameLength+1)
- 
- CF_PRIVATE CFStringRef _CFStringCreateHostName(void) {
-+#if TARGET_OS_WASI
-+    // WASI doesn't have a concept of a hostname
-+    return CFSTR("");
-+#else
-     char myName[CFMaxHostNameSize];
- 
-     // return @"" instead of nil a la CFUserName() and Ali Ozer
-     if (0 != gethostname(myName, CFMaxHostNameSize)) return CFSTR("");
-     return CFStringCreateWithCString(kCFAllocatorSystemDefault, myName, kCFPlatformInterfaceStringEncoding);
-+#endif
- }
- 
- /* These are sanitized versions of the above functions. We might want to eliminate the above ones someday.
-@@ -435,6 +460,8 @@ CF_EXPORT CFStringRef CFCopyUserName(void) {
-                 result = CFStringCreateWithCString(kCFAllocatorSystemDefault, cname, kCFPlatformInterfaceStringEncoding);
-             }
- 	}
-+#elif TARGET_OS_WASI
-+    // WASI does not have user concept
- #else
- #error "Please add an implementation for CFCopyUserName() that copies the account username"
- #endif
-@@ -464,6 +491,8 @@ CF_CROSS_PLATFORM_EXPORT CFStringRef CFCopyFullUserName(void) {
-     GetUserNameExW(NameDisplay, (LPWSTR)wszBuffer, &ulLength);
- 
-     result = CFStringCreateWithCharacters(kCFAllocatorSystemDefault, (UniChar *)wszBuffer, ulLength);
-+#elif TARGET_OS_WASI
-+    // WASI does not have user concept
- #else
- #error "Please add an implementation for CFCopyFullUserName() that copies the full (display) user name"
- #endif
-@@ -530,6 +559,9 @@ CFURLRef CFCopyHomeDirectoryURL(void) {
-     if (testPath) CFRelease(testPath);
- 
-     return retVal;
-+#elif TARGET_OS_WASI
-+    // WASI does not have user concept
-+    return NULL;
- #else
- #error Dont know how to compute users home directories on this platform
- #endif
-@@ -661,6 +693,9 @@ CF_EXPORT CFURLRef CFCopyHomeDirectoryURLForUser(CFStringRef uName) {
-     CFAllocatorDeallocate(kCFAllocatorSystemDefault, pwszUserName);
- 
-     return url;
-+#elif TARGET_OS_WASI
-+    // WASI does not have user concept
-+    return NULL;
- #else
- #error Dont know how to compute users home directories on this platform
- #endif
-@@ -669,7 +704,6 @@ CF_EXPORT CFURLRef CFCopyHomeDirectoryURLForUser(CFStringRef uName) {
- 
- #undef CFMaxHostNameLength
- #undef CFMaxHostNameSize
--#endif // !TARGET_OS_WASI
- 
- #if TARGET_OS_WIN32
- CF_INLINE CFIndex strlen_UniChar(const UniChar* p) {
-diff --git a/CoreFoundation/Base.subproj/CFPriv.h b/CoreFoundation/Base.subproj/CFPriv.h
-index 692a106a..73292b09 100644
---- a/CoreFoundation/Base.subproj/CFPriv.h
-+++ b/CoreFoundation/Base.subproj/CFPriv.h
-@@ -57,19 +57,17 @@ CF_EXTERN_C_BEGIN
- 
- CF_EXPORT void _CFRuntimeSetCFMPresent(void *a);
- 
--#if !TARGET_OS_WASI
- CF_EXPORT const char *_CFProcessPath(void);
- CF_EXPORT const char **_CFGetProcessPath(void);
- CF_EXPORT const char **_CFGetProgname(void);
- 
--#if !TARGET_OS_WIN32
-+#if !TARGET_OS_WIN32 && !TARGET_OS_WASI
- #include <sys/types.h>
- 
- CF_EXPORT void _CFGetUGIDs(uid_t *euid, gid_t *egid);
- CF_EXPORT uid_t _CFGetEUID(void);
- CF_EXPORT uid_t _CFGetEGID(void);
- #endif
--#endif
- 
- #if (TARGET_OS_MAC && !(TARGET_OS_IPHONE || TARGET_OS_LINUX))
- CF_EXPORT void _CFRunLoopSetCurrent(CFRunLoopRef rl);
-@@ -166,7 +164,6 @@ CF_EXPORT Boolean _CFStringGetFileSystemRepresentation(CFStringRef string, UInt8
- /* If this is publicized, we might need to create a GetBytesPtr type function as well. */
- CF_EXPORT CFStringRef _CFStringCreateWithBytesNoCopy(CFAllocatorRef alloc, const UInt8 *bytes, CFIndex numBytes, CFStringEncoding encoding, Boolean externalFormat, CFAllocatorRef contentsDeallocator);
- 
--#if !TARGET_OS_WASI
- /* These return NULL on MacOS 8 */
- // This one leaks the returned string in order to be thread-safe.
- // CF cannot help you in this matter if you continue to use this SPI.
-@@ -178,7 +175,6 @@ CFStringRef CFCopyUserName(void);
- 
- CF_EXPORT
- CFURLRef CFCopyHomeDirectoryURLForUser(CFStringRef uName);	/* Pass NULL for the current user's home directory */
--#endif
- 
- 
- /*
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index 80c881be..6aca2f14 100644
+index 4a9e5536..6aca2f14 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-@@ -45,10 +45,14 @@
+@@ -45,7 +45,7 @@
  #if _POSIX_THREADS
  #include <pthread.h>
  #endif
@@ -206,14 +26,7 @@ index 80c881be..6aca2f14 100644
  #include <dirent.h>
  #endif
  
-+#if TARGET_OS_WASI
-+#include <errno.h>
-+#endif
-+
- #include <CoreFoundation/CFCalendar_Internal.h>
- 
- #if __has_include(<execinfo.h>)
-@@ -564,24 +568,38 @@ CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const char *path, int opts, mod
+@@ -568,11 +568,11 @@ CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const char *path, int opts, mod
  CF_CROSS_PLATFORM_EXPORT void *_CFReallocf(void *ptr, size_t size);
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFile(const char *path, int opts);
  
@@ -227,13 +40,8 @@ index 80c881be..6aca2f14 100644
      return strlen(entry->d_name);
  #else
      return entry->d_namlen;
- #endif
- }
+@@ -585,11 +585,21 @@ static inline char *_direntName(struct dirent *entry) {
  
-+static inline char *_direntName(struct dirent *entry) {
-+    return entry->d_name;
-+}
-+
  // major() and minor() might be implemented as macros or functions.
  static inline unsigned int _dev_major(dev_t rdev) {
 +#if !TARGET_OS_WASI
@@ -254,25 +62,6 @@ index 80c881be..6aca2f14 100644
  }
  
  #endif
-@@ -717,6 +735,18 @@ CF_EXPORT int _CFPosixSpawn(pid_t *_CF_RESTRICT pid, const char *_CF_RESTRICT pa
- #endif // __cplusplus
- #endif // !TARGET_OS_WIN32
- 
-+// HACK: These errno accessors are copied from SwiftShims. We should expose WASILibc.errno with setter
-+#if TARGET_OS_WASI
-+static inline int _swift_stdlib_getErrno() {
-+  return errno;
-+}
-+
-+static inline void _swift_stdlib_setErrno(int value) {
-+  errno = value;
-+}
-+char *_Nullable realpath(const char *__restrict, char *__restrict);
-+#endif
-+
- _CF_EXPORT_SCOPE_END
- 
- #endif /* __COREFOUNDATION_FORSWIFTFOUNDATIONONLY__ */
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
 index 6e5bfdb6..f0f1c3d2 100644
 --- a/Sources/Foundation/Data.swift
@@ -293,52 +82,11 @@ index 6e5bfdb6..f0f1c3d2 100644
      
      // MARK: -
      
-diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
-index 6da1d666..328a45d2 100644
---- a/Sources/Foundation/FileHandle.swift
-+++ b/Sources/Foundation/FileHandle.swift
-@@ -28,10 +28,6 @@ import WASILibc
- fileprivate let _read = WASILibc.read(_:_:_:)
- fileprivate let _write = WASILibc.write(_:_:_:)
- fileprivate let _close = WASILibc.close(_:)
--// wasi-libc's errno is defined as an usual TLS variable, so ClangImporter can import it through CoreFoundation
--// while other platforms' are not importable due to their complex macro definition. Imported errno conflicts with
--// WASILibc's errno definition, so define a Foundation internal version here to avoid ambiguity error.
--internal var errno: Int32 { return WASILibc.errno }
- #endif
- 
- #if canImport(WinSDK)
 diff --git a/Sources/Foundation/FileManager+POSIX.swift b/Sources/Foundation/FileManager+POSIX.swift
-index d90ece91..ae8dba77 100644
+index 9b877dbc..f55e6c7b 100644
 --- a/Sources/Foundation/FileManager+POSIX.swift
 +++ b/Sources/Foundation/FileManager+POSIX.swift
-@@ -13,6 +13,25 @@ internal func &(left: UInt32, right: mode_t) -> mode_t {
- }
- #endif
- 
-+#if os(WASI)
-+import WASILibc
-+let DT_DIR: UInt8 = 0x3
-+let O_WRONLY: Int32 = 0x10000000
-+let O_CREAT: Int32 = 1 << 12
-+let O_DIRECTORY: Int32 = 1 << 13
-+let O_EXCL: Int32 = 1 << 14
-+let O_TRUNC: Int32 = 1 << 15
-+
-+internal var errno : Int32 {
-+  get {
-+    return _swift_stdlib_getErrno()
-+  }
-+  set(val) {
-+    return _swift_stdlib_setErrno(val)
-+  }
-+}
-+#endif
-+
- @_implementationOnly import CoreFoundation
- 
- extension FileManager {
-@@ -96,6 +115,32 @@ extension FileManager {
+@@ -115,6 +115,32 @@ extension FileManager {
                  return nil
              }
              urls = mountPoints(statBuf, Int(fsCount))
@@ -371,30 +119,18 @@ index d90ece91..ae8dba77 100644
  #else
  #error("Requires a platform-specific implementation")
  #endif
-@@ -411,10 +456,8 @@ extension FileManager {
-             errno = 0
-             while let entry = readdir(dir) {
-                 let length = Int(_direntNameLength(entry))
--                let entryName = withUnsafePointer(to: entry.pointee.d_name) { (ptr) -> String in
--                    let namePtr = UnsafeRawPointer(ptr).assumingMemoryBound(to: CChar.self)
--                    return string(withFileSystemRepresentation: namePtr, length: length)
--                }
-+                let namePtr = UnsafeRawPointer(_direntName(entry)).assumingMemoryBound(to: CChar.self)
-+                let entryName = string(withFileSystemRepresentation: namePtr, length: length)
-                 if entryName != "." && entryName != ".." {
-                     let entryType = Int32(entry.pointee.d_type)
-                     try closure(entryName, entryType)
-@@ -446,6 +489,9 @@ extension FileManager {
+@@ -463,6 +489,10 @@ extension FileManager {
      }
      
      internal func _attributesOfFileSystemIncludingBlockSize(forPath path: String) throws -> (attributes: [FileAttributeKey : Any], blockSize: UInt64?) {
 +    #if os(WASI)
++        // WASI doesn't have statvfs
 +        throw _NSErrorWithErrno(ENOTSUP, reading: true, path: path)
 +    #else
          var result: [FileAttributeKey:Any] = [:]
          var finalBlockSize: UInt64?
          
-@@ -478,6 +524,7 @@ extension FileManager {
+@@ -495,6 +525,7 @@ extension FileManager {
              finalBlockSize = blockSize
          }
          return (attributes: result, blockSize: finalBlockSize)
@@ -402,7 +138,7 @@ index d90ece91..ae8dba77 100644
      }
  
      internal func _createSymbolicLink(atPath path: String, withDestinationPath destPath: String) throws {
-@@ -507,6 +554,9 @@ extension FileManager {
+@@ -524,6 +555,9 @@ extension FileManager {
      }
          
      internal func _recursiveDestinationOfSymbolicLink(atPath path: String) throws -> String {
@@ -412,7 +148,7 @@ index d90ece91..ae8dba77 100644
          // Throw error if path is not a symbolic link:
          let path = try _destinationOfSymbolicLink(atPath: path)
          
-@@ -520,10 +570,14 @@ extension FileManager {
+@@ -537,10 +571,14 @@ extension FileManager {
          }
  
          return String(cString: resolvedPath)
@@ -427,7 +163,7 @@ index d90ece91..ae8dba77 100644
          let bufSize = Int(PATH_MAX + 1)
          var buf = [Int8](repeating: 0, count: bufSize)
          let done = try _fileSystemRepresentation(withPath: path) {
-@@ -534,6 +588,7 @@ extension FileManager {
+@@ -551,6 +589,7 @@ extension FileManager {
          }
          
          return self.string(withFileSystemRepresentation: buf, length: strlen(buf))
@@ -435,7 +171,7 @@ index d90ece91..ae8dba77 100644
      }
  
      internal func _readFrom(fd: Int32, toBuffer buffer: UnsafeMutablePointer<UInt8>, length bytesToRead: Int, filename: String) throws -> Int {
-@@ -591,12 +646,14 @@ extension FileManager {
+@@ -608,12 +647,14 @@ extension FileManager {
          }
          defer { close(dstfd) }
  
@@ -450,18 +186,18 @@ index d90ece91..ae8dba77 100644
  
          if fileInfo.st_size == 0 {
              // no copying required
-@@ -741,6 +798,10 @@ extension FileManager {
+@@ -758,6 +799,10 @@ extension FileManager {
              if rmdir(fsRep) == 0 {
                  return
              } else if errno == ENOTEMPTY {
 +                #if os(WASI)
-+                // TODO: Implement recursive directory removal with dirent
++                // wasi-libc, which is based on musl, does not provide fts(3)
 +                throw _NSErrorWithErrno(ENOTSUP, reading: false, path: path)
 +                #else
                  let ps = UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>.allocate(capacity: 2)
                  ps.initialize(to: UnsafeMutablePointer(mutating: fsRep))
                  ps.advanced(by: 1).initialize(to: nil)
-@@ -783,6 +844,7 @@ extension FileManager {
+@@ -800,6 +845,7 @@ extension FileManager {
                  } else {
                      let _ = _NSErrorWithErrno(ENOTEMPTY, reading: false, path: path)
                  }
@@ -469,7 +205,7 @@ index d90ece91..ae8dba77 100644
              } else if errno != ENOTDIR {
                  throw _NSErrorWithErrno(errno, reading: false, path: path)
              } else if unlink(fsRep) != 0 {
-@@ -885,6 +947,7 @@ extension FileManager {
+@@ -902,6 +948,7 @@ extension FileManager {
                      return false
                  }
  
@@ -477,7 +213,7 @@ index d90ece91..ae8dba77 100644
                  // Stat the parent directory, if that fails, return false.
                  let parentS = try _lstatFile(atPath: path, withFileSystemRepresentation: parentFsRep)
  
-@@ -895,6 +958,7 @@ extension FileManager {
+@@ -912,6 +959,7 @@ extension FileManager {
                      // If the current user owns the file, return true.
                      return s.st_uid == getuid()
                  }
@@ -485,22 +221,34 @@ index d90ece91..ae8dba77 100644
  
                  // Return true as the best guess.
                  return true
-@@ -1065,6 +1129,14 @@ extension FileManager {
+@@ -1082,6 +1130,26 @@ extension FileManager {
          return temp._bridgeToObjectiveC().appendingPathComponent(dest)
      }
  
 +    #if os(WASI)
++    // For platforms that don't support FTS, we just throw an error for now.
++    // TODO: Provide readdir(2) based implementation here or FTS in wasi-libc?
 +    internal class NSURLDirectoryEnumerator : DirectoryEnumerator {
-+      // TODO(katei): Implement later with dirent.
-+      init(url: URL, options: FileManager.DirectoryEnumerationOptions, errorHandler: ((URL, Error) -> Bool)?) {
-+        fatalError("Not implemented")
-+      }
++        var _url : URL
++        var _errorHandler : ((URL, Error) -> Bool)?
++
++        init(url: URL, options: FileManager.DirectoryEnumerationOptions, errorHandler: ((URL, Error) -> Bool)?) {
++            _url = url
++            _errorHandler = errorHandler
++        }
++
++        override func nextObject() -> Any? {
++            if let handler = _errorHandler {
++                _ = handler(_url, _NSErrorWithErrno(ENOTSUP, reading: true, url: _url))
++            }
++            return nil
++        }
 +    }
 +    #else
      internal class NSURLDirectoryEnumerator : DirectoryEnumerator {
          var _url : URL
          var _options : FileManager.DirectoryEnumerationOptions
-@@ -1198,6 +1270,7 @@ extension FileManager {
+@@ -1215,6 +1283,7 @@ extension FileManager {
              return nil
          }
      }
@@ -584,7 +332,7 @@ index ed9e7f05..808811b8 100644
      // MARK: - Bytes
      /// Copies a number of bytes from the start of the data object into a given buffer.
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index 1726b351..99b6f141 100644
+index 1726b351..cfba2728 100644
 --- a/Sources/Foundation/NSPathUtilities.swift
 +++ b/Sources/Foundation/NSPathUtilities.swift
 @@ -655,7 +655,6 @@ extension NSString {
@@ -595,48 +343,16 @@ index 1726b351..99b6f141 100644
  extension FileManager {
      public enum SearchPathDirectory: UInt {
          
-@@ -770,6 +769,9 @@ internal func _NSCreateTemporaryFile(_ filePath: String) throws -> (Int32, Strin
-     }
-     // Don't close h, fd is transferred ownership
-     let fd = _open_osfhandle(intptr_t(bitPattern: h), 0)
-+    return (fd, pathResult)
-+#elseif os(WASI)
-+    throw NSError(domain: NSPOSIXErrorDomain, code: Int(ENOTSUP))
- #else
-     var template = URL(fileURLWithPath: filePath)
-     
-@@ -805,8 +807,8 @@ internal func _NSCreateTemporaryFile(_ filePath: String) throws -> (Int32, Strin
-         close(fd)
-         throw _NSErrorWithErrno(_errno, reading: false, path: pathResult)
-     }
--#endif
-     return (fd, pathResult)
-+#endif
- }
- 
- internal func _NSCleanupTemporaryFile(_ auxFilePath: String, _ filePath: String) throws  {
-@@ -831,4 +833,3 @@ internal func _NSCleanupTemporaryFile(_ auxFilePath: String, _ filePath: String)
+@@ -831,4 +830,3 @@ internal func _NSCleanupTemporaryFile(_ auxFilePath: String, _ filePath: String)
      })
  #endif
  }
 -#endif
 diff --git a/Sources/Foundation/NSURL.swift b/Sources/Foundation/NSURL.swift
-index 9b121d66..07cd02c9 100644
+index 9b121d66..c6ce7205 100644
 --- a/Sources/Foundation/NSURL.swift
 +++ b/Sources/Foundation/NSURL.swift
-@@ -540,9 +540,11 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-             components.path = _pathByRemovingDots(pathComponents!)
-         }
- 
-+#if !os(WASI)
-         if let filePath = components.path, isFileURL {
-             return URL(fileURLWithPath: filePath, isDirectory: hasDirectoryPath, relativeTo: baseURL)
-         }
-+#endif
- 
-         return components.url(relativeTo: baseURL)
-     }
-@@ -554,9 +556,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+@@ -554,9 +554,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
      // TODO: should be `checkResourceIsReachableAndReturnError` with autoreleased error parameter.
      // Currently Autoreleased pointers is not supported on Linux.
      open func checkResourceIsReachable() throws -> Bool {
@@ -646,7 +362,7 @@ index 9b121d66..07cd02c9 100644
          guard isFileURL,
              let path = path else {
                  throw NSError(domain: NSCocoaErrorDomain,
-@@ -572,7 +571,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+@@ -572,7 +569,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
          }
          
          return true
@@ -654,23 +370,7 @@ index 9b121d66..07cd02c9 100644
      }
  
      /* Returns a file path URL that refers to the same resource as a specified URL. File path URLs use a file system style path. An error will occur if the url parameter is not a file URL. A file reference URL's resource must exist and be reachable to be converted to a file path URL. Symbol is present in iOS 4, but performs no operation.
-@@ -777,6 +775,7 @@ extension NSString {
- 
- extension NSURL {
-     
-+#if !os(WASI)
-     /* The following methods work on the path portion of a URL in the same manner that the NSPathUtilities methods on NSString do.
-     */
-     open class func fileURL(withPathComponents components: [String]) -> URL? {
-@@ -787,6 +786,7 @@ extension NSURL {
-             return URL(fileURLWithPath: path)
-         }
-     }
-+#endif
-     
-     internal func _pathByFixingSlashes(compress : Bool = true, stripTrailing: Bool = true) -> String? {
-         guard let p = path else {
-@@ -916,12 +916,8 @@ extension NSURL {
+@@ -916,12 +912,8 @@ extension NSURL {
          if selfPath.isAbsolutePath {
              absolutePath = selfPath
          } else {
@@ -683,7 +383,7 @@ index 9b121d66..07cd02c9 100644
          }
  
  #if os(Windows)
-@@ -969,20 +965,16 @@ extension NSURL {
+@@ -969,20 +961,16 @@ extension NSURL {
  
              default:
                  resolvedPath = resolvedPath._bridgeToObjectiveC().appendingPathComponent(component)
@@ -704,7 +404,7 @@ index 9b121d66..07cd02c9 100644
  
          if excludeSystemDirs {
              resolvedPath = resolvedPath._tryToRemovePathPrefix("/private") ?? resolvedPath
-@@ -1061,7 +1053,6 @@ extension NSURL : _StructTypeBridgeable {
+@@ -1061,7 +1049,6 @@ extension NSURL : _StructTypeBridgeable {
  
  // -----
  
@@ -712,7 +412,7 @@ index 9b121d66..07cd02c9 100644
  internal func _CFSwiftURLCopyResourcePropertyForKey(_ url: CFTypeRef, _ key: CFString, _ valuePointer: UnsafeMutablePointer<Unmanaged<CFTypeRef>?>?, _ errorPointer: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> _DarwinCompatibleBoolean {
      do {
          let key = URLResourceKey(rawValue: key._swiftObject)
-@@ -1595,7 +1586,6 @@ fileprivate extension URLResourceValuesStorage {
+@@ -1595,7 +1582,6 @@ fileprivate extension URLResourceValuesStorage {
          }
      }
  }
