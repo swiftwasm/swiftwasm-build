@@ -145,13 +145,8 @@ build_target_toolchain() {
   "$TOOLS_BUILD_PATH/build-foundation.sh" "${CORELIBS_ARGS[@]}"
   "$TOOLS_BUILD_PATH/build-xctest.sh" "${CORELIBS_ARGS[@]}"
 
-  # WORKAROUND: Link compiler-rt under swift resource dir
-  # This should be done by Swift build system, but it always get the resource dir from
-  # `clang -print-resource-dir` without respecting `-resource-dir` nor `-target` options.
-  rm -rf "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift/clang"
-  rm -rf "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/clang"
-  ln -fs "../clang/$CLANG_VERSION" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift/clang"
-  ln -fs "../clang/$CLANG_VERSION" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/clang"
+  ln -fs "../../../clang/$CLANG_VERSION/lib/wasi" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift/clang/lib/wasi"
+  ln -fs "../../../clang/$CLANG_VERSION/lib/wasi" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/clang/lib/wasi"
 }
 
 main() {
