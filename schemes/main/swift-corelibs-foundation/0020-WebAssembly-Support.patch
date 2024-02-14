@@ -1,6 +1,6 @@
-From 4d1309350cb115a7fd84539f3d75439b73a625c6 Mon Sep 17 00:00:00 2001
+From 59920248041493c73d854eb40970b90fdf36d065 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Tue, 13 Feb 2024 15:54:28 +0000
+Date: Wed, 14 Feb 2024 13:24:41 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
@@ -31,7 +31,6 @@ Subject: [PATCH] WebAssembly Support
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
  Sources/Foundation/Bundle.swift               | 40 +++++++++++
  Sources/Foundation/CMakeLists.txt             | 39 +++++++---
- Sources/Foundation/Data.swift                 | 10 ++-
  Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++
  .../DispatchData+DataProtocol.swift           |  3 +-
  Sources/Foundation/FileHandle.swift           | 22 +++++-
@@ -54,7 +53,7 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/URL.swift                  |  7 +-
  Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
- 50 files changed, 457 insertions(+), 146 deletions(-)
+ 49 files changed, 453 insertions(+), 140 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..f4372dd1 100644
@@ -1230,55 +1229,6 @@ index 2accd566..babfcf98 100644
  
  set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS Foundation)
  _install_target(Foundation)
-diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
-index f0f1c3d2..1a30d29c 100644
---- a/Sources/Foundation/Data.swift
-+++ b/Sources/Foundation/Data.swift
-@@ -604,16 +604,16 @@ internal class __NSSwiftData : NSData {
-         _backing = backing
-         _range = range
-     }
--    
-+
-     public required init?(coder aDecoder: NSCoder) {
-         fatalError("This should have been encoded as NSData.")
-     }
--    
-+
-     override func encode(with aCoder: NSCoder) {
-         // This should encode this object just like NSData does, and .classForCoder should do the rest.
-         super.encode(with: aCoder)
-     }
--    
-+
-     override var length: Int {
-         return _range.upperBound - _range.lowerBound
-     }
-@@ -678,7 +678,7 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
-     @usableFromInline
-     @frozen
-     internal struct InlineData {
--#if arch(x86_64) || arch(arm64) || arch(s390x) || arch(powerpc64) || arch(powerpc64le)
-+#if arch(x86_64) || arch(arm64) || arch(s390x) || arch(powerpc64) || arch(powerpc64le) 
-         @usableFromInline typealias Buffer = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                                               UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) //len  //enum
-         @usableFromInline var bytes: Buffer
-@@ -2040,7 +2040,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
-         }
-     }
-     
--#if !os(WASI)
-     /// Initialize a `Data` with the contents of a `URL`.
-     ///
-     /// - parameter url: The `URL` to read.
-@@ -2053,7 +2052,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
-             return Data(bytes: d.bytes, count: d.length)
-         }
-     }
--#endif
-     
-     /// Initialize a `Data` from a Base-64 encoded String using the given options.
-     ///
 diff --git a/Sources/Foundation/DateFormatter.swift b/Sources/Foundation/DateFormatter.swift
 index e6b8020f..f536d8d4 100644
 --- a/Sources/Foundation/DateFormatter.swift
