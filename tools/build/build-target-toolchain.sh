@@ -127,10 +127,6 @@ build_target_toolchain() {
   # the header and modulemap custom targets should be added as dependency of install
   ninja sdk-overlay install -C "$SWIFT_STDLIB_BUILD_DIR"
 
-  # Link compiler-rt libs to stdlib build dir
-  mkdir -p "$SWIFT_STDLIB_BUILD_DIR/lib/clang/10.0.0/"
-  ln -fs "$COMPILER_RT_BUILD_DIR/lib" "$SWIFT_STDLIB_BUILD_DIR/lib/clang/10.0.0/lib"
-
   # Remove host CoreFoundation module directory to avoid module conflict
   # while building Foundation
   rm -rf "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/CoreFoundation"
