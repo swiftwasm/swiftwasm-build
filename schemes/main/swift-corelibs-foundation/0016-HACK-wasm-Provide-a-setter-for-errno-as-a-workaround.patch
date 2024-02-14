@@ -1,0 +1,88 @@
+From 4b01e5da700ca4296bbca89f7e0dc9880f78f38b Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 14 Feb 2024 12:23:20 +0000
+Subject: [PATCH] HACK: [wasm] Provide a setter for `errno` as a workaround
+
+`errno` should be exposed by WASILibc instead of being defined in
+here.
+---
+ .../Base.subproj/ForSwiftFoundationOnly.h        | 16 ++++++++++++++++
+ Sources/Foundation/FileHandle.swift              |  4 ----
+ Sources/Foundation/FileManager+POSIX.swift       | 12 ++++++++++++
+ 3 files changed, 28 insertions(+), 4 deletions(-)
+
+diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
+index e823cb3d..4a9e5536 100644
+--- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
++++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
+@@ -49,6 +49,10 @@
+ #include <dirent.h>
+ #endif
+ 
++#if TARGET_OS_WASI
++#include <errno.h>
++#endif
++
+ #include <CoreFoundation/CFCalendar_Internal.h>
+ 
+ #if __has_include(<execinfo.h>)
+@@ -721,6 +725,18 @@ CF_EXPORT int _CFPosixSpawn(pid_t *_CF_RESTRICT pid, const char *_CF_RESTRICT pa
+ #endif // __cplusplus
+ #endif // !TARGET_OS_WIN32
+ 
++// HACK: These errno accessors are copied from SwiftShims. We should expose WASILibc.errno with setter
++#if TARGET_OS_WASI
++static inline int _swift_stdlib_getErrno() {
++  return errno;
++}
++
++static inline void _swift_stdlib_setErrno(int value) {
++  errno = value;
++}
++char *_Nullable realpath(const char *__restrict, char *__restrict);
++#endif
++
+ _CF_EXPORT_SCOPE_END
+ 
+ #endif /* __COREFOUNDATION_FORSWIFTFOUNDATIONONLY__ */
+diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
+index 6da1d666..328a45d2 100644
+--- a/Sources/Foundation/FileHandle.swift
++++ b/Sources/Foundation/FileHandle.swift
+@@ -28,10 +28,6 @@ import WASILibc
+ fileprivate let _read = WASILibc.read(_:_:_:)
+ fileprivate let _write = WASILibc.write(_:_:_:)
+ fileprivate let _close = WASILibc.close(_:)
+-// wasi-libc's errno is defined as an usual TLS variable, so ClangImporter can import it through CoreFoundation
+-// while other platforms' are not importable due to their complex macro definition. Imported errno conflicts with
+-// WASILibc's errno definition, so define a Foundation internal version here to avoid ambiguity error.
+-internal var errno: Int32 { return WASILibc.errno }
+ #endif
+ 
+ #if canImport(WinSDK)
+diff --git a/Sources/Foundation/FileManager+POSIX.swift b/Sources/Foundation/FileManager+POSIX.swift
+index 7c2a4e9c..2150bd11 100644
+--- a/Sources/Foundation/FileManager+POSIX.swift
++++ b/Sources/Foundation/FileManager+POSIX.swift
+@@ -13,6 +13,18 @@ internal func &(left: UInt32, right: mode_t) -> mode_t {
+ }
+ #endif
+ 
++#if os(WASI)
++import WASILibc
++internal var errno : Int32 {
++  get {
++    return _swift_stdlib_getErrno()
++  }
++  set(val) {
++    return _swift_stdlib_setErrno(val)
++  }
++}
++#endif
++
+ @_implementationOnly import CoreFoundation
+ 
+ extension FileManager {
+-- 
+2.43.0
+

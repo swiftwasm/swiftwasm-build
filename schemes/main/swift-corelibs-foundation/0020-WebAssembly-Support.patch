@@ -1,4 +1,4 @@
-From c0ae5fb8b717e679828bf6340d1701a1ed7a956a Mon Sep 17 00:00:00 2001
+From 4d1309350cb115a7fd84539f3d75439b73a625c6 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Tue, 13 Feb 2024 15:54:28 +0000
 Subject: [PATCH] WebAssembly Support
@@ -40,23 +40,21 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/NSKeyedArchiver.swift      |  8 ++-
  Sources/Foundation/NSNumber.swift             |  4 ++
  Sources/Foundation/NSObjCRuntime.swift        | 48 +++++++------
- Sources/Foundation/NSPathUtilities.swift      | 29 +++++---
+ Sources/Foundation/NSPathUtilities.swift      | 11 ++-
  Sources/Foundation/NSSet.swift                |  4 ++
  Sources/Foundation/NSString.swift             | 10 ++-
  Sources/Foundation/NSStringAPI.swift          |  4 ++
  Sources/Foundation/NSSwiftRuntime.swift       |  3 +
  Sources/Foundation/NSTimeZone.swift           | 10 +--
- Sources/Foundation/NSURL.swift                | 13 ++--
  Sources/Foundation/Operation.swift            |  2 +
  Sources/Foundation/ProcessInfo.swift          |  6 ++
  Sources/Foundation/Progress.swift             |  2 +
- .../PropertyListSerialization.swift           |  2 +
  Sources/Foundation/RunLoop.swift              | 21 +++++-
  Sources/Foundation/ScannerAPI.swift           |  2 +-
  Sources/Foundation/URL.swift                  |  7 +-
  Sources/Foundation/UserDefaults.swift         | 14 ++++
  Sources/FoundationXML/CMakeLists.txt          |  6 ++
- 52 files changed, 480 insertions(+), 156 deletions(-)
+ 50 files changed, 457 insertions(+), 146 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..f4372dd1 100644
@@ -1721,96 +1719,59 @@ index bc388d40..765ad6f1 100644
      return map
  }()
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index 99b6f141..a48a6423 100644
+index 99b6f141..a88b2afa 100644
 --- a/Sources/Foundation/NSPathUtilities.swift
 +++ b/Sources/Foundation/NSPathUtilities.swift
-@@ -194,21 +194,23 @@ extension String {
-         temp.removeSubrange(startIndex..<prefix.endIndex)
+@@ -195,7 +195,6 @@ extension String {
          return temp
      }
--    
+     
 -#if !os(WASI)
-+
      internal func _tryToRemovePathPrefix(_ prefix: String) -> String? {
          guard self != prefix else {
              return nil
-         }
+@@ -208,7 +207,6 @@ extension String {
          
-         let temp = _stringByRemovingPrefix(prefix)
-+#if os(WASI)
-+        return temp
-+#else
-         if FileManager.default.fileExists(atPath: temp) {
-             return temp
-         }
--        
-+#endif
-+
          return nil
      }
 -#endif
  }
  
  extension NSString {
-@@ -338,12 +340,13 @@ extension NSString {
+@@ -338,7 +336,6 @@ extension NSString {
          return result._stringByFixingSlashes()
      }
  
 -#if !os(WASI)
      public var expandingTildeInPath: String {
-+#if os(WASI)
-+        return _swiftObject
-+#else 
          guard hasPrefix("~") else {
              return _swiftObject
-         }
--
-         let endOfUserName = _swiftObject.firstIndex(where : { validPathSeps.contains($0) }) ?? _swiftObject.endIndex
-         let startOfUserName = _swiftObject.index(after: _swiftObject.startIndex)
-         let userName = String(_swiftObject[startOfUserName..<endOfUserName])
-@@ -358,8 +361,8 @@ extension NSString {
-         result = result._stringByFixingSlashes(compress: false, stripTrailing: true)
+@@ -359,7 +356,6 @@ extension NSString {
          
          return result
--    }
- #endif
-+    }
+     }
+-#endif
  
  #if os(Windows)
      public var unixPath: String {
-@@ -373,8 +376,7 @@ extension NSString {
-         return converted._stringByFixingSlashes(stripTrailing: false)
+@@ -374,7 +370,6 @@ extension NSString {
      }
  #endif
--    
+     
 -#if !os(WASI)
-+
      public var standardizingPath: String {
  #if os(Windows)
          let expanded = unixPath.expandingTildeInPath
-@@ -411,9 +413,11 @@ extension NSString {
-                 
-             default:
-                 resolvedPath = resolvedPath._bridgeToObjectiveC().appendingPathComponent(component)
-+#if !os(WASI)
-                 if let destination = FileManager.default._tryToResolveTrailingSymlinkInPath(resolvedPath) {
-                     resolvedPath = destination
-                 }
-+#endif
-             }
-         }
-         
-@@ -422,8 +426,7 @@ extension NSString {
+@@ -422,8 +417,6 @@ extension NSString {
          
          return resolvedPath
      }
 -#endif
 -    
-+
      public func stringsByAppendingPaths(_ paths: [String]) -> [String] {
          if self == "" {
              return paths
-@@ -730,6 +733,9 @@ public func NSHomeDirectory() -> String {
+@@ -730,6 +723,9 @@ public func NSHomeDirectory() -> String {
  }
  
  public func NSHomeDirectoryForUser(_ user: String?) -> String? {
@@ -1820,7 +1781,7 @@ index 99b6f141..a48a6423 100644
      let userName = user?._cfObject
      guard let homeDir = CFCopyHomeDirectoryURLForUser(userName)?.takeRetainedValue() else {
          return nil
-@@ -737,6 +743,7 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
+@@ -737,6 +733,7 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
      
      let url: URL = homeDir._swiftObject
      return url.path
@@ -2011,72 +1972,6 @@ index df429993..0633d9e3 100644
      override func encode(with aCoder: NSCoder) {
          // We do not encode details of the local time zone, merely the placeholder object.
      }
-diff --git a/Sources/Foundation/NSURL.swift b/Sources/Foundation/NSURL.swift
-index 07cd02c9..0e728d0c 100644
---- a/Sources/Foundation/NSURL.swift
-+++ b/Sources/Foundation/NSURL.swift
-@@ -156,6 +156,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-     open func copy(with zone: NSZone? = nil) -> Any {
-         if isFileURL {
-             let newURL = CFURLCreateWithString(kCFAllocatorSystemDefault, relativeString._cfObject, self.baseURL?._cfObject)!
-+
-             if let storage = _resourceStorageIfPresent {
-                 let newStorage = URLResourceValuesStorage(copying: storage)
-                 _CFURLSetResourceInfo(newURL, newStorage)
-@@ -189,7 +190,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-         aCoder.encode(self.baseURL?._nsObject, forKey:"NS.base")
-         aCoder.encode(self.relativeString._bridgeToObjectiveC(), forKey:"NS.relative")
-     }
--    
-+
-     public init(fileURLWithPath path: String, isDirectory isDir: Bool, relativeTo baseURL: URL?) {
-         super.init()
-         
-@@ -201,7 +202,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-             _CFURLInitWithFileSystemPathRelativeToBase(_cfObject, baseURL.path._cfObject, kCFURLPlatformPathStyle, baseURL.hasDirectoryPath, nil)
-         }
-     }
--    
-+
-     public convenience init(fileURLWithPath path: String, relativeTo baseURL: URL?) {
-         let thePath = _standardizedPath(path)
-         
-@@ -250,7 +251,7 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-         let pathString = String(cString: path)
-         self.init(fileURLWithPath: pathString, isDirectory: isDir, relativeTo: baseURL)
-     }
--    
-+
-     public convenience init?(string URLString: String) {
-         self.init(string: URLString, relativeTo:nil)
-     }
-@@ -774,7 +775,7 @@ extension NSString {
- }
- 
- extension NSURL {
--    
-+
- #if !os(WASI)
-     /* The following methods work on the path portion of a URL in the same manner that the NSPathUtilities methods on NSString do.
-     */
-@@ -890,7 +891,7 @@ extension NSURL {
-     open var deletingPathExtension: URL? {
-         return CFURLCreateCopyDeletingPathExtension(kCFAllocatorSystemDefault, _cfObject)?._swiftObject
-     }
--    
-+
-     /* The following methods work only on `file:` scheme URLs; for non-`file:` scheme URLs, these methods return the URL unchanged.
-     */
-     open var standardizingPath: URL? {
-@@ -898,7 +899,7 @@ extension NSURL {
-         // In remaining cases it works just like URLByResolvingSymlinksInPath.
-         return _resolveSymlinksInPath(excludeSystemDirs: true, preserveDirectoryFlag: true)
-     }
--    
-+
-     open var resolvingSymlinksInPath: URL? {
-         return _resolveSymlinksInPath(excludeSystemDirs: true)
-     }
 diff --git a/Sources/Foundation/Operation.swift b/Sources/Foundation/Operation.swift
 index 0945253b..d6a5d7b8 100644
 --- a/Sources/Foundation/Operation.swift
@@ -2147,26 +2042,6 @@ index 11b96ca7..618171d2 100644
      }
  }
 +#endif
-diff --git a/Sources/Foundation/PropertyListSerialization.swift b/Sources/Foundation/PropertyListSerialization.swift
-index 7f742a6a..5f93be38 100644
---- a/Sources/Foundation/PropertyListSerialization.swift
-+++ b/Sources/Foundation/PropertyListSerialization.swift
-@@ -42,6 +42,7 @@ open class PropertyListSerialization : NSObject {
-         return CFPropertyListIsValid(plistObj, fmt)
-     }
- 
-+#if !os(WASI)
-     open class func data(fromPropertyList plist: Any, format: PropertyListFormat, options opt: WriteOptions) throws -> Data {
-         var error: Unmanaged<CFError>? = nil
-         let result = withUnsafeMutablePointer(to: &error) { (outErr: UnsafeMutablePointer<Unmanaged<CFError>?>) -> CFData? in
-@@ -57,6 +58,7 @@ open class PropertyListSerialization : NSObject {
-             throw error!.takeRetainedValue()._nsObject
-         }
-     }
-+#endif
- 
-     open class func propertyList(from data: Data, options opt: ReadOptions = [], format: UnsafeMutablePointer<PropertyListFormat>?) throws -> Any {
-         var fmt = kCFPropertyListBinaryFormat_v1_0
 diff --git a/Sources/Foundation/RunLoop.swift b/Sources/Foundation/RunLoop.swift
 index 5ad595e6..ccd4ce0c 100644
 --- a/Sources/Foundation/RunLoop.swift
