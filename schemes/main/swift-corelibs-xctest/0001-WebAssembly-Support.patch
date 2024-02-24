@@ -1,4 +1,4 @@
-From 6a35a63dc971e1fddad38a40bb78a711e1e95587 Mon Sep 17 00:00:00 2001
+From ce3547fe974e427d7d5415a48e1395664df0db7c Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 24 Feb 2024 11:17:15 +0000
 Subject: [PATCH] WebAssembly Support
@@ -12,17 +12,17 @@ Subject: [PATCH] WebAssembly Support
  Sources/XCTest/Private/TestListing.swift      |   2 +
  Sources/XCTest/Private/WaiterManager.swift    |  15 ++
  .../XCTestCase.TearDownBlocksState.swift      |  22 +-
- .../Public/Asynchronous/XCTWaiter.swift       |  44 ++++
+ .../Public/Asynchronous/XCTWaiter.swift       |  46 +++++
  Sources/XCTest/Public/CodableObserver.swift   | 191 ++++++++++++++++++
  Sources/XCTest/Public/XCAbstractTest.swift    |   2 +
  Sources/XCTest/Public/XCTestCase.swift        |  68 +++++--
  Sources/XCTest/Public/XCTestErrors.swift      |   9 +
- Sources/XCTest/Public/XCTestMain.swift        |  31 ++-
+ Sources/XCTest/Public/XCTestMain.swift        |  27 +++
  Sources/XCTest/Public/XCTestObservation.swift |   9 +-
  .../Public/XCTestObservationCenter.swift      |   4 +
  Sources/XCTest/Public/XCTestSuite.swift       |   8 +-
  cmake/modules/SwiftSupport.cmake              |   2 +
- 18 files changed, 516 insertions(+), 40 deletions(-)
+ 18 files changed, 517 insertions(+), 37 deletions(-)
  create mode 100644 Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp
  create mode 100644 Sources/XCTest/Private/Shims.swift
  create mode 100644 Sources/XCTest/Public/CodableObserver.swift
@@ -401,7 +401,7 @@ index 83f43fe..bdde83c 100644
      }
  }
 diff --git a/Sources/XCTest/Public/Asynchronous/XCTWaiter.swift b/Sources/XCTest/Public/Asynchronous/XCTWaiter.swift
-index c9ed6d3..9aac94f 100644
+index f19b344..6f47e00 100644
 --- a/Sources/XCTest/Public/Asynchronous/XCTWaiter.swift
 +++ b/Sources/XCTest/Public/Asynchronous/XCTWaiter.swift
 @@ -119,6 +119,7 @@ open class XCTWaiter {
@@ -412,7 +412,23 @@ index c9ed6d3..9aac94f 100644
  
      private weak var _delegate: XCTWaiterDelegate?
      private let delegateQueue = DispatchQueue(label: "org.swift.XCTest.XCTWaiter.delegate")
-@@ -356,7 +357,49 @@ open class XCTWaiter {
+@@ -253,6 +254,7 @@ open class XCTWaiter {
+         return result
+     }
+ 
++#if !USE_SWIFT_CONCURRENCY_WAITER
+     /// Wait on an array of expectations for up to the specified timeout, and optionally specify whether they
+     /// must be fulfilled in the given order. May return early based on fulfillment of the waited on expectations.
+     ///
+@@ -331,6 +333,7 @@ open class XCTWaiter {
+     open class func fulfillment(of expectations: [XCTestExpectation], timeout: TimeInterval, enforceOrder: Bool = false, file: StaticString = #file, line: Int = #line) async -> Result {
+         return await XCTWaiter().fulfillment(of: expectations, timeout: timeout, enforceOrder: enforceOrder, file: file, line: line)
+     }
++#endif
+ 
+     deinit {
+         for expectation in state.allExpectations {
+@@ -416,7 +419,49 @@ open class XCTWaiter {
  
  }
  
@@ -420,7 +436,7 @@ index c9ed6d3..9aac94f 100644
 +@_silgen_name("swift_task_donateThreadToGlobalExecutorUntil")
 +func _task_donateThreadToGlobalExecutorUntil(_ condition: @convention(c) (UnsafeMutableRawPointer) -> Bool, _ context: UnsafeMutableRawPointer)
 +
- private extension XCTWaiter {
++private extension XCTWaiter {
 +    struct PrimitiveWaitState {
 +        struct Context {
 +            var runOnce: Bool = false
@@ -456,13 +472,13 @@ index c9ed6d3..9aac94f 100644
 +    }
 +}
 +#else
-+private extension XCTWaiter {
+ private extension XCTWaiter {
 +    struct PrimitiveWaitState {}
 +
      func primitiveWait(using runLoop: RunLoop, duration timeout: TimeInterval) {
          // The contract for `primitiveWait(for:)` explicitly allows waiting for a shorter period than requested
          // by the `timeout` argument. Only run for a short time in case `cancelPrimitiveWait()` was called and
-@@ -376,6 +419,7 @@ private extension XCTWaiter {
+@@ -436,6 +481,7 @@ private extension XCTWaiter {
  #endif
      }
  }
@@ -681,7 +697,7 @@ index cf37cba..4992b81 100644
      /// subclasses.
      open func perform(_ run: XCTestRun) {
 diff --git a/Sources/XCTest/Public/XCTestCase.swift b/Sources/XCTest/Public/XCTestCase.swift
-index aadfecc..5d081d4 100644
+index 4d734cd..f4b3973 100644
 --- a/Sources/XCTest/Public/XCTestCase.swift
 +++ b/Sources/XCTest/Public/XCTestCase.swift
 @@ -36,6 +36,9 @@ open class XCTestCase: XCTest {
@@ -699,7 +715,7 @@ index aadfecc..5d081d4 100644
      }
  
 +#if !os(WASI)
-     // FIXME: Once `waitForExpectations(timeout:...handler:)` gains `@MainActor`, this may be able to add it as well.
+     @MainActor
      internal var currentWaiter: XCTWaiter?
  
 @@ -81,6 +85,7 @@ open class XCTestCase: XCTest {
@@ -913,39 +929,30 @@ index a18af0a..00fc381 100644
  public extension XCTestError {
      /// Indicates that one or more expectations failed to be fulfilled in time
 diff --git a/Sources/XCTest/Public/XCTestMain.swift b/Sources/XCTest/Public/XCTestMain.swift
-index f95aac6..06d46d1 100644
+index 33572e7..b55c7b9 100644
 --- a/Sources/XCTest/Public/XCTestMain.swift
 +++ b/Sources/XCTest/Public/XCTestMain.swift
-@@ -59,20 +59,25 @@
- ///
- /// - Parameter testCases: An array of test cases run, each produced by a call to the `testCase` function
- /// - seealso: `testCase`
--public func XCTMain(_ testCases: [XCTestCaseEntry]) -> Never {
-+public func XCTMain(_ testCases: [XCTestCaseEntry]) {
-     XCTMain(testCases, arguments: CommandLine.arguments)
- }
- 
--public func XCTMain(_ testCases: [XCTestCaseEntry], arguments: [String]) -> Never {
-+public func XCTMain(_ testCases: [XCTestCaseEntry], arguments: [String]) {
-     XCTMain(testCases, arguments: arguments, observers: [PrintObserver()])
- }
+@@ -30,6 +30,9 @@
+     import Glibc
+ #endif
  
 +@_silgen_name("XCTMainRunLoopMain")
 +func XCTMainRunLoopMain()
 +
- public func XCTMain(
-     _ testCases: [XCTestCaseEntry],
-     arguments: [String],
-     observers: [XCTestObservation]
--) -> Never {
-+) {
+ /// Starts a test run for the specified test cases.
+ ///
+ /// Example usage:
+@@ -76,7 +79,9 @@ public func XCTMain(
+     observers: [XCTestObservation]? = nil
+ ) -> CInt {
+     let observers = observers ?? [PrintObserver()]
 +    #if !os(WASI)
      let testBundle = Bundle.main
 +    #endif
  
      let executionMode = ArgumentParser(arguments: arguments).executionMode
  
-@@ -84,7 +89,11 @@ public func XCTMain(
+@@ -88,7 +93,11 @@ public func XCTMain(
      let currentTestSuite: XCTestSuite
      if executionMode.selectedTestNames == nil {
          rootTestSuite = XCTestSuite(name: "All tests")
@@ -957,33 +964,36 @@ index f95aac6..06d46d1 100644
          rootTestSuite.addTest(currentTestSuite)
      } else {
          rootTestSuite = XCTestSuite(name: "Selected tests")
-@@ -141,10 +150,26 @@ public func XCTMain(
+@@ -145,11 +154,29 @@ public func XCTMain(
              observationCenter.addTestObserver(observer)
          }
  
 +#if !os(WASI)
          observationCenter.testBundleWillStart(testBundle)
 +#endif
++        @Sendable func afterRun() -> CInt {
          rootTestSuite.run()
-+        @Sendable func afterRun() -> Never {
 +#if !os(WASI)
          observationCenter.testBundleDidFinish(testBundle)
 +#endif
  
-         exit(rootTestSuite.testRun!.totalFailureCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE)
+         return rootTestSuite.testRun!.totalFailureCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE
 +        }
 +
 +        if let performTask = rootTestSuite.performTask {
++            var exitCode: CInt = EXIT_FAILURE
 +            Task {
 +                _ = await performTask.value
-+                afterRun()
++                exitCode = afterRun()
 +            }
 +            XCTMainRunLoopMain()
++            return exitCode
 +        } else {
-+            afterRun()
++            return afterRun()
 +        }
      }
  }
+ 
 diff --git a/Sources/XCTest/Public/XCTestObservation.swift b/Sources/XCTest/Public/XCTestObservation.swift
 index 1a53207..7a1849c 100644
 --- a/Sources/XCTest/Public/XCTestObservation.swift
