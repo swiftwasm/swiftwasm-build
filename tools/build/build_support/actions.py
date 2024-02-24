@@ -165,7 +165,7 @@ def derive_options_from_args(argv, parser: argparse.ArgumentParser):
         if options.tag is None:
             raise Exception('Missing --tag option and no default tag for scheme {}'.format(options.scheme))
 
-    options.repos = manifest['repos'] or {}
+    options.repos = manifest.get('repos', {})
     options.update_checkout_scheme = options.scheme
     if 'update-checkout-scheme' in manifest:
         options.update_checkout_scheme = manifest['update-checkout-scheme']
