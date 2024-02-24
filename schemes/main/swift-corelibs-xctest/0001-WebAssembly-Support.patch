@@ -1,0 +1,1100 @@
+From 6a35a63dc971e1fddad38a40bb78a711e1e95587 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sat, 24 Feb 2024 11:17:15 +0000
+Subject: [PATCH] WebAssembly Support
+
+---
+ CMakeLists.txt                                |  63 +++++-
+ Package.swift                                 |   3 +-
+ .../ConcurrencySupport/ConcurrencySupport.cpp |  22 ++
+ Sources/XCTest/Private/PrintObserver.swift    |  12 +-
+ Sources/XCTest/Private/Shims.swift            |  49 +++++
+ Sources/XCTest/Private/TestListing.swift      |   2 +
+ Sources/XCTest/Private/WaiterManager.swift    |  15 ++
+ .../XCTestCase.TearDownBlocksState.swift      |  22 +-
+ .../Public/Asynchronous/XCTWaiter.swift       |  44 ++++
+ Sources/XCTest/Public/CodableObserver.swift   | 191 ++++++++++++++++++
+ Sources/XCTest/Public/XCAbstractTest.swift    |   2 +
+ Sources/XCTest/Public/XCTestCase.swift        |  68 +++++--
+ Sources/XCTest/Public/XCTestErrors.swift      |   9 +
+ Sources/XCTest/Public/XCTestMain.swift        |  31 ++-
+ Sources/XCTest/Public/XCTestObservation.swift |   9 +-
+ .../Public/XCTestObservationCenter.swift      |   4 +
+ Sources/XCTest/Public/XCTestSuite.swift       |   8 +-
+ cmake/modules/SwiftSupport.cmake              |   2 +
+ 18 files changed, 516 insertions(+), 40 deletions(-)
+ create mode 100644 Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp
+ create mode 100644 Sources/XCTest/Private/Shims.swift
+ create mode 100644 Sources/XCTest/Public/CodableObserver.swift
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a386ef0..171fdbb 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -3,33 +3,55 @@ cmake_minimum_required(VERSION 3.15.1)
+ 
+ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
+ 
+-project(XCTest LANGUAGES Swift)
++project(XCTest LANGUAGES Swift C CXX)
+ 
+ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+ option(USE_FOUNDATION_FRAMEWORK "Use Foundation.framework on Darwin" NO)
+ 
+-if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
++set(USE_SWIFT_CONCURRENCY_WAITER_default NO)
++
++if(CMAKE_SYSTEM_PROCESSOR STREQUAL wasm32)
++  set(USE_SWIFT_CONCURRENCY_WAITER_default ON)
++endif()
++
++option(USE_SWIFT_CONCURRENCY_WAITER "Use Swift Concurrency-based waiter implementation" "${USE_SWIFT_CONCURRENCY_WAITER_default}")
++
++if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL wasm32)
+   find_package(dispatch CONFIG REQUIRED)
+   find_package(Foundation CONFIG REQUIRED)
+ endif()
+ 
+ include(SwiftSupport)
++
++if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL wasm32)
+ include(GNUInstallDirs)
++endif()
++
++set(XCTEST_WASI_UNAVAILABLE_SOURCES)
++if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
++list(APPEND XCTEST_WASI_UNAVAILABLE_SOURCES
++  Sources/XCTest/Public/Asynchronous/XCTNSNotificationExpectation.swift
++  Sources/XCTest/Public/Asynchronous/XCTNSPredicateExpectation.swift
++  Sources/XCTest/Public/Asynchronous/XCTestCase+Asynchronous.swift)
++endif()
+ 
+ add_library(XCTest
+-  Sources/XCTest/Private/WallClockTimeMetric.swift
+   Sources/XCTest/Private/TestListing.swift
+   Sources/XCTest/Private/XCTestCaseSuite.swift
+   Sources/XCTest/Private/TestFiltering.swift
+   Sources/XCTest/Private/XCTestInternalObservation.swift
+   Sources/XCTest/Private/ObjectWrapper.swift
+-  Sources/XCTest/Private/PerformanceMeter.swift
+   Sources/XCTest/Private/PrintObserver.swift
+   Sources/XCTest/Private/ArgumentParser.swift
+   Sources/XCTest/Private/SourceLocation.swift
+   Sources/XCTest/Private/WaiterManager.swift
+   Sources/XCTest/Private/IgnoredErrors.swift
++  Sources/XCTest/Private/PerformanceMeter.swift
++  Sources/XCTest/Private/WallClockTimeMetric.swift
+   Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift
++  Sources/XCTest/Private/Shims.swift
++  Sources/XCTest/Public/XCTestCase+Performance.swift
++  Sources/XCTest/Public/CodableObserver.swift
+   Sources/XCTest/Public/XCTestRun.swift
+   Sources/XCTest/Public/XCTestMain.swift
+   Sources/XCTest/Public/XCTestCase.swift
+@@ -40,20 +62,33 @@ add_library(XCTest
+   Sources/XCTest/Public/XCTestCaseRun.swift
+   Sources/XCTest/Public/XCAbstractTest.swift
+   Sources/XCTest/Public/XCTestObservationCenter.swift
+-  Sources/XCTest/Public/XCTestCase+Performance.swift
+   Sources/XCTest/Public/XCTAssert.swift
+   Sources/XCTest/Public/XCTSkip.swift
+-  Sources/XCTest/Public/Asynchronous/XCTNSNotificationExpectation.swift
+-  Sources/XCTest/Public/Asynchronous/XCTNSPredicateExpectation.swift
+   Sources/XCTest/Public/Asynchronous/XCTWaiter+Validation.swift
+   Sources/XCTest/Public/Asynchronous/XCTWaiter.swift
+-  Sources/XCTest/Public/Asynchronous/XCTestCase+Asynchronous.swift
+-  Sources/XCTest/Public/Asynchronous/XCTestExpectation.swift)
++  Sources/XCTest/Public/Asynchronous/XCTestExpectation.swift
++  
++  ${XCTEST_WASI_UNAVAILABLE_SOURCES})
++
++add_library(XCTestConcurrencySupport OBJECT
++  Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp)
++set_property(TARGET XCTestConcurrencySupport PROPERTY POSITION_INDEPENDENT_CODE ON)
++add_dependencies(XCTest XCTestConcurrencySupport)
++
++set_property(TARGET XCTest PROPERTY STATIC_LIBRARY_OPTIONS
++  $<TARGET_OBJECTS:XCTestConcurrencySupport>)
++target_link_options(XCTest PRIVATE $<TARGET_OBJECTS:XCTestConcurrencySupport>)
++
++if(USE_SWIFT_CONCURRENCY_WAITER)
++  target_compile_definitions(XCTest PRIVATE
++    USE_SWIFT_CONCURRENCY_WAITER)
++endif()
++
+ if(USE_FOUNDATION_FRAMEWORK)
+   target_compile_definitions(XCTest PRIVATE
+     USE_FOUNDATION_FRAMEWORK)
+ endif()
+-if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
++if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL wasm32)
+   target_link_libraries(XCTest PRIVATE
+     dispatch
+     Foundation)
+@@ -65,6 +100,14 @@ set_target_properties(XCTest PROPERTIES
+   Swift_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/swift
+   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/swift)
+ 
++if(CMAKE_SYSTEM_NAME STREQUAL WASI)
++  target_compile_options(XCTest
++  PRIVATE
++    -sdk ${CMAKE_SYSROOT}
++    -target wasm32-unknown-wasi
++    -I ${SWIFT_FOUNDATION_PATH}
++  )
++endif()
+ 
+ if(ENABLE_TESTING)
+   enable_testing()
+diff --git a/Package.swift b/Package.swift
+index 71075ae..857e846 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -1,4 +1,4 @@
+-// swift-tools-version:4.0
++// swift-tools-version:4.2
+ //
+ // To build with auto-linking of the .swiftmodule use:
+ // $ swift build -Xswiftc -module-link-name -Xswiftc XCTest
+@@ -11,7 +11,6 @@ let package = Package(
+     products: [
+         .library(
+             name: "XCTest",
+-            type: .dynamic,
+             targets: ["XCTest"]
+         )
+     ],
+diff --git a/Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp b/Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp
+new file mode 100644
+index 0000000..0dbd785
+--- /dev/null
++++ b/Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp
+@@ -0,0 +1,22 @@
++#define SWIFT_CC_swift __attribute__((swiftcall))
++#define SWIFT_CC(CC) SWIFT_CC_##CC
++
++#define SWIFT_ATTRIBUTE_FOR_IMPORTS __attribute__((__visibility__("default")))
++#define SWIFT_EXPORT_FROM_ATTRIBUTE(LIBRARY) SWIFT_ATTRIBUTE_FOR_IMPORTS
++#define SWIFT_EXPORT_FROM(LIBRARY) SWIFT_EXPORT_FROM_ATTRIBUTE(LIBRARY)
++
++
++SWIFT_EXPORT_FROM(swift_Concurrency)
++extern void *_Nullable swift_task_enqueueGlobal_hook;
++
++extern "C" SWIFT_EXPORT_FROM(swift_Concurrency) SWIFT_CC(swift)
++void swift_task_asyncMainDrainQueue [[noreturn]]();
++
++SWIFT_CC(swift)
++extern "C" void XCTMainRunLoopMain(void) {
++    // If the global executor is handled by outside environment (e.g. JavaScript),
++    // we can't donate thread because it will stop the outside event loop.
++    if (swift_task_enqueueGlobal_hook == nullptr) {
++        swift_task_asyncMainDrainQueue();
++    }
++}
+diff --git a/Sources/XCTest/Private/PrintObserver.swift b/Sources/XCTest/Private/PrintObserver.swift
+index fcce3a2..e8fa0e4 100644
+--- a/Sources/XCTest/Private/PrintObserver.swift
++++ b/Sources/XCTest/Private/PrintObserver.swift
+@@ -11,10 +11,16 @@
+ //  Prints test progress to stdout.
+ //
+ 
++#if canImport(Glibc)
++import Glibc
++#endif
++
+ /// Prints textual representations of each XCTestObservation event to stdout.
+ /// Mirrors the Apple XCTest output exactly.
+ internal class PrintObserver: XCTestObservation {
++#if !os(WASI)
+     func testBundleWillStart(_ testBundle: Bundle) {}
++#endif
+ 
+     func testSuiteWillStart(_ testSuite: XCTestSuite) {
+         printAndFlush("Test Suite '\(testSuite.name)' started at \(dateFormatter.string(from: testSuite.testRun!.startDate!))")
+@@ -65,17 +71,21 @@ internal class PrintObserver: XCTestObservation {
+         )
+     }
+ 
++#if !os(WASI)
+     func testBundleDidFinish(_ testBundle: Bundle) {}
++#endif
+ 
+     private lazy var dateFormatter: DateFormatter = {
+         let formatter = DateFormatter()
++#if !os(WASI)
+         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
++#endif
+         return formatter
+     }()
+ 
+     fileprivate func printAndFlush(_ message: String) {
+         print(message)
+-        #if !os(Android)
++        #if !os(Android) && !os(WASI)
+         fflush(stdout)
+         #endif
+     }
+diff --git a/Sources/XCTest/Private/Shims.swift b/Sources/XCTest/Private/Shims.swift
+new file mode 100644
+index 0000000..b42405c
+--- /dev/null
++++ b/Sources/XCTest/Private/Shims.swift
+@@ -0,0 +1,49 @@
++#if USE_SWIFT_CONCURRENCY_WAITER
++
++struct DispatchPredicate {
++    static func onQueue<X>(_: X) -> Self {
++        return DispatchPredicate()
++    }
++
++    static func notOnQueue<X>(_: X) -> Self {
++        return DispatchPredicate()
++    }
++}
++
++func dispatchPrecondition(condition: DispatchPredicate) {}
++
++extension XCTWaiter {
++    struct BlockingQueue {
++        init(label: String) {}
++
++        func sync<T>(_ body: () -> T) -> T {
++            body()
++        }
++        func async(_ body: @escaping () -> Void) {
++            body()
++        }
++    }
++
++    typealias DispatchQueue = BlockingQueue
++
++    struct RunLoop {
++        static let current = RunLoop()
++    }
++
++    class Thread: Equatable {
++        var threadDictionary: [String: Any] = [:]
++
++        static let current: Thread = Thread()
++
++        static func == (lhs: Thread, rhs: Thread) -> Bool {
++            return true
++        }
++    }
++}
++
++extension WaiterManager {
++    typealias DispatchQueue = XCTWaiter.DispatchQueue
++    typealias Thread = XCTWaiter.Thread
++}
++
++#endif
+diff --git a/Sources/XCTest/Private/TestListing.swift b/Sources/XCTest/Private/TestListing.swift
+index dcd54f4..021c36b 100644
+--- a/Sources/XCTest/Private/TestListing.swift
++++ b/Sources/XCTest/Private/TestListing.swift
+@@ -11,6 +11,8 @@
+ //  Implementation of the mode for printing the list of tests.
+ //
+ 
++import Foundation
++
+ internal struct TestListing {
+     private let testSuite: XCTestSuite
+ 
+diff --git a/Sources/XCTest/Private/WaiterManager.swift b/Sources/XCTest/Private/WaiterManager.swift
+index f705165..9d99d11 100644
+--- a/Sources/XCTest/Private/WaiterManager.swift
++++ b/Sources/XCTest/Private/WaiterManager.swift
+@@ -21,7 +21,11 @@ internal protocol ManageableWaiter: AnyObject, Equatable {
+ private protocol ManageableWaiterWatchdog {
+     func cancel()
+ }
++#if USE_SWIFT_CONCURRENCY_WAITER
++extension Task: ManageableWaiterWatchdog {}
++#else
+ extension DispatchWorkItem: ManageableWaiterWatchdog {}
++#endif
+ 
+ /// This class manages the XCTWaiter instances which are currently waiting on a particular thread.
+ /// It facilitates "nested" waiters, allowing an outer waiter to interrupt inner waiters if it times
+@@ -111,6 +115,16 @@ internal final class WaiterManager<WaiterType: ManageableWaiter> : NSObject {
+         }
+     }
+ 
++#if USE_SWIFT_CONCURRENCY_WAITER
++    private static func installWatchdog(for waiter: WaiterType, timeout: TimeInterval) -> ManageableWaiterWatchdog {
++        let outerTimeoutSlop = TimeInterval(0.25)
++        let task = Task { [weak waiter] in
++            try await Task.sleep(nanoseconds: UInt64((timeout + outerTimeoutSlop) * 1_000_000_000))
++            waiter?.queue_handleWatchdogTimeout()
++        }
++        return task
++    }
++#else
+     private static func installWatchdog(for waiter: WaiterType, timeout: TimeInterval) -> ManageableWaiterWatchdog {
+         // Use DispatchWorkItem instead of a basic closure since it can be canceled.
+         let watchdog = DispatchWorkItem { [weak waiter] in
+@@ -123,6 +137,7 @@ internal final class WaiterManager<WaiterType: ManageableWaiter> : NSObject {
+ 
+         return watchdog
+     }
++#endif
+ 
+     func queue_handleWatchdogTimeout(of waiter: WaiterType) {
+         dispatchPrecondition(condition: .onQueue(XCTWaiter.subsystemQueue))
+diff --git a/Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift b/Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift
+index 83f43fe..bdde83c 100644
+--- a/Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift
++++ b/Sources/XCTest/Private/XCTestCase.TearDownBlocksState.swift
+@@ -13,7 +13,7 @@ extension XCTestCase {
+     final class TeardownBlocksState {
+ 
+         private var wasFinalized = false
+-        private var blocks: [() throws -> Void] = []
++        private var blocks: [() async throws -> Void] = []
+ 
+         // We don't want to overload append(_:) below because of how Swift will implicitly promote sync closures to async closures,
+         // which can unexpectedly change their semantics in difficult to track down ways.
+@@ -21,24 +21,38 @@ extension XCTestCase {
+         // Because of this, we chose the unusual decision to forgo overloading (which is a super sweet language feature <3) to prevent this issue from surprising any contributors to corelibs-xctest
+         @available(macOS 12.0, *)
+         func appendAsync(_ block: @Sendable @escaping () async throws -> Void) {
+-            self.append {
+-                try awaitUsingExpectation { try await block() }
++            XCTWaiter.subsystemQueue.sync {
++                precondition(wasFinalized == false, "API violation -- attempting to add a teardown block after teardown blocks have been dequeued")
++                blocks.append {
++                    try await awaitUsingExpectation { try await block() }
++                }
+             }
+         }
+ 
+         func append(_ block: @escaping () throws -> Void) {
++            #if os(WASI)
++            precondition(wasFinalized == false, "API violation -- attempting to add a teardown block after teardown blocks have been dequeued")
++            blocks.append(block)
++            #else
+             XCTWaiter.subsystemQueue.sync {
+                 precondition(wasFinalized == false, "API violation -- attempting to add a teardown block after teardown blocks have been dequeued")
+                 blocks.append(block)
+             }
++            #endif
+         }
+         
+-        func finalize() -> [() throws -> Void] {
++        func finalize() -> [() async throws -> Void] {
++            #if os(WASI)
++            precondition(wasFinalized == false, "API violation -- attempting to run teardown blocks after they've already run")
++            wasFinalized = true
++            return blocks
++            #else
+             XCTWaiter.subsystemQueue.sync {
+                 precondition(wasFinalized == false, "API violation -- attempting to run teardown blocks after they've already run")
+                 wasFinalized = true
+                 return blocks
+             }
++            #endif
+         }
+     }
+ }
+diff --git a/Sources/XCTest/Public/Asynchronous/XCTWaiter.swift b/Sources/XCTest/Public/Asynchronous/XCTWaiter.swift
+index c9ed6d3..9aac94f 100644
+--- a/Sources/XCTest/Public/Asynchronous/XCTWaiter.swift
++++ b/Sources/XCTest/Public/Asynchronous/XCTWaiter.swift
+@@ -119,6 +119,7 @@ open class XCTWaiter {
+     internal var waitSourceLocation: SourceLocation?
+     private weak var manager: WaiterManager<XCTWaiter>?
+     private var runLoop: RunLoop?
++    private var primitiveWaitState = PrimitiveWaitState()
+ 
+     private weak var _delegate: XCTWaiterDelegate?
+     private let delegateQueue = DispatchQueue(label: "org.swift.XCTest.XCTWaiter.delegate")
+@@ -356,7 +357,49 @@ open class XCTWaiter {
+ 
+ }
+ 
++#if USE_SWIFT_CONCURRENCY_WAITER
++@_silgen_name("swift_task_donateThreadToGlobalExecutorUntil")
++func _task_donateThreadToGlobalExecutorUntil(_ condition: @convention(c) (UnsafeMutableRawPointer) -> Bool, _ context: UnsafeMutableRawPointer)
++
+ private extension XCTWaiter {
++    struct PrimitiveWaitState {
++        struct Context {
++            var runOnce: Bool = false
++            var isCancelled: Bool = false
++        }
++        var context: UnsafeMutablePointer<Context>?
++    }
++
++    func primitiveWait(using runLoop: RunLoop, duration timeout: TimeInterval) {
++        // If the waiter is already waiting, do nothing
++        guard primitiveWaitState.context == nil else { return }
++
++        // reset the waiting state
++        let context = UnsafeMutablePointer<PrimitiveWaitState.Context>.allocate(capacity: 1)
++        context.initialize(to: PrimitiveWaitState.Context())
++        primitiveWaitState.context = context
++        // `swift_task_donateThreadToGlobalExecutorUntil` can return when the condition met
++        // or when no runnable job is available. In the latter case, we need to wait again.
++        _task_donateThreadToGlobalExecutorUntil({ contextRawPtr in
++            let context = contextRawPtr.assumingMemoryBound(to: PrimitiveWaitState.Context.self)
++            defer { context.pointee.runOnce = true }
++            return context.pointee.runOnce || context.pointee.isCancelled
++        }, context)
++        context.deinitialize(count: 1)
++        context.deallocate()
++        primitiveWaitState.context = nil
++    }
++
++    func cancelPrimitiveWait() {
++        if let context = primitiveWaitState.context {
++            context.pointee.isCancelled = true
++        }
++    }
++}
++#else
++private extension XCTWaiter {
++    struct PrimitiveWaitState {}
++
+     func primitiveWait(using runLoop: RunLoop, duration timeout: TimeInterval) {
+         // The contract for `primitiveWait(for:)` explicitly allows waiting for a shorter period than requested
+         // by the `timeout` argument. Only run for a short time in case `cancelPrimitiveWait()` was called and
+@@ -376,6 +419,7 @@ private extension XCTWaiter {
+ #endif
+     }
+ }
++#endif
+ 
+ extension XCTWaiter: Equatable {
+     public static func == (lhs: XCTWaiter, rhs: XCTWaiter) -> Bool {
+diff --git a/Sources/XCTest/Public/CodableObserver.swift b/Sources/XCTest/Public/CodableObserver.swift
+new file mode 100644
+index 0000000..31498ac
+--- /dev/null
++++ b/Sources/XCTest/Public/CodableObserver.swift
+@@ -0,0 +1,191 @@
++// This source file is part of the Swift.org open source project
++//
++// Copyright (c) 2020 Apple Inc. and the Swift project authors
++// Licensed under Apache License v2.0 with Runtime Library Exception
++//
++// See http://swift.org/LICENSE.txt for license information
++// See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
++//
++//
++//  CodableObserver.swift
++//  Provides test progress as a certain model type to a handler closure
++//
++
++public struct TimedEvent: Codable {
++    public let name: String
++    public let date: Date
++}
++
++public struct FailedTestCase: Codable {
++    public let filePath: String?
++    public let lineNumber: Int
++    public let name: String
++    public let description: String
++}
++
++public struct FinishedTestCase: Codable {
++    public enum State: String, Codable, CaseIterable {
++        case skipped
++        case passed
++        case failed
++    }
++
++    public let state: State
++    public let durationInSeconds: TimeInterval
++}
++
++public struct FinishedTestSuite: Codable {
++    public let executionCount: Int
++    public let totalFailureCount: Int
++    public let unexpectedExceptionCount: Int
++    public let testDuration: TimeInterval
++    public let totalDuration: TimeInterval
++}
++
++public enum Event: Codable {
++    public enum CodingError: Error {
++        case invalidVersion
++    }
++
++    public enum Kind: String, Codable, CaseIterable {
++        case testSuiteStarted
++        case testCaseStarted
++        case testCaseFailed
++        case testCaseFinished
++        case testSuiteFinished
++    }
++
++    private enum CodingKeys: CodingKey {
++        case version
++        case kind
++        case value
++    }
++
++    case testSuiteStarted(TimedEvent)
++    case testCaseStarted(TimedEvent)
++    case testCaseFailed(FailedTestCase)
++    case testCaseFinished(FinishedTestCase)
++    case testSuiteFinished(FinishedTestSuite)
++
++    public init(from decoder: Decoder) throws {
++        let container = try decoder.container(keyedBy: CodingKeys.self)
++
++        let version = try container.decode(Int.self, forKey: .version)
++        guard version == 0 else { throw CodingError.invalidVersion }
++
++        let kind = try container.decode(Kind.self, forKey: .kind)
++
++        switch kind {
++        case .testSuiteStarted:
++            self = .testSuiteStarted(try container.decode(TimedEvent.self, forKey: .value))
++        case .testCaseStarted:
++            self = .testCaseStarted(try container.decode(TimedEvent.self, forKey: .value))
++        case .testCaseFailed:
++            self = .testCaseFailed(try container.decode(FailedTestCase.self, forKey: .value))
++        case .testCaseFinished:
++            self = .testCaseFinished(try container.decode(FinishedTestCase.self, forKey: .value))
++        case .testSuiteFinished:
++            self = .testSuiteFinished(try container.decode(FinishedTestSuite.self, forKey: .value))
++        }
++    }
++
++    public func encode(to encoder: Encoder) throws {
++        var container = encoder.container(keyedBy: CodingKeys.self)
++        try container.encode(0, forKey: CodingKeys.version)
++
++        switch self {
++        case let .testSuiteStarted(value):
++            try container.encode(Kind.testSuiteStarted, forKey: CodingKeys.kind)
++            try container.encode(value, forKey: CodingKeys.value)
++        case let .testCaseStarted(value):
++            try container.encode(Kind.testCaseStarted, forKey: CodingKeys.kind)
++            try container.encode(value, forKey: CodingKeys.value)
++        case let .testCaseFailed(value):
++            try container.encode(Kind.testCaseFailed, forKey: CodingKeys.kind)
++            try container.encode(value, forKey: CodingKeys.value)
++        case let .testCaseFinished(value):
++            try container.encode(Kind.testCaseFinished, forKey: CodingKeys.kind)
++            try container.encode(value, forKey: CodingKeys.value)
++        case let .testSuiteFinished(value):
++            try container.encode(Kind.testSuiteFinished, forKey: CodingKeys.kind)
++            try container.encode(value, forKey: CodingKeys.value)
++        }
++    }
++}
++
++/// Provides representations of each XCTestObservation event to a given handler closure.
++public class CodableObserver: NSObject, XCTestObservation {
++    let handler: (Event) -> ()
++
++    public init(handler: @escaping (Event) -> ()) {
++        self.handler = handler
++    }
++
++    #if !os(WASI)
++    public func testBundleWillStart(_ testBundle: Bundle) {}
++    #endif
++
++    public func testSuiteWillStart(_ testSuite: XCTestSuite) {
++        handler(Event.testSuiteStarted(.init(
++            name: testSuite.name,
++            date: testSuite.testRun!.startDate!
++        )))
++    }
++
++    public func testCaseWillStart(_ testCase: XCTestCase) {
++        handler(Event.testSuiteStarted(.init(
++            name: testCase.name,
++            date: testCase.testRun!.startDate!
++        )))
++    }
++
++    public func testCase(
++        _ testCase: XCTestCase,
++        didFailWithDescription description: String,
++        inFile filePath: String?,
++        atLine lineNumber: Int
++    ) {
++        handler(Event.testCaseFailed(.init(
++            filePath: filePath,
++            lineNumber: lineNumber,
++            name: testCase.name,
++            description: description
++        )))
++    }
++
++    public func testCaseDidFinish(_ testCase: XCTestCase) {
++        let testRun = testCase.testRun!
++
++        let state: FinishedTestCase.State
++        if testRun.hasSucceeded {
++            if testRun.hasBeenSkipped {
++                state = .skipped
++            } else {
++                state = .passed
++            }
++        } else {
++            state = .failed
++        }
++
++        handler(Event.testCaseFinished(.init(
++            state: state,
++            durationInSeconds: testRun.totalDuration
++        )))
++    }
++
++    public func testSuiteDidFinish(_ testSuite: XCTestSuite) {
++        let testRun = testSuite.testRun!
++
++        handler(Event.testSuiteFinished(.init(
++            executionCount: testRun.executionCount,
++            totalFailureCount: testRun.totalFailureCount,
++            unexpectedExceptionCount: testRun.unexpectedExceptionCount,
++            testDuration: testRun.testDuration,
++            totalDuration: testRun.totalDuration
++        )))
++    }
++
++    #if !os(WASI)
++    public func testBundleDidFinish(_ testBundle: Bundle) {}
++    #endif
++}
+diff --git a/Sources/XCTest/Public/XCAbstractTest.swift b/Sources/XCTest/Public/XCAbstractTest.swift
+index cf37cba..4992b81 100644
+--- a/Sources/XCTest/Public/XCAbstractTest.swift
++++ b/Sources/XCTest/Public/XCAbstractTest.swift
+@@ -36,6 +36,8 @@ open class XCTest {
+     /// testRunClass. If the test has not yet been run, this will be nil.
+     open private(set) var testRun: XCTestRun? = nil
+ 
++    internal var performTask: Task<Void, Never>?
++
+     /// The method through which tests are executed. Must be overridden by
+     /// subclasses.
+     open func perform(_ run: XCTestRun) {
+diff --git a/Sources/XCTest/Public/XCTestCase.swift b/Sources/XCTest/Public/XCTestCase.swift
+index aadfecc..5d081d4 100644
+--- a/Sources/XCTest/Public/XCTestCase.swift
++++ b/Sources/XCTest/Public/XCTestCase.swift
+@@ -36,6 +36,9 @@ open class XCTestCase: XCTest {
+ 
+     private var skip: XCTSkip?
+ 
++    private var invokeTestTask: Task<Void, Never>?
++    fileprivate var testClosureTask: Task<Void, Error>?
++
+     /// The name of the test case, consisting of its class name and the method
+     /// name it will run.
+     open override var name: String {
+@@ -48,6 +51,7 @@ open class XCTestCase: XCTest {
+         return 1
+     }
+ 
++#if !os(WASI)
+     // FIXME: Once `waitForExpectations(timeout:...handler:)` gains `@MainActor`, this may be able to add it as well.
+     internal var currentWaiter: XCTWaiter?
+ 
+@@ -81,6 +85,7 @@ open class XCTestCase: XCTest {
+             }
+         }
+     }
++#endif
+ 
+     /// An internal object implementing performance measurements.
+     internal var _performanceMeter: PerformanceMeter?
+@@ -90,6 +95,7 @@ open class XCTestCase: XCTest {
+     }
+ 
+     open override func perform(_ run: XCTestRun) {
++        self.performTask = Task {
+         guard let testRun = run as? XCTestCaseRun else {
+             fatalError("Wrong XCTestRun class.")
+         }
+@@ -98,11 +104,18 @@ open class XCTestCase: XCTest {
+         testRun.start()
+         invokeTest()
+ 
++        if let invokeTestTask = invokeTestTask {
++            _ = await invokeTestTask.value
++        }
++
++        #if !os(WASI)
+         let allExpectations = XCTWaiter.subsystemQueue.sync { _allExpectations }
+         failIfExpectationsNotWaitedFor(allExpectations)
++        #endif
+ 
+         testRun.stop()
+         XCTCurrentTestCase = nil
++        }
+     }
+ 
+     /// The designated initializer for SwiftXCTest's XCTestCase.
+@@ -117,12 +130,16 @@ open class XCTestCase: XCTest {
+     /// Invoking a test performs its setUp, invocation, and tearDown. In
+     /// general this should not be called directly.
+     open func invokeTest() {
+-        performSetUpSequence()
++        self.invokeTestTask = Task {
++        await performSetUpSequence()
+ 
+         do {
+             if skip == nil {
+                 try testClosure(self)
+             }
++            if let task = testClosureTask {
++                _ = try await task.value
++            }
+         } catch {
+             if error.xct_shouldRecordAsTestFailure {
+                 recordFailure(for: error)
+@@ -141,7 +158,8 @@ open class XCTestCase: XCTest {
+             testRun?.recordSkip(description: skip.summary, sourceLocation: skip.sourceLocation)
+         }
+ 
+-        performTearDownSequence()
++        await performTearDownSequence()
++        }
+     }
+ 
+     /// Records a failure in the execution of the test and is used by all test
+@@ -161,7 +179,9 @@ open class XCTestCase: XCTest {
+             atLine: lineNumber,
+             expected: expected)
+ 
++#if !os(WASI)
+         _performanceMeter?.abortMeasuring()
++#endif
+ 
+         // FIXME: Apple XCTest does not throw a fatal error and crash the test
+         //        process, it merely prevents the remainder of a testClosure
+@@ -211,7 +231,9 @@ open class XCTestCase: XCTest {
+         teardownBlocksState.appendAsync(block)
+     }
+ 
+-    private func performSetUpSequence() {
++    // FIXME(katei): `private` is removed from the following function because
++    // Swift 5.7 incorrectly requires the hidden symbol from subclass definitions.
++    func performSetUpSequence() async {
+         func handleErrorDuringSetUp(_ error: Error) {
+             if error.xct_shouldRecordAsTestFailure {
+                 recordFailure(for: error)
+@@ -228,7 +250,7 @@ open class XCTestCase: XCTest {
+ 
+         do {
+             if #available(macOS 12.0, *) {
+-                try awaitUsingExpectation {
++                try await awaitUsingExpectation {
+                     try await self.setUp()
+                 }
+             }
+@@ -242,29 +264,37 @@ open class XCTestCase: XCTest {
+             handleErrorDuringSetUp(error)
+         }
+ 
+-        setUp()
++        // Workaround: Compiler incorrectly infers the sync 'tearDown' as async one in async context.
++        func doSetUp() {
++            setUp()
++        }
++        doSetUp()
+     }
+ 
+-    private func performTearDownSequence() {
++    private func performTearDownSequence() async {
+         func handleErrorDuringTearDown(_ error: Error) {
+             if error.xct_shouldRecordAsTestFailure {
+                 recordFailure(for: error)
+             }
+         }
+ 
+-        func runTeardownBlocks() {
++        func runTeardownBlocks() async {
+             for block in self.teardownBlocksState.finalize().reversed() {
+                 do {
+-                    try block()
++                    try await block()
+                 } catch {
+                     handleErrorDuringTearDown(error)
+                 }
+             }
+         }
+ 
+-        runTeardownBlocks()
++        await runTeardownBlocks()
+ 
+-        tearDown()
++        // Workaround: Compiler incorrectly infers the sync 'tearDown' as async one in async context.
++        func doTearDown() {
++            tearDown()
++        }
++        doTearDown()
+ 
+         do {
+             try tearDownWithError()
+@@ -273,11 +303,7 @@ open class XCTestCase: XCTest {
+         }
+ 
+         do {
+-            if #available(macOS 12.0, *) {
+-                try awaitUsingExpectation {
+-                    try await self.tearDown()
+-                }
+-            }
++            try await self.tearDown()
+         } catch {
+             handleErrorDuringTearDown(error)
+         }
+@@ -328,7 +354,10 @@ public func asyncTest<T: XCTestCase>(
+     return { (testType: T) in
+         let testClosure = testClosureGenerator(testType)
+         return {
+-            try awaitUsingExpectation(testClosure)
++            assert(testType.testClosureTask == nil, "Async test case \(testType) cannot be run more than once")
++            testType.testClosureTask = Task {
++                try await awaitUsingExpectation(testClosure)
++            }
+         }
+     }
+ }
+@@ -336,7 +365,11 @@ public func asyncTest<T: XCTestCase>(
+ @available(macOS 12.0, *)
+ func awaitUsingExpectation(
+     _ closure: @escaping () async throws -> Void
+-) throws -> Void {
++) async throws -> Void {
++#if os(WASI)
++    try await closure()
++    return
++#else
+     let expectation = XCTestExpectation(description: "async test completion")
+     let thrownErrorWrapper = ThrownErrorWrapper()
+ 
+@@ -355,6 +388,7 @@ func awaitUsingExpectation(
+     if let error = thrownErrorWrapper.error {
+         throw error
+     }
++#endif
+ }
+ 
+ private final class ThrownErrorWrapper: @unchecked Sendable {
+diff --git a/Sources/XCTest/Public/XCTestErrors.swift b/Sources/XCTest/Public/XCTestErrors.swift
+index a18af0a..00fc381 100644
+--- a/Sources/XCTest/Public/XCTestErrors.swift
++++ b/Sources/XCTest/Public/XCTestErrors.swift
+@@ -11,6 +11,14 @@
+ //  Constants used in errors produced by the XCTest library.
+ //
+ 
++#if os(WASI)
++public struct XCTestError {
++    public enum Code : Int {
++        case timeoutWhileWaiting
++        case failureWhileWaiting
++    }
++}
++#else
+ /// The domain used by errors produced by the XCTest library.
+ public let XCTestErrorDomain = "org.swift.XCTestErrorDomain"
+ 
+@@ -32,6 +40,7 @@ public struct XCTestError : _BridgedStoredNSError {
+         case failureWhileWaiting
+     }
+ }
++#endif
+ 
+ public extension XCTestError {
+     /// Indicates that one or more expectations failed to be fulfilled in time
+diff --git a/Sources/XCTest/Public/XCTestMain.swift b/Sources/XCTest/Public/XCTestMain.swift
+index f95aac6..06d46d1 100644
+--- a/Sources/XCTest/Public/XCTestMain.swift
++++ b/Sources/XCTest/Public/XCTestMain.swift
+@@ -59,20 +59,25 @@
+ ///
+ /// - Parameter testCases: An array of test cases run, each produced by a call to the `testCase` function
+ /// - seealso: `testCase`
+-public func XCTMain(_ testCases: [XCTestCaseEntry]) -> Never {
++public func XCTMain(_ testCases: [XCTestCaseEntry]) {
+     XCTMain(testCases, arguments: CommandLine.arguments)
+ }
+ 
+-public func XCTMain(_ testCases: [XCTestCaseEntry], arguments: [String]) -> Never {
++public func XCTMain(_ testCases: [XCTestCaseEntry], arguments: [String]) {
+     XCTMain(testCases, arguments: arguments, observers: [PrintObserver()])
+ }
+ 
++@_silgen_name("XCTMainRunLoopMain")
++func XCTMainRunLoopMain()
++
+ public func XCTMain(
+     _ testCases: [XCTestCaseEntry],
+     arguments: [String],
+     observers: [XCTestObservation]
+-) -> Never {
++) {
++    #if !os(WASI)
+     let testBundle = Bundle.main
++    #endif
+ 
+     let executionMode = ArgumentParser(arguments: arguments).executionMode
+ 
+@@ -84,7 +89,11 @@ public func XCTMain(
+     let currentTestSuite: XCTestSuite
+     if executionMode.selectedTestNames == nil {
+         rootTestSuite = XCTestSuite(name: "All tests")
++        #if !os(WASI)
+         currentTestSuite = XCTestSuite(name: "\(testBundle.bundleURL.lastPathComponent).xctest")
++        #else
++        currentTestSuite = XCTestSuite(name: "testBundle.xctest")
++        #endif
+         rootTestSuite.addTest(currentTestSuite)
+     } else {
+         rootTestSuite = XCTestSuite(name: "Selected tests")
+@@ -141,10 +150,26 @@ public func XCTMain(
+             observationCenter.addTestObserver(observer)
+         }
+ 
++#if !os(WASI)
+         observationCenter.testBundleWillStart(testBundle)
++#endif
+         rootTestSuite.run()
++        @Sendable func afterRun() -> Never {
++#if !os(WASI)
+         observationCenter.testBundleDidFinish(testBundle)
++#endif
+ 
+         exit(rootTestSuite.testRun!.totalFailureCount == 0 ? EXIT_SUCCESS : EXIT_FAILURE)
++        }
++
++        if let performTask = rootTestSuite.performTask {
++            Task {
++                _ = await performTask.value
++                afterRun()
++            }
++            XCTMainRunLoopMain()
++        } else {
++            afterRun()
++        }
+     }
+ }
+diff --git a/Sources/XCTest/Public/XCTestObservation.swift b/Sources/XCTest/Public/XCTestObservation.swift
+index 1a53207..7a1849c 100644
+--- a/Sources/XCTest/Public/XCTestObservation.swift
++++ b/Sources/XCTest/Public/XCTestObservation.swift
+@@ -15,11 +15,12 @@
+ /// test run.
+ /// - seealso: `XCTestObservationCenter`
+ public protocol XCTestObservation: AnyObject {
+-
++#if !os(WASI)
+     /// Sent immediately before tests begin as a hook for any pre-testing setup.
+     /// - Parameter testBundle: The bundle containing the tests that were
+     ///   executed.
+     func testBundleWillStart(_ testBundle: Bundle)
++#endif
+ 
+     /// Sent when a test suite starts executing.
+     /// - Parameter testSuite: The test suite that started. Additional
+@@ -51,6 +52,7 @@ public protocol XCTestObservation: AnyObject {
+     ///   information can be retrieved from the associated XCTestRun.
+     func testSuiteDidFinish(_ testSuite: XCTestSuite)
+ 
++#if !os(WASI)
+     /// Sent immediately after all tests have finished as a hook for any
+     /// post-testing activity. The test process will generally exit after this
+     /// method returns, so if there is long running and/or asynchronous work to
+@@ -59,15 +61,18 @@ public protocol XCTestObservation: AnyObject {
+     /// - Parameter testBundle: The bundle containing the tests that were
+     ///   executed.
+     func testBundleDidFinish(_ testBundle: Bundle)
++#endif
+ }
+ 
+ // All `XCTestObservation` methods are optional, so empty default implementations are provided
+ public extension XCTestObservation {
++    #if !os(WASI)
+     func testBundleWillStart(_ testBundle: Bundle) {}
++    func testBundleDidFinish(_ testBundle: Bundle) {}
++    #endif
+     func testSuiteWillStart(_ testSuite: XCTestSuite) {}
+     func testCaseWillStart(_ testCase: XCTestCase) {}
+     func testCase(_ testCase: XCTestCase, didFailWithDescription description: String, inFile filePath: String?, atLine lineNumber: Int) {}
+     func testCaseDidFinish(_ testCase: XCTestCase) {}
+     func testSuiteDidFinish(_ testSuite: XCTestSuite) {}
+-    func testBundleDidFinish(_ testBundle: Bundle) {}
+ }
+diff --git a/Sources/XCTest/Public/XCTestObservationCenter.swift b/Sources/XCTest/Public/XCTestObservationCenter.swift
+index 540956d..7e86b85 100644
+--- a/Sources/XCTest/Public/XCTestObservationCenter.swift
++++ b/Sources/XCTest/Public/XCTestObservationCenter.swift
+@@ -38,9 +38,11 @@ public class XCTestObservationCenter {
+         observers.remove(testObserver.wrapper)
+     }
+ 
++#if !os(WASI)
+     internal func testBundleWillStart(_ testBundle: Bundle) {
+         forEachObserver { $0.testBundleWillStart(testBundle) }
+     }
++#endif
+ 
+     internal func testSuiteWillStart(_ testSuite: XCTestSuite) {
+         forEachObserver { $0.testSuiteWillStart(testSuite) }
+@@ -66,9 +68,11 @@ public class XCTestObservationCenter {
+         forEachObserver { $0.testSuiteDidFinish(testSuite) }
+     }
+ 
++#if !os(WASI)
+     internal func testBundleDidFinish(_ testBundle: Bundle) {
+         forEachObserver { $0.testBundleDidFinish(testBundle) }
+     }
++#endif
+ 
+     internal func testCase(_ testCase: XCTestCase, didMeasurePerformanceResults results: String, file: StaticString, line: Int) {
+         forEachInternalObserver { $0.testCase(testCase, didMeasurePerformanceResults: results, file: file, line: line) }
+diff --git a/Sources/XCTest/Public/XCTestSuite.swift b/Sources/XCTest/Public/XCTestSuite.swift
+index 177dd1c..870b878 100644
+--- a/Sources/XCTest/Public/XCTestSuite.swift
++++ b/Sources/XCTest/Public/XCTestSuite.swift
+@@ -45,12 +45,18 @@ open class XCTestSuite: XCTest {
+ 
+         run.start()
+         setUp()
++        self.performTask = Task {
+         for test in tests {
+             test.run()
++            if let childPerformTask = test.performTask {
++                _ = await childPerformTask.value
++            }
+             testRun.addTestRun(test.testRun!)
+         }
+-        tearDown()
++        func doTearDown() { tearDown() }
++        doTearDown()
+         run.stop()
++        }
+     }
+ 
+     public init(name: String) {
+diff --git a/cmake/modules/SwiftSupport.cmake b/cmake/modules/SwiftSupport.cmake
+index 373c0fe..98dd0dc 100644
+--- a/cmake/modules/SwiftSupport.cmake
++++ b/cmake/modules/SwiftSupport.cmake
+@@ -34,6 +34,8 @@ function(get_swift_host_arch result_var_name)
+     set("${result_var_name}" "i686" PARENT_SCOPE)
+   elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "i686")
+     set("${result_var_name}" "i686" PARENT_SCOPE)
++  elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "wasm32")
++    set("${result_var_name}" "wasm32" PARENT_SCOPE)
+   else()
+     message(FATAL_ERROR "Unrecognized architecture on host system: ${CMAKE_SYSTEM_PROCESSOR}")
+   endif()
+-- 
+2.43.0
+
