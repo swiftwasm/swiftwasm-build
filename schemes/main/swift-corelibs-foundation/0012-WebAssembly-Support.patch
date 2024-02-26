@@ -1,4 +1,4 @@
-From 59920248041493c73d854eb40970b90fdf36d065 Mon Sep 17 00:00:00 2001
+From b8a9378eb3e7969aec8e166a7e4f183085a4163f Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 13:24:41 +0000
 Subject: [PATCH] WebAssembly Support
@@ -148,10 +148,10 @@ index 40847559..86fa81ec 100644
  CF_EXPORT void _CFReadStreamInitialize(CFReadStreamRef readStream);
  CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index 6aca2f14..b6cd8e3f 100644
+index 54e9022e..9335e39a 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-@@ -87,6 +87,8 @@
+@@ -83,6 +83,8 @@
  #include <sys/stat.h>
  #endif // not __NR_statx
  
@@ -160,7 +160,7 @@ index 6aca2f14..b6cd8e3f 100644
  #endif // TARGET_OS_LINUX
  
  #include <stdlib.h>
-@@ -562,7 +564,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
+@@ -558,7 +560,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
  
  #if TARGET_OS_WIN32
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode);
@@ -202,7 +202,7 @@ index b373875a..6ad26f20 100644
  #include <CoreFoundation/CFSocket.h>
  #include <CoreFoundation/CFMachPort.h>
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index 4b47317f..453f82d1 100644
+index 5d9b8f9c..ed5da2f2 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
 @@ -124,6 +124,34 @@ else()
@@ -341,7 +341,7 @@ index 4b47317f..453f82d1 100644
            CoreFoundation
            CFXMLInterface
 diff --git a/CoreFoundation/Locale.subproj/CFLocale.c b/CoreFoundation/Locale.subproj/CFLocale.c
-index c5c555c9..7bfcafa7 100644
+index 738ff28a..344dbbad 100644
 --- a/CoreFoundation/Locale.subproj/CFLocale.c
 +++ b/CoreFoundation/Locale.subproj/CFLocale.c
 @@ -19,15 +19,15 @@
@@ -1130,7 +1130,7 @@ index 67223bfc..ea97b402 100644
 +
 +#endif
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
-index 2accd566..babfcf98 100644
+index f3cc6bf2..dc4cff50 100644
 --- a/Sources/Foundation/CMakeLists.txt
 +++ b/Sources/Foundation/CMakeLists.txt
 @@ -1,3 +1,18 @@
@@ -1210,7 +1210,7 @@ index 2accd566..babfcf98 100644
    UUID.swift
    WinSDK+Extensions.swift)
  target_compile_definitions(Foundation PRIVATE
-@@ -218,6 +223,18 @@ elseif(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -220,6 +225,18 @@ elseif(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_options(Foundation PRIVATE "SHELL:-no-toolchain-stdlib-rpath")
  endif()
  
@@ -1669,10 +1669,10 @@ index bc388d40..765ad6f1 100644
      return map
  }()
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index 99b6f141..a88b2afa 100644
+index 9362b95e..8e2cf145 100644
 --- a/Sources/Foundation/NSPathUtilities.swift
 +++ b/Sources/Foundation/NSPathUtilities.swift
-@@ -195,7 +195,6 @@ extension String {
+@@ -204,7 +204,6 @@ extension String {
          return temp
      }
      
@@ -1680,7 +1680,7 @@ index 99b6f141..a88b2afa 100644
      internal func _tryToRemovePathPrefix(_ prefix: String) -> String? {
          guard self != prefix else {
              return nil
-@@ -208,7 +207,6 @@ extension String {
+@@ -217,7 +216,6 @@ extension String {
          
          return nil
      }
@@ -1688,7 +1688,7 @@ index 99b6f141..a88b2afa 100644
  }
  
  extension NSString {
-@@ -338,7 +336,6 @@ extension NSString {
+@@ -347,7 +345,6 @@ extension NSString {
          return result._stringByFixingSlashes()
      }
  
@@ -1696,7 +1696,7 @@ index 99b6f141..a88b2afa 100644
      public var expandingTildeInPath: String {
          guard hasPrefix("~") else {
              return _swiftObject
-@@ -359,7 +356,6 @@ extension NSString {
+@@ -368,7 +365,6 @@ extension NSString {
          
          return result
      }
@@ -1704,7 +1704,7 @@ index 99b6f141..a88b2afa 100644
  
  #if os(Windows)
      public var unixPath: String {
-@@ -374,7 +370,6 @@ extension NSString {
+@@ -383,7 +379,6 @@ extension NSString {
      }
  #endif
      
@@ -1712,7 +1712,7 @@ index 99b6f141..a88b2afa 100644
      public var standardizingPath: String {
  #if os(Windows)
          let expanded = unixPath.expandingTildeInPath
-@@ -422,8 +417,6 @@ extension NSString {
+@@ -431,8 +426,6 @@ extension NSString {
          
          return resolvedPath
      }
@@ -1721,7 +1721,7 @@ index 99b6f141..a88b2afa 100644
      public func stringsByAppendingPaths(_ paths: [String]) -> [String] {
          if self == "" {
              return paths
-@@ -730,6 +723,9 @@ public func NSHomeDirectory() -> String {
+@@ -739,6 +732,9 @@ public func NSHomeDirectory() -> String {
  }
  
  public func NSHomeDirectoryForUser(_ user: String?) -> String? {
@@ -1731,7 +1731,7 @@ index 99b6f141..a88b2afa 100644
      let userName = user?._cfObject
      guard let homeDir = CFCopyHomeDirectoryURLForUser(userName)?.takeRetainedValue() else {
          return nil
-@@ -737,6 +733,7 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
+@@ -746,6 +742,7 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
      
      let url: URL = homeDir._swiftObject
      return url.path

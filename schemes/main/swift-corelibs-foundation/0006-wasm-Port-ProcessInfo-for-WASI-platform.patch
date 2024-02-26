@@ -1,4 +1,4 @@
-From 4ca1daf9aa60fe8fdda70f1bb19085d6818e2010 Mon Sep 17 00:00:00 2001
+From 84631bcee56e2abbeed5e113d25bcee47ebe8915 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:07:39 +0000
 Subject: [PATCH] [wasm] Port ProcessInfo for WASI platform

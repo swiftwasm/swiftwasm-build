@@ -18,6 +18,10 @@ def main
     opts.on("-R", "--repository REPOSITORY", "The repository to use") do |v|
       options[:repository] = v
     end
+
+    opts.on("-u", "--upstream-rev REV", "The upstream revision to use") do |v|
+      options[:upstream_rev] = v
+    end
   end.parse!
 
   if options[:scheme].nil?
@@ -28,7 +32,7 @@ def main
   manifest = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], 'manifest.json')))
 
   patches_path = File.absolute_path(File.join(File.dirname(__FILE__), '../schemes', options[:scheme], options[:repository]))
-  upstream_rev = manifest['base-tag']
+  upstream_rev = options[:upstream_rev] || manifest['base-tag']
 
   Dir.chdir(File.join(File.dirname(__FILE__), '..')) do
     Kernel.system(*[

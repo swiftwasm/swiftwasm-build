@@ -1,20 +1,21 @@
-From 7d47f871d6b96302bb824cd320e7d56d074e308c Mon Sep 17 00:00:00 2001
+From 6a3e53bffd78db84b31dedd2e4fc107f4efcf305 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:42:51 +0000
 Subject: [PATCH] [wasm] Port FileManager for WASI platform
 
 ---
  .../Base.subproj/ForSwiftFoundationOnly.h     | 16 ++++-
- Sources/Foundation/Data.swift                 |  4 --
+ Sources/Foundation/Data.swift                 |  5 +-
+ Sources/Foundation/FileHandle.swift           |  6 ++
  Sources/Foundation/FileManager+POSIX.swift    | 69 +++++++++++++++++++
  Sources/Foundation/FileManager.swift          | 13 +++-
  Sources/Foundation/NSData.swift               |  3 +-
  Sources/Foundation/NSPathUtilities.swift      |  2 -
  Sources/Foundation/NSURL.swift                | 14 ----
- 7 files changed, 95 insertions(+), 26 deletions(-)
+ 8 files changed, 102 insertions(+), 26 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index 4a9e5536..6aca2f14 100644
+index e823cb3d..54e9022e 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 @@ -45,7 +45,7 @@
@@ -26,7 +27,7 @@ index 4a9e5536..6aca2f14 100644
  #include <dirent.h>
  #endif
  
-@@ -568,11 +568,11 @@ CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const char *path, int opts, mod
+@@ -564,11 +564,11 @@ CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const char *path, int opts, mod
  CF_CROSS_PLATFORM_EXPORT void *_CFReallocf(void *ptr, size_t size);
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFile(const char *path, int opts);
  
@@ -40,7 +41,7 @@ index 4a9e5536..6aca2f14 100644
      return strlen(entry->d_name);
  #else
      return entry->d_namlen;
-@@ -585,11 +585,21 @@ static inline char *_direntName(struct dirent *entry) {
+@@ -581,11 +581,21 @@ static inline char *_direntName(struct dirent *entry) {
  
  // major() and minor() might be implemented as macros or functions.
  static inline unsigned int _dev_major(dev_t rdev) {
@@ -63,10 +64,18 @@ index 4a9e5536..6aca2f14 100644
  
  #endif
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
-index 6e5bfdb6..f82ecbc6 100644
+index 86585a3a..f82ecbc6 100644
 --- a/Sources/Foundation/Data.swift
 +++ b/Sources/Foundation/Data.swift
-@@ -2040,7 +2040,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -29,6 +29,7 @@
+ @usableFromInline let memcpy = Glibc.memcpy
+ @usableFromInline let memcmp = Glibc.memcmp
+ #elseif canImport(WASILibc)
++@_implementationOnly import wasi_emulated_mman
+ @usableFromInline let calloc = WASILibc.calloc
+ @usableFromInline let malloc = WASILibc.malloc
+ @usableFromInline let free = WASILibc.free
+@@ -2039,7 +2040,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
          }
      }
      
@@ -74,7 +83,7 @@ index 6e5bfdb6..f82ecbc6 100644
      /// Initialize a `Data` with the contents of a `URL`.
      ///
      /// - parameter url: The `URL` to read.
-@@ -2053,7 +2052,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2052,7 +2052,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
              return Data(bytes: d.bytes, count: d.length)
          }
      }
@@ -82,7 +91,7 @@ index 6e5bfdb6..f82ecbc6 100644
      
      /// Initialize a `Data` from a Base-64 encoded String using the given options.
      ///
-@@ -2317,7 +2315,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2316,7 +2315,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
      }
  #endif
      
@@ -90,7 +99,7 @@ index 6e5bfdb6..f82ecbc6 100644
      /// Write the contents of the `Data` to a location.
      ///
      /// - parameter url: The location to write the data into.
-@@ -2338,7 +2335,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2337,7 +2335,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
  #endif
          }
      }
@@ -98,11 +107,28 @@ index 6e5bfdb6..f82ecbc6 100644
      
      // MARK: -
      
+diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
+index a538a297..328a45d2 100644
+--- a/Sources/Foundation/FileHandle.swift
++++ b/Sources/Foundation/FileHandle.swift
+@@ -22,6 +22,12 @@ import Glibc
+ fileprivate let _read = Glibc.read(_:_:_:)
+ fileprivate let _write = Glibc.write(_:_:_:)
+ fileprivate let _close = Glibc.close(_:)
++#elseif canImport(WASILibc)
++import WASILibc
++@_implementationOnly import wasi_emulated_mman
++fileprivate let _read = WASILibc.read(_:_:_:)
++fileprivate let _write = WASILibc.write(_:_:_:)
++fileprivate let _close = WASILibc.close(_:)
+ #endif
+ 
+ #if canImport(WinSDK)
 diff --git a/Sources/Foundation/FileManager+POSIX.swift b/Sources/Foundation/FileManager+POSIX.swift
-index 9b877dbc..f55e6c7b 100644
+index 1c50e458..0f8e941c 100644
 --- a/Sources/Foundation/FileManager+POSIX.swift
 +++ b/Sources/Foundation/FileManager+POSIX.swift
-@@ -115,6 +115,32 @@ extension FileManager {
+@@ -106,6 +106,32 @@ extension FileManager {
                  return nil
              }
              urls = mountPoints(statBuf, Int(fsCount))
@@ -135,7 +161,7 @@ index 9b877dbc..f55e6c7b 100644
  #else
  #error("Requires a platform-specific implementation")
  #endif
-@@ -463,6 +489,10 @@ extension FileManager {
+@@ -454,6 +480,10 @@ extension FileManager {
      }
      
      internal func _attributesOfFileSystemIncludingBlockSize(forPath path: String) throws -> (attributes: [FileAttributeKey : Any], blockSize: UInt64?) {
@@ -146,7 +172,7 @@ index 9b877dbc..f55e6c7b 100644
          var result: [FileAttributeKey:Any] = [:]
          var finalBlockSize: UInt64?
          
-@@ -495,6 +525,7 @@ extension FileManager {
+@@ -486,6 +516,7 @@ extension FileManager {
              finalBlockSize = blockSize
          }
          return (attributes: result, blockSize: finalBlockSize)
@@ -154,7 +180,7 @@ index 9b877dbc..f55e6c7b 100644
      }
  
      internal func _createSymbolicLink(atPath path: String, withDestinationPath destPath: String) throws {
-@@ -524,6 +555,9 @@ extension FileManager {
+@@ -515,6 +546,9 @@ extension FileManager {
      }
          
      internal func _recursiveDestinationOfSymbolicLink(atPath path: String) throws -> String {
@@ -164,7 +190,7 @@ index 9b877dbc..f55e6c7b 100644
          // Throw error if path is not a symbolic link:
          let path = try _destinationOfSymbolicLink(atPath: path)
          
-@@ -537,10 +571,14 @@ extension FileManager {
+@@ -528,10 +562,14 @@ extension FileManager {
          }
  
          return String(cString: resolvedPath)
@@ -179,7 +205,7 @@ index 9b877dbc..f55e6c7b 100644
          let bufSize = Int(PATH_MAX + 1)
          var buf = [Int8](repeating: 0, count: bufSize)
          let done = try _fileSystemRepresentation(withPath: path) {
-@@ -551,6 +589,7 @@ extension FileManager {
+@@ -542,6 +580,7 @@ extension FileManager {
          }
          
          return self.string(withFileSystemRepresentation: buf, length: strlen(buf))
@@ -187,7 +213,7 @@ index 9b877dbc..f55e6c7b 100644
      }
  
      internal func _readFrom(fd: Int32, toBuffer buffer: UnsafeMutablePointer<UInt8>, length bytesToRead: Int, filename: String) throws -> Int {
-@@ -608,12 +647,14 @@ extension FileManager {
+@@ -599,12 +638,14 @@ extension FileManager {
          }
          defer { close(dstfd) }
  
@@ -202,7 +228,7 @@ index 9b877dbc..f55e6c7b 100644
  
          if fileInfo.st_size == 0 {
              // no copying required
-@@ -758,6 +799,10 @@ extension FileManager {
+@@ -749,6 +790,10 @@ extension FileManager {
              if rmdir(fsRep) == 0 {
                  return
              } else if errno == ENOTEMPTY {
@@ -213,7 +239,7 @@ index 9b877dbc..f55e6c7b 100644
                  let ps = UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>.allocate(capacity: 2)
                  ps.initialize(to: UnsafeMutablePointer(mutating: fsRep))
                  ps.advanced(by: 1).initialize(to: nil)
-@@ -800,6 +845,7 @@ extension FileManager {
+@@ -791,6 +836,7 @@ extension FileManager {
                  } else {
                      let _ = _NSErrorWithErrno(ENOTEMPTY, reading: false, path: path)
                  }
@@ -221,7 +247,7 @@ index 9b877dbc..f55e6c7b 100644
              } else if errno != ENOTDIR {
                  throw _NSErrorWithErrno(errno, reading: false, path: path)
              } else if unlink(fsRep) != 0 {
-@@ -902,6 +948,7 @@ extension FileManager {
+@@ -893,6 +939,7 @@ extension FileManager {
                      return false
                  }
  
@@ -229,7 +255,7 @@ index 9b877dbc..f55e6c7b 100644
                  // Stat the parent directory, if that fails, return false.
                  let parentS = try _lstatFile(atPath: path, withFileSystemRepresentation: parentFsRep)
  
-@@ -912,6 +959,7 @@ extension FileManager {
+@@ -903,6 +950,7 @@ extension FileManager {
                      // If the current user owns the file, return true.
                      return s.st_uid == getuid()
                  }
@@ -237,7 +263,7 @@ index 9b877dbc..f55e6c7b 100644
  
                  // Return true as the best guess.
                  return true
-@@ -1082,6 +1130,26 @@ extension FileManager {
+@@ -1073,6 +1121,26 @@ extension FileManager {
          return temp._bridgeToObjectiveC().appendingPathComponent(dest)
      }
  
@@ -264,7 +290,7 @@ index 9b877dbc..f55e6c7b 100644
      internal class NSURLDirectoryEnumerator : DirectoryEnumerator {
          var _url : URL
          var _options : FileManager.DirectoryEnumerationOptions
-@@ -1215,6 +1283,7 @@ extension FileManager {
+@@ -1206,6 +1274,7 @@ extension FileManager {
              return nil
          }
      }
