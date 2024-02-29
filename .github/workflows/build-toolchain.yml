@@ -125,7 +125,7 @@ jobs:
         run: |
           df -h
           sudo rm -rf /opt/hostedtoolcache
-          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /usr/local/.ghcup
           sudo apt clean
           
           if docker info > /dev/null 2>&1; then
