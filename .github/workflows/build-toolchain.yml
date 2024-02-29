@@ -186,7 +186,8 @@ jobs:
 
       - name: Install Homebrew dependencies
         if: ${{ startsWith(matrix.build_os, 'macos-') }}
-        run: brew bundle --file swift/Brewfile && brew install wasmtime
+        run: brew bundle --file swift/Brewfile
+
       # release-5.9 requires 3.11 or lower Python
       - uses: actions/setup-python@v5
         if: ${{ startsWith(matrix.build_os, 'macos-') && matrix.scheme == 'release-5.9' && matrix.agent_query == 'macos-13' }}
@@ -244,6 +245,22 @@ jobs:
         with:
           name: ${{ matrix.target }}-${{ matrix.scheme }}-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip
+
+      # Prepare for running tests
+      - uses: bytecodealliance/actions/wasmtime/setup@v1
+        if: ${{ matrix.container == null }}
+        with:
+          version: "v17.0.1"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # WORKAROUND: wasmkit-cli should be built from checked out source but we don't have
+      # build script for it yet. So we create a symlink to wasmtime for now.
+      # We should remove this step once we unify the build script with apple/swift's build-preset
+      # based build script.
+      - run: ln -s "$(which wasmtime)" "$(dirname "$(which wasmtime)")/wasmkit-cli"
+        if: ${{ matrix.container == null }}
+      - run: docker exec -u root swiftwasm-ci-buildbot bash -c 'ln -s "$(which wasmtime)" "$(dirname "$(which wasmtime)")/wasmkit-cli"'
+        if: ${{ matrix.container != null }}
 
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}
@@ -305,11 +322,6 @@ jobs:
           name: ${{ matrix.target }}-hello.wasm
           path: hello.wasm
 
-      - uses: bytecodealliance/actions/wasmtime/setup@v1
-        if: ${{ matrix.run_e2e_test }}
-        with:
-          version: "v17.0.1"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run integration tests
         if: ${{ matrix.run_e2e_test }}
         run: ${{ github.workspace }}/llvm-project/llvm/utils/lit/lit.py --param package-path=$TOOLCHAIN --param scheme=${{ matrix.scheme }} ${{ github.workspace }}/swiftwasm-build/test -vv
