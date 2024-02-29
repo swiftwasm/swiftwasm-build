@@ -1,5 +1,5 @@
 # Skipping, see https://github.com/swiftwasm/swift/issues/5551
-XFAIL: scheme=release-5.10
+XFAIL: scheme=main || scheme=release-5.10
 
 RUN: rm -rf %t.dir
 RUN: mkdir -p %t.dir
