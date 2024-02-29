@@ -1,4 +1,4 @@
-From 6a3e53bffd78db84b31dedd2e4fc107f4efcf305 Mon Sep 17 00:00:00 2001
+From 7e1bff640f4b113022068b012dd07e6f64fe1a99 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:42:51 +0000
 Subject: [PATCH] [wasm] Port FileManager for WASI platform
@@ -15,7 +15,7 @@ Subject: [PATCH] [wasm] Port FileManager for WASI platform
  8 files changed, 102 insertions(+), 26 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index e823cb3d..54e9022e 100644
+index 37d38f26..bac39185 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 @@ -45,7 +45,7 @@
@@ -27,7 +27,7 @@ index e823cb3d..54e9022e 100644
  #include <dirent.h>
  #endif
  
-@@ -564,11 +564,11 @@ CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const char *path, int opts, mod
+@@ -565,11 +565,11 @@ CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const char *path, int opts, mod
  CF_CROSS_PLATFORM_EXPORT void *_CFReallocf(void *ptr, size_t size);
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFile(const char *path, int opts);
  
@@ -36,12 +36,12 @@ index e823cb3d..54e9022e 100644
  static inline int _direntNameLength(struct dirent *entry) {
  #ifdef _D_EXACT_NAMLEN  // defined on Linux
      return _D_EXACT_NAMLEN(entry);
--#elif TARGET_OS_ANDROID
-+#elif TARGET_OS_ANDROID || TARGET_OS_WASI
+-#elif TARGET_OS_LINUX || TARGET_OS_ANDROID
++#elif TARGET_OS_LINUX || TARGET_OS_ANDROID || TARGET_OS_WASI
      return strlen(entry->d_name);
  #else
      return entry->d_namlen;
-@@ -581,11 +581,21 @@ static inline char *_direntName(struct dirent *entry) {
+@@ -582,11 +582,21 @@ static inline char *_direntName(struct dirent *entry) {
  
  // major() and minor() might be implemented as macros or functions.
  static inline unsigned int _dev_major(dev_t rdev) {
@@ -64,18 +64,18 @@ index e823cb3d..54e9022e 100644
  
  #endif
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
-index 86585a3a..f82ecbc6 100644
+index 23254e6b..091adbfa 100644
 --- a/Sources/Foundation/Data.swift
 +++ b/Sources/Foundation/Data.swift
-@@ -29,6 +29,7 @@
- @usableFromInline let memcpy = Glibc.memcpy
- @usableFromInline let memcmp = Glibc.memcmp
+@@ -36,6 +36,7 @@
+ @usableFromInline let memcpy = Musl.memcpy
+ @usableFromInline let memcmp = Musl.memcmp
  #elseif canImport(WASILibc)
 +@_implementationOnly import wasi_emulated_mman
  @usableFromInline let calloc = WASILibc.calloc
  @usableFromInline let malloc = WASILibc.malloc
  @usableFromInline let free = WASILibc.free
-@@ -2039,7 +2040,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2048,7 +2049,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
          }
      }
      
@@ -83,7 +83,7 @@ index 86585a3a..f82ecbc6 100644
      /// Initialize a `Data` with the contents of a `URL`.
      ///
      /// - parameter url: The `URL` to read.
-@@ -2052,7 +2052,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2061,7 +2061,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
              return Data(bytes: d.bytes, count: d.length)
          }
      }
@@ -91,7 +91,7 @@ index 86585a3a..f82ecbc6 100644
      
      /// Initialize a `Data` from a Base-64 encoded String using the given options.
      ///
-@@ -2316,7 +2315,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2325,7 +2324,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
      }
  #endif
      
@@ -99,7 +99,7 @@ index 86585a3a..f82ecbc6 100644
      /// Write the contents of the `Data` to a location.
      ///
      /// - parameter url: The location to write the data into.
-@@ -2337,7 +2335,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+@@ -2346,7 +2344,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
  #endif
          }
      }
@@ -108,13 +108,13 @@ index 86585a3a..f82ecbc6 100644
      // MARK: -
      
 diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
-index a538a297..328a45d2 100644
+index 285bed70..5fb7258c 100644
 --- a/Sources/Foundation/FileHandle.swift
 +++ b/Sources/Foundation/FileHandle.swift
-@@ -22,6 +22,12 @@ import Glibc
- fileprivate let _read = Glibc.read(_:_:_:)
- fileprivate let _write = Glibc.write(_:_:_:)
- fileprivate let _close = Glibc.close(_:)
+@@ -27,6 +27,12 @@ import Musl
+ fileprivate let _read = Musl.read(_:_:_:)
+ fileprivate let _write = Musl.write(_:_:_:)
+ fileprivate let _close = Musl.close(_:)
 +#elseif canImport(WASILibc)
 +import WASILibc
 +@_implementationOnly import wasi_emulated_mman
@@ -353,19 +353,19 @@ index 1aa3038a..cfe264f5 100644
  
          if type == .typeBlockSpecial || type == .typeCharacterSpecial {
 diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
-index ed9e7f05..808811b8 100644
+index e004c950..fd494ce7 100644
 --- a/Sources/Foundation/NSData.swift
 +++ b/Sources/Foundation/NSData.swift
-@@ -494,6 +494,8 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
-             let createMode = Int(ucrt.S_IREAD) | Int(ucrt.S_IWRITE)
- #elseif canImport(Darwin)
-             let createMode = Int(S_IRUSR) | Int(S_IWUSR) | Int(S_IRGRP) | Int(S_IWGRP) | Int(S_IROTH) | Int(S_IWOTH)
+@@ -498,6 +498,8 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+             let createMode = Int(Glibc.S_IRUSR) | Int(Glibc.S_IWUSR) | Int(Glibc.S_IRGRP) | Int(Glibc.S_IWGRP) | Int(Glibc.S_IROTH) | Int(Glibc.S_IWOTH)
+ #elseif canImport(Musl)
+             let createMode = Int(Musl.S_IRUSR) | Int(Musl.S_IWUSR) | Int(Musl.S_IRGRP) | Int(Musl.S_IWGRP) | Int(Musl.S_IROTH) | Int(Musl.S_IWOTH)
 +#elseif canImport(WASILibc)
 +            let createMode = Int(WASILibc.S_IRUSR) | Int(WASILibc.S_IWUSR) | Int(WASILibc.S_IRGRP) | Int(WASILibc.S_IWGRP) | Int(WASILibc.S_IROTH) | Int(WASILibc.S_IWOTH)
- #else
-             let createMode = Int(Glibc.S_IRUSR) | Int(Glibc.S_IWUSR) | Int(Glibc.S_IRGRP) | Int(Glibc.S_IWGRP) | Int(Glibc.S_IROTH) | Int(Glibc.S_IWOTH)
  #endif
-@@ -543,7 +545,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+             guard let fh = FileHandle(path: path, flags: flags, createMode: createMode) else {
+                 throw _NSErrorWithErrno(errno, reading: false, path: path)
+@@ -545,7 +547,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
          }
          try write(toFile: url.path, options: writeOptionsMask)
      }
@@ -391,10 +391,10 @@ index 1726b351..cfba2728 100644
  }
 -#endif
 diff --git a/Sources/Foundation/NSURL.swift b/Sources/Foundation/NSURL.swift
-index 9b121d66..c6ce7205 100644
+index 4b6a2a5b..4d31e2ba 100644
 --- a/Sources/Foundation/NSURL.swift
 +++ b/Sources/Foundation/NSURL.swift
-@@ -554,9 +554,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+@@ -556,9 +556,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
      // TODO: should be `checkResourceIsReachableAndReturnError` with autoreleased error parameter.
      // Currently Autoreleased pointers is not supported on Linux.
      open func checkResourceIsReachable() throws -> Bool {
@@ -404,7 +404,7 @@ index 9b121d66..c6ce7205 100644
          guard isFileURL,
              let path = path else {
                  throw NSError(domain: NSCocoaErrorDomain,
-@@ -572,7 +569,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+@@ -574,7 +571,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
          }
          
          return true
@@ -412,7 +412,7 @@ index 9b121d66..c6ce7205 100644
      }
  
      /* Returns a file path URL that refers to the same resource as a specified URL. File path URLs use a file system style path. An error will occur if the url parameter is not a file URL. A file reference URL's resource must exist and be reachable to be converted to a file path URL. Symbol is present in iOS 4, but performs no operation.
-@@ -916,12 +912,8 @@ extension NSURL {
+@@ -918,12 +914,8 @@ extension NSURL {
          if selfPath.isAbsolutePath {
              absolutePath = selfPath
          } else {
@@ -425,7 +425,7 @@ index 9b121d66..c6ce7205 100644
          }
  
  #if os(Windows)
-@@ -969,20 +961,16 @@ extension NSURL {
+@@ -971,20 +963,16 @@ extension NSURL {
  
              default:
                  resolvedPath = resolvedPath._bridgeToObjectiveC().appendingPathComponent(component)
@@ -446,7 +446,7 @@ index 9b121d66..c6ce7205 100644
  
          if excludeSystemDirs {
              resolvedPath = resolvedPath._tryToRemovePathPrefix("/private") ?? resolvedPath
-@@ -1061,7 +1049,6 @@ extension NSURL : _StructTypeBridgeable {
+@@ -1063,7 +1051,6 @@ extension NSURL : _StructTypeBridgeable {
  
  // -----
  
@@ -454,7 +454,7 @@ index 9b121d66..c6ce7205 100644
  internal func _CFSwiftURLCopyResourcePropertyForKey(_ url: CFTypeRef, _ key: CFString, _ valuePointer: UnsafeMutablePointer<Unmanaged<CFTypeRef>?>?, _ errorPointer: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> _DarwinCompatibleBoolean {
      do {
          let key = URLResourceKey(rawValue: key._swiftObject)
-@@ -1595,7 +1582,6 @@ fileprivate extension URLResourceValuesStorage {
+@@ -1597,7 +1584,6 @@ fileprivate extension URLResourceValuesStorage {
          }
      }
  }
