@@ -1,4 +1,4 @@
-From 1ca834eebde6e7c41a0ec38318df944634062b41 Mon Sep 17 00:00:00 2001
+From 47242a1d261017c88e0a09d14394e0ac7b4daace Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:32:44 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/Base.subproj/CFRuntime.c

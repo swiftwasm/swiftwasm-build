@@ -1,4 +1,4 @@
-From b8a9378eb3e7969aec8e166a7e4f183085a4163f Mon Sep 17 00:00:00 2001
+From 896d34a87781f5b730c71199a91b6ff7c6d4605d Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 13:24:41 +0000
 Subject: [PATCH] WebAssembly Support
@@ -148,10 +148,10 @@ index 40847559..86fa81ec 100644
  CF_EXPORT void _CFReadStreamInitialize(CFReadStreamRef readStream);
  CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index 54e9022e..9335e39a 100644
+index bac39185..2e430e5b 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-@@ -83,6 +83,8 @@
+@@ -84,6 +84,8 @@
  #include <sys/stat.h>
  #endif // not __NR_statx
  
@@ -160,7 +160,7 @@ index 54e9022e..9335e39a 100644
  #endif // TARGET_OS_LINUX
  
  #include <stdlib.h>
-@@ -558,7 +560,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
+@@ -559,7 +561,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
  
  #if TARGET_OS_WIN32
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode);
@@ -202,10 +202,10 @@ index b373875a..6ad26f20 100644
  #include <CoreFoundation/CFSocket.h>
  #include <CoreFoundation/CFMachPort.h>
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index 5d9b8f9c..ed5da2f2 100644
+index 4b3370a9..4079af58 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
-@@ -124,6 +124,34 @@ else()
+@@ -140,6 +140,34 @@ else()
    set(FRAMEWORK_LIBRARY_TYPE STATIC)
  endif()
  
@@ -240,7 +240,7 @@ index 5d9b8f9c..ed5da2f2 100644
  add_framework(CoreFoundation
                  ${FRAMEWORK_LIBRARY_TYPE}
                FRAMEWORK_DIRECTORY
-@@ -326,36 +354,15 @@ add_framework(CoreFoundation
+@@ -342,36 +370,15 @@ add_framework(CoreFoundation
                  Parsing.subproj/CFBinaryPList.c
                  Parsing.subproj/CFOldStylePList.c
                  Parsing.subproj/CFPropertyList.c
@@ -278,7 +278,7 @@ index 5d9b8f9c..ed5da2f2 100644
                  # String
                  String.subproj/CFAttributedString.c
                  String.subproj/CFBurstTrie.c
-@@ -383,7 +390,9 @@ add_framework(CoreFoundation
+@@ -399,7 +406,9 @@ add_framework(CoreFoundation
                  URL.subproj/CFURLAccess.c
                  URL.subproj/CFURL.c
                  URL.subproj/CFURLComponents.c
@@ -289,7 +289,7 @@ index 5d9b8f9c..ed5da2f2 100644
  target_compile_definitions(CoreFoundation
                             PRIVATE
                               $<$<COMPILE_LANGUAGE:ASM>:CF_CHARACTERSET_BITMAP="CharacterSets/CFCharacterSetBitmaps.bitmap">
-@@ -393,6 +402,7 @@ target_compile_definitions(CoreFoundation
+@@ -409,6 +418,7 @@ target_compile_definitions(CoreFoundation
  target_include_directories(CoreFoundation
                             PRIVATE
                               ${PROJECT_SOURCE_DIR})
@@ -297,7 +297,7 @@ index 5d9b8f9c..ed5da2f2 100644
  target_link_libraries(CoreFoundation PRIVATE
    ${CMAKE_DL_LIBS}
    BlocksRuntime)
-@@ -403,6 +413,11 @@ if(HAS_LIBDISPATCH_API)
+@@ -419,6 +429,11 @@ if(HAS_LIBDISPATCH_API)
      dispatch)
  endif()
  
@@ -309,7 +309,7 @@ index 5d9b8f9c..ed5da2f2 100644
  if(CMAKE_SYSTEM_NAME STREQUAL Android)
    target_link_libraries(CoreFoundation PRIVATE
      log)
-@@ -463,6 +478,8 @@ add_framework(CFXMLInterface
+@@ -479,6 +494,8 @@ add_framework(CFXMLInterface
                SOURCES
                  Parsing.subproj/CFXMLInterface.c)
  add_dependencies(CFXMLInterface CoreFoundation)
@@ -318,7 +318,7 @@ index 5d9b8f9c..ed5da2f2 100644
  if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CFXMLInterface PRIVATE
      LibXml2::LibXml2)
-@@ -530,6 +547,7 @@ if(HAS_LIBDISPATCH_API)
+@@ -546,6 +563,7 @@ if(HAS_LIBDISPATCH_API)
                          PRIVATE
                            dispatch)
  endif()
@@ -326,7 +326,7 @@ index 5d9b8f9c..ed5da2f2 100644
  if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CoreFoundation
                          PRIVATE
-@@ -545,6 +563,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -561,6 +579,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
                            -Xlinker;-alias_list;-Xlinker;Base.subproj/DarwinSymbolAliases;-twolevel_namespace;-sectcreate;__UNICODE;__csbitmaps;CharacterSets/CFCharacterSetBitmaps.bitmap;-sectcreate;__UNICODE;__properties;CharacterSets/CFUniCharPropertyDatabase.data;-sectcreate;__UNICODE;__data;CharacterSets/CFUnicodeData-L.mapping;-segprot;__UNICODE;r;r)
  endif()
  
@@ -1130,7 +1130,7 @@ index 67223bfc..ea97b402 100644
 +
 +#endif
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
-index f3cc6bf2..dc4cff50 100644
+index fbb0b62b..d9516268 100644
 --- a/Sources/Foundation/CMakeLists.txt
 +++ b/Sources/Foundation/CMakeLists.txt
 @@ -1,3 +1,18 @@
@@ -1210,7 +1210,7 @@ index f3cc6bf2..dc4cff50 100644
    UUID.swift
    WinSDK+Extensions.swift)
  target_compile_definitions(Foundation PRIVATE
-@@ -220,6 +225,18 @@ elseif(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -225,6 +230,18 @@ elseif(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_options(Foundation PRIVATE "SHELL:-no-toolchain-stdlib-rpath")
  endif()
  
@@ -1317,7 +1317,7 @@ index 520e2351..b5a30f6b 100644
  }
 +#endif
 diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
-index 328a45d2..696cb428 100644
+index 5fb7258c..a9fe87dd 100644
 --- a/Sources/Foundation/FileHandle.swift
 +++ b/Sources/Foundation/FileHandle.swift
 @@ -8,7 +8,9 @@
@@ -1330,7 +1330,7 @@ index 328a45d2..696cb428 100644
  
  // FileHandle has a .read(upToCount:) method. Just invoking read() will cause an ambiguity warning. Use _read instead.
  // Same with close()/.close().
-@@ -85,6 +87,7 @@ open class FileHandle : NSObject {
+@@ -90,6 +92,7 @@ open class FileHandle : NSObject {
  
      private var _closeOnDealloc: Bool
  
@@ -1338,7 +1338,7 @@ index 328a45d2..696cb428 100644
      private var currentBackgroundActivityOwner: AnyObject? // Guarded by privateAsyncVariablesLock
      
      private var readabilitySource: DispatchSourceProtocol? // Guarded by privateAsyncVariablesLock
-@@ -208,6 +211,7 @@ open class FileHandle : NSObject {
+@@ -213,6 +216,7 @@ open class FileHandle : NSObject {
              }
          }
      }
@@ -1346,7 +1346,7 @@ index 328a45d2..696cb428 100644
  
      open var availableData: Data {
          _checkFileHandle()
-@@ -621,6 +625,7 @@ open class FileHandle : NSObject {
+@@ -626,6 +630,7 @@ open class FileHandle : NSObject {
      }
      
      private func performOnQueueIfExists(_ block: () throws -> Void) throws {
@@ -1354,7 +1354,7 @@ index 328a45d2..696cb428 100644
          if let queue = queueIfExists {
              var theError: Swift.Error?
              queue.sync {
-@@ -632,6 +637,9 @@ open class FileHandle : NSObject {
+@@ -637,6 +642,9 @@ open class FileHandle : NSObject {
          } else {
              try block()
          }
@@ -1364,7 +1364,7 @@ index 328a45d2..696cb428 100644
      }
      
      @available(swift 5.0)
-@@ -646,6 +654,7 @@ open class FileHandle : NSObject {
+@@ -651,6 +659,7 @@ open class FileHandle : NSObject {
          guard self != FileHandle._nulldeviceFileHandle else { return }
          guard _isPlatformHandleValid else { return }
          
@@ -1372,7 +1372,7 @@ index 328a45d2..696cb428 100644
          privateAsyncVariablesLock.lock()
          writabilitySource?.cancel()
          readabilitySource?.cancel()
-@@ -654,6 +663,7 @@ open class FileHandle : NSObject {
+@@ -659,6 +668,7 @@ open class FileHandle : NSObject {
          writabilitySource = nil
          readabilitySource = nil
          privateAsyncVariablesLock.unlock()
@@ -1380,7 +1380,7 @@ index 328a45d2..696cb428 100644
  
  #if os(Windows)
              // SR-13822 - Not Closing the file descriptor on Windows causes a Stack Overflow
-@@ -837,6 +847,8 @@ extension NSExceptionName {
+@@ -842,6 +852,8 @@ extension NSExceptionName {
      public static let fileHandleOperationException = NSExceptionName(rawValue: "NSFileHandleOperationException")
  }
  
@@ -1389,7 +1389,7 @@ index 328a45d2..696cb428 100644
  extension Notification.Name {
      public static let NSFileHandleReadToEndOfFileCompletion = Notification.Name(rawValue: "NSFileHandleReadToEndOfFileCompletionNotification")
      public static let NSFileHandleConnectionAccepted = Notification.Name(rawValue: "NSFileHandleConnectionAcceptedNotification")
-@@ -896,22 +908,25 @@ extension FileHandle {
+@@ -901,22 +913,25 @@ extension FileHandle {
  #endif
              }
  
@@ -1416,7 +1416,7 @@ index 328a45d2..696cb428 100644
      open func readToEndOfFileInBackgroundAndNotify() {
          readToEndOfFileInBackgroundAndNotify(forModes: [.default])
      }
-@@ -1027,8 +1042,11 @@ extension FileHandle {
+@@ -1032,8 +1047,11 @@ extension FileHandle {
          
          owner.resume()
      }
@@ -1428,7 +1428,7 @@ index 328a45d2..696cb428 100644
  open class Pipe: NSObject {
      public let fileHandleForReading: FileHandle
      public let fileHandleForWriting: FileHandle
-@@ -1073,4 +1091,4 @@ open class Pipe: NSObject {
+@@ -1078,4 +1096,4 @@ open class Pipe: NSObject {
          super.init()
      }
  }
@@ -1459,7 +1459,7 @@ index 0148771b..b4f3e706 100644
          return longCharacterIsMember(UInt32(aCharacter))
      }
 diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
-index 808811b8..c2f36e9e 100644
+index fd494ce7..aaeeb9ae 100644
 --- a/Sources/Foundation/NSData.swift
 +++ b/Sources/Foundation/NSData.swift
 @@ -151,7 +151,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
@@ -1502,7 +1502,7 @@ index 808811b8..c2f36e9e 100644
      internal static func readBytesFromFileWithExtendedAttributes(_ path: String, options: ReadingOptions) throws -> NSDataReadResult {
          guard let handle = FileHandle(path: path, flags: O_RDONLY, createMode: 0) else {
              throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: nil)
-@@ -1011,7 +1006,6 @@ open class NSMutableData : NSData {
+@@ -1013,7 +1008,6 @@ open class NSMutableData : NSData {
          super.init(data: data)
      }
  
@@ -1510,7 +1510,7 @@ index 808811b8..c2f36e9e 100644
      public override init?(contentsOfFile path: String) {
          super.init(contentsOfFile: path)
      }
-@@ -1027,7 +1021,6 @@ open class NSMutableData : NSData {
+@@ -1029,7 +1023,6 @@ open class NSMutableData : NSData {
      public override init(contentsOf url: URL, options: NSData.ReadingOptions = []) throws {
          try super.init(contentsOf: url, options: options)
      }
@@ -1867,10 +1867,10 @@ index efd7b38c..fdbc16c7 100644
      // - (nullable NSString *)stringByApplyingTransform:(NSString *)transform reverse:(BOOL)reverse NS_AVAILABLE(10_11, 9_0);
  
 diff --git a/Sources/Foundation/NSSwiftRuntime.swift b/Sources/Foundation/NSSwiftRuntime.swift
-index 04958446..d9d1b759 100644
+index c079ed62..69fcc9af 100644
 --- a/Sources/Foundation/NSSwiftRuntime.swift
 +++ b/Sources/Foundation/NSSwiftRuntime.swift
-@@ -182,7 +182,10 @@ internal func __CFInitializeSwift() {
+@@ -184,7 +184,10 @@ internal func __CFInitializeSwift() {
      _CFRuntimeBridgeTypeToClass(CFLocaleGetTypeID(), unsafeBitCast(NSLocale.self, to: UnsafeRawPointer.self))
      _CFRuntimeBridgeTypeToClass(CFTimeZoneGetTypeID(), unsafeBitCast(NSTimeZone.self, to: UnsafeRawPointer.self))
      _CFRuntimeBridgeTypeToClass(CFCharacterSetGetTypeID(), unsafeBitCast(_NSCFCharacterSet.self, to: UnsafeRawPointer.self))
@@ -2169,10 +2169,10 @@ index fda2a9a9..224af9be 100644
      public static let argumentDomain: String = "NSArgumentDomain"
      public static let registrationDomain: String = "NSRegistrationDomain"
 diff --git a/Sources/FoundationXML/CMakeLists.txt b/Sources/FoundationXML/CMakeLists.txt
-index 944ea258..abdf054b 100644
+index 5a73f70f..a09d0594 100644
 --- a/Sources/FoundationXML/CMakeLists.txt
 +++ b/Sources/FoundationXML/CMakeLists.txt
-@@ -37,6 +37,12 @@ if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin|Windows")
+@@ -43,6 +43,12 @@ if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin|Windows")
    target_link_options(FoundationXML PRIVATE "SHELL:-no-toolchain-stdlib-rpath")
  endif()
  

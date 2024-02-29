@@ -35,6 +35,7 @@ cmake -G Ninja \
   -DHAS_LIBDISPATCH_API=OFF \
   -DCMAKE_Swift_COMPILER_FORCED=ON \
   -DCMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static" \
+  -DCMAKE_C_FLAGS="-resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static/clang" \
   "${SOURCE_PATH}/swift-corelibs-foundation"
   
 ninja

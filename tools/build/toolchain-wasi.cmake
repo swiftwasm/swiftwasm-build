@@ -12,8 +12,6 @@ set(CMAKE_CXX_COMPILER_TARGET ${triple} CACHE STRING "")
 set(CMAKE_Swift_COMPILER_TARGET ${triple} CACHE STRING "")
 set(CMAKE_ASM_COMPILER_TARGET ${triple} CACHE STRING "")
 
-set(CMAKE_EXE_LINKER_FLAGS "-Wl,--no-threads" CACHE STRING "Single thread options")
-
 # Don't look in the sysroot for executables to run during the build
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 # Only look in the sysroot (not in the host paths) for the rest
