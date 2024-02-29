@@ -258,9 +258,9 @@ jobs:
       # We should remove this step once we unify the build script with apple/swift's build-preset
       # based build script.
       - run: ln -s "$(which wasmtime)" "$(dirname "$(which wasmtime)")/wasmkit-cli"
-        if: ${{ matrix.container == null }}
+        if: ${{ matrix.run_stdlib_test && matrix.container == null }}
       - run: docker exec -u root swiftwasm-ci-buildbot bash -c 'ln -s "$(which wasmtime)" "$(dirname "$(which wasmtime)")/wasmkit-cli"'
-        if: ${{ matrix.container != null }}
+        if: ${{ matrix.run_stdlib_test && matrix.container != null }}
 
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}
