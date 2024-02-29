@@ -1,8 +1,10 @@
-From 984073e1e192cdda93b1872fd464668af3f1f6b5 Mon Sep 17 00:00:00 2001
+From af627335256507a6aa6647ad1d53f01e6f4bcf9b Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:20:24 +0000
-Subject: [PATCH] [wasm] Fix signatures of `swift_retain`/`swift_release`
+Subject: [PATCH] [wasm] Fix signatures of `swift_retain`
 
+Function signature cannot be inconsistent in Wasm platforms. This patch
+fixes the signature of `swift_retain` to return the retained object.
 ---
  CoreFoundation/Base.subproj/CFPlatform.c | 2 +-
  CoreFoundation/Base.subproj/CFRuntime.c  | 2 +-

@@ -1,7 +1,7 @@
-From f5c91f86dcd2062e364b8060238f12682fe59c0a Mon Sep 17 00:00:00 2001
+From e95a11fcc23a99344e92605a32967c0aed31ec62 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:09:44 +0000
-Subject: [PATCH] [wasm] Port `CoreFoundation/Base.subproj/CFFileUtilities.c`
+Subject: [PATCH] Port `CoreFoundation/Base.subproj/CFFileUtilities.c`
 
 ---
  CoreFoundation/Base.subproj/CFFileUtilities.c | 38 +++++++++++++++----

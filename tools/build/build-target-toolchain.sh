@@ -132,6 +132,9 @@ build_target_toolchain() {
   # while building Foundation
   rm -rf "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/CoreFoundation"
 
+  ln -fs "../../../clang/$CLANG_VERSION/lib/wasi" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift/clang/lib/wasi"
+  ln -fs "../../../clang/$CLANG_VERSION/lib/wasi" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/clang/lib/wasi"
+
   local CORELIBS_ARGS=(
     "$TARGET_TOOLCHAIN_DESTDIR"
     "$LLVM_BIN_DIR"
@@ -141,9 +144,6 @@ build_target_toolchain() {
   )
   "$TOOLS_BUILD_PATH/build-foundation.sh" "${CORELIBS_ARGS[@]}"
   "$TOOLS_BUILD_PATH/build-xctest.sh" "${CORELIBS_ARGS[@]}"
-
-  ln -fs "../../../clang/$CLANG_VERSION/lib/wasi" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift/clang/lib/wasi"
-  ln -fs "../../../clang/$CLANG_VERSION/lib/wasi" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/clang/lib/wasi"
 }
 
 main() {
