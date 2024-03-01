@@ -248,7 +248,6 @@ jobs:
 
       # Prepare for running tests
       - uses: bytecodealliance/actions/wasmtime/setup@v1
-        if: ${{ matrix.container == null }}
         with:
           version: "v17.0.1"
           github_token: ${{ secrets.GITHUB_TOKEN }}
