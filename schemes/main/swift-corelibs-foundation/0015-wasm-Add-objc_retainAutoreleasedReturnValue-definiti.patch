@@ -1,4 +1,4 @@
-From 9914296234a8d8718cb2b493dfc45d1c7a1c5aa4 Mon Sep 17 00:00:00 2001
+From 789f9e81e4cda51888f6141aca9f611d06896195 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:49:21 +0000
 Subject: [PATCH] [wasm] Add objc_retainAutoreleasedReturnValue definition

@@ -1,4 +1,4 @@
-From 60e5fee97c1f1f8f2dedb269343dbb7d1c1cf9b8 Mon Sep 17 00:00:00 2001
+From 020243c526c42a0626e1bb13278bda0a18aba29c Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 09:09:43 +0000
 Subject: [PATCH] [wasm] Remove too conservative guards around file operations
@@ -8,9 +8,10 @@ they are too conservative and the latest wasi-libc is now providing
 enough support for these operations.
 ---
  Sources/Foundation/Data.swift            |  5 +----
+ Sources/Foundation/NSData.swift          |  7 -------
  Sources/Foundation/NSPathUtilities.swift | 13 ++++---------
  Sources/Foundation/NSURL.swift           | 14 --------------
- 3 files changed, 5 insertions(+), 27 deletions(-)
+ 4 files changed, 5 insertions(+), 34 deletions(-)
 
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
 index 23254e6b..091adbfa 100644
@@ -56,6 +57,66 @@ index 23254e6b..091adbfa 100644
      
      // MARK: -
      
+diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
+index e004c950..b1474899 100644
+--- a/Sources/Foundation/NSData.swift
++++ b/Sources/Foundation/NSData.swift
+@@ -151,7 +151,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+         _init(bytes: bytes, length: length, copy: false, deallocator: deallocator)
+     }
+ 
+-#if !os(WASI)
+     /// Initializes a data object with the contents of the file at a given path.
+     public init(contentsOfFile path: String, options readOptionsMask: ReadingOptions = []) throws {
+         super.init()
+@@ -174,7 +173,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+             return nil
+         }
+     }
+-#endif
+ 
+     /// Initializes a data object with the contents of another data object.
+     public init(data: Data) {
+@@ -184,7 +182,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+         }
+     }
+ 
+-#if !os(WASI)
+     /// Initializes a data object with the data from the location specified by a given URL.
+     public init(contentsOf url: URL, options readOptionsMask: ReadingOptions = []) throws {
+         super.init()
+@@ -223,7 +220,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+             return try _NSNonfileURLContentLoader.current.contentsOf(url: url)
+         }
+     }
+-#endif
+ 
+     /// Initializes a data object with the given Base64 encoded string.
+     public init?(base64Encoded base64String: String, options: Base64DecodingOptions = []) {
+@@ -439,7 +435,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+         }
+     }
+ 
+-#if !os(WASI)
+     internal static func readBytesFromFileWithExtendedAttributes(_ path: String, options: ReadingOptions) throws -> NSDataReadResult {
+         guard let handle = FileHandle(path: path, flags: O_RDONLY, createMode: 0) else {
+             throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: nil)
+@@ -1012,7 +1007,6 @@ open class NSMutableData : NSData {
+         super.init(data: data)
+     }
+ 
+-#if !os(WASI)
+     public override init?(contentsOfFile path: String) {
+         super.init(contentsOfFile: path)
+     }
+@@ -1028,7 +1022,6 @@ open class NSMutableData : NSData {
+     public override init(contentsOf url: URL, options: NSData.ReadingOptions = []) throws {
+         try super.init(contentsOf: url, options: options)
+     }
+-#endif
+ 
+     public override init?(base64Encoded base64Data: Data, options: NSData.Base64DecodingOptions = []) {
+         super.init(base64Encoded: base64Data, options: options)
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
 index 1726b351..3d2507fd 100644
 --- a/Sources/Foundation/NSPathUtilities.swift

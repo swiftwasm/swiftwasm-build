@@ -1,4 +1,4 @@
-From febae37f03ef22f923b07fda059a15e3d03abbb8 Mon Sep 17 00:00:00 2001
+From ba7500974dcac7fb2419f0ee348609ad39d81310 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 09:12:57 +0000
 Subject: [PATCH] [wasm] Port FileManager for WASI platform
@@ -310,10 +310,10 @@ index 1aa3038a..cfe264f5 100644
  
          if type == .typeBlockSpecial || type == .typeCharacterSpecial {
 diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
-index e004c950..fd494ce7 100644
+index b1474899..aaeeb9ae 100644
 --- a/Sources/Foundation/NSData.swift
 +++ b/Sources/Foundation/NSData.swift
-@@ -498,6 +498,8 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+@@ -493,6 +493,8 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
              let createMode = Int(Glibc.S_IRUSR) | Int(Glibc.S_IWUSR) | Int(Glibc.S_IRGRP) | Int(Glibc.S_IWGRP) | Int(Glibc.S_IROTH) | Int(Glibc.S_IWOTH)
  #elseif canImport(Musl)
              let createMode = Int(Musl.S_IRUSR) | Int(Musl.S_IWUSR) | Int(Musl.S_IRGRP) | Int(Musl.S_IWGRP) | Int(Musl.S_IROTH) | Int(Musl.S_IWOTH)
@@ -322,7 +322,7 @@ index e004c950..fd494ce7 100644
  #endif
              guard let fh = FileHandle(path: path, flags: flags, createMode: createMode) else {
                  throw _NSErrorWithErrno(errno, reading: false, path: path)
-@@ -545,7 +547,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+@@ -540,7 +542,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
          }
          try write(toFile: url.path, options: writeOptionsMask)
      }
