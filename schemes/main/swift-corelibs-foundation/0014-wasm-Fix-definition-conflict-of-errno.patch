@@ -1,4 +1,4 @@
-From 82675babb640070691af5ae6778633e1cb049e1e Mon Sep 17 00:00:00 2001
+From 06fe4f854c34e708e48153603a0029678b474d01 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 23 Feb 2024 04:08:12 +0000
 Subject: [PATCH] [wasm] Fix definition conflict of `errno`
@@ -9,7 +9,7 @@ WASILibc's `errno` conflicts with Clang-imported `errno` in <errno.h>.
  1 file changed, 9 insertions(+)
 
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index 99b6f141..9362b95e 100644
+index 51067bc0..32538456 100644
 --- a/Sources/Foundation/NSPathUtilities.swift
 +++ b/Sources/Foundation/NSPathUtilities.swift
 @@ -10,6 +10,15 @@

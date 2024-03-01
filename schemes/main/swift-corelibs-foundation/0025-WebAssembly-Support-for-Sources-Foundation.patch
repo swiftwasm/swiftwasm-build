@@ -1,0 +1,1018 @@
+From d85df67401d5755b0ba6e99a51cc4bb614409268 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 1 Mar 2024 08:47:39 +0000
+Subject: [PATCH] WebAssembly Support for Sources/Foundation
+
+---
+ Sources/Foundation/CMakeLists.txt             | 39 ++++++++++----
+ Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++++++++
+ .../DispatchData+DataProtocol.swift           |  3 +-
+ Sources/Foundation/FileHandle.swift           | 22 +++++++-
+ Sources/Foundation/NSCharacterSet.swift       |  6 +--
+ Sources/Foundation/NSData.swift               |  7 ---
+ Sources/Foundation/NSKeyedArchiver.swift      |  8 ++-
+ Sources/Foundation/NSNumber.swift             |  4 ++
+ Sources/Foundation/NSObjCRuntime.swift        | 48 +++++++++--------
+ Sources/Foundation/NSSet.swift                |  4 ++
+ Sources/Foundation/NSString.swift             | 10 ++--
+ Sources/Foundation/NSStringAPI.swift          |  4 ++
+ Sources/Foundation/NSSwiftRuntime.swift       |  3 ++
+ Sources/Foundation/NSTimeZone.swift           | 10 ++--
+ Sources/Foundation/Operation.swift            |  2 +
+ Sources/Foundation/ProcessInfo.swift          |  6 +++
+ Sources/Foundation/Progress.swift             |  2 +
+ Sources/Foundation/RunLoop.swift              | 21 +++++++-
+ Sources/Foundation/ScannerAPI.swift           |  2 +-
+ Sources/Foundation/URL.swift                  |  7 ++-
+ Sources/Foundation/UserDefaults.swift         | 14 +++++
+ Sources/FoundationXML/CMakeLists.txt          |  6 +++
+ 22 files changed, 221 insertions(+), 58 deletions(-)
+
+diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
+index fbb0b62b..d9516268 100644
+--- a/Sources/Foundation/CMakeLists.txt
++++ b/Sources/Foundation/CMakeLists.txt
+@@ -1,3 +1,18 @@
++if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
++list(APPEND FOUNDATION_WASI_UNAVAILABLE_SOURCES
++  Host.swift
++  Notification.swift
++  NotificationQueue.swift
++  NSNotification.swift
++  Port.swift
++  PortMessage.swift
++  Process.swift
++  PropertyListEncoder.swift
++  Stream.swift
++  Thread.swift
++  UserDefaults.swift)
++endif()
++
+ add_library(Foundation
+   AffineTransform.swift
+   Array.swift
+@@ -38,7 +53,6 @@ add_library(Foundation
+   Formatter.swift
+   AttributedString/FoundationAttributes.swift
+   FoundationErrors.swift
+-  Host.swift
+   IndexPath.swift
+   IndexSet.swift
+   ISO8601DateFormatter.swift
+@@ -52,8 +66,6 @@ add_library(Foundation
+   Measurement.swift
+   MeasurementFormatter.swift
+   Morphology.swift
+-  Notification.swift
+-  NotificationQueue.swift
+   NSArray.swift
+   NSAttributedString.swift
+   NSCache.swift
+@@ -90,7 +102,6 @@ add_library(Foundation
+   NSLock.swift
+   NSLog.swift
+   NSMeasurement.swift
+-  NSNotification.swift
+   NSNull.swift
+   NSNumber.swift
+   NSObjCRuntime.swift
+@@ -121,23 +132,17 @@ add_library(Foundation
+   PersonNameComponents.swift
+   PersonNameComponentsFormatter.swift
+   Pointers+DataProtocol.swift
+-  Port.swift
+-  PortMessage.swift
+-  Process.swift
+   ProcessInfo.swift
+   Progress.swift
+   ProgressFraction.swift
+-  PropertyListEncoder.swift
+   PropertyListSerialization.swift
+   ReferenceConvertible.swift
+   RunLoop.swift
+   Scanner.swift
+   ScannerAPI.swift
+   Set.swift
+-  Stream.swift
+   String.swift
+   StringEncodings.swift
+-  Thread.swift
+   Timer.swift
+   TimeZone.swift
+   Unit.swift
+@@ -145,7 +150,7 @@ add_library(Foundation
+   URLComponents.swift
+   URLQueryItem.swift
+   URLResourceKey.swift
+-  UserDefaults.swift
++  ${FOUNDATION_WASI_UNAVAILABLE_SOURCES}
+   UUID.swift
+   WinSDK+Extensions.swift)
+ target_compile_definitions(Foundation PRIVATE
+@@ -225,6 +230,18 @@ elseif(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
+   target_link_options(Foundation PRIVATE "SHELL:-no-toolchain-stdlib-rpath")
+ endif()
+ 
++if(CMAKE_SYSTEM_NAME STREQUAL WASI)
++  target_compile_options(Foundation PRIVATE
++    "SHELL:-Xcc -D_WASI_EMULATED_MMAN
++           -Xcc -D_WASI_EMULATED_SIGNAL
++           -Xcc -D_WASI_EMULATED_PROCESS_CLOCKS
++           -Xcc -D_WASI_EMULATED_GETPID")
++  # Link wasi-libc emulation libraries. Other emulation libs are also used in stdlib
++  target_compile_options(Foundation
++    PRIVATE
++      "SHELL:-Xfrontend -public-autolink-library -Xfrontend wasi-emulated-getpid")
++endif()
++
+ 
+ set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS Foundation)
+ _install_target(Foundation)
+diff --git a/Sources/Foundation/DateFormatter.swift b/Sources/Foundation/DateFormatter.swift
+index e6b8020f..f536d8d4 100644
+--- a/Sources/Foundation/DateFormatter.swift
++++ b/Sources/Foundation/DateFormatter.swift
+@@ -9,6 +9,7 @@
+ 
+ @_implementationOnly import CoreFoundation
+ 
++#if !os(WASI)
+ open class DateFormatter : Formatter {
+     typealias CFType = CFDateFormatter
+     private final var __cfObject: CFType?
+@@ -562,6 +563,56 @@ open class DateFormatter : Formatter {
+ 
+     open var doesRelativeDateFormatting = false { willSet { _reset() } }
+ }
++#else
++
++extension tm {
++    init(UTCSecondsSince1970: time_t) {
++        var seconds = UTCSecondsSince1970
++
++        // FIXME:
++        // don't free!
++        // The return value points to a statically allocated struct which might be overwritten by
++        // subsequent calls to any of the date and time functions.
++        // http://linux.die.net/man/3/gmtime
++        let timePointer = gmtime(&seconds)!
++
++        self = timePointer.pointee
++    }
++}
++
++open class DateFormatter {
++    /// WARNING: this uses `strftime` date format, not the Foundation date format.
++    let dateFormat: String = "%Y-%m-%d %H:%M:%S"
++
++    public init() {}
++
++    open var dateStyle: Style = .none
++
++    open var timeStyle: Style = .none
++
++    open func string(from date: Date) -> String {
++        let interval = date.timeIntervalSince1970
++
++        // FIXME: not very sensible estimate, but should work short-term
++        let bufferSize = dateFormat.count * 10
++        var buffer = ContiguousArray<Int8>(repeating: 0, count: bufferSize)
++        return buffer.withUnsafeMutableBufferPointer {
++            guard
++                let baseAddress = $0.baseAddress,
++                dateFormat.withCString({ formatCString -> Int in
++                    var tt = tm(UTCSecondsSince1970: time_t(interval))
++                    return strftime(baseAddress, bufferSize, formatCString, &tt)
++                }) > 0
++            else { return "" }
++
++            let milliseconds = Int(date.timeIntervalSince1970.truncatingRemainder(dividingBy: 1) * 1000)
++            return String(cString: baseAddress).appendingFormat(".%03d", milliseconds)
++        }
++    }
++
++    open func date(from string: String) -> Date? { nil }
++}
++#endif
+ 
+ extension DateFormatter {
+     public enum Style : UInt {
+diff --git a/Sources/Foundation/DispatchData+DataProtocol.swift b/Sources/Foundation/DispatchData+DataProtocol.swift
+index 520e2351..b5a30f6b 100644
+--- a/Sources/Foundation/DispatchData+DataProtocol.swift
++++ b/Sources/Foundation/DispatchData+DataProtocol.swift
+@@ -10,7 +10,7 @@
+ //
+ //===----------------------------------------------------------------------===//
+ 
+-
++#if !os(WASI)
+ import Dispatch
+ 
+ extension DispatchData : DataProtocol {
+@@ -54,3 +54,4 @@ extension DispatchData : DataProtocol {
+         return regions
+     }
+ }
++#endif
+diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
+index 5fb7258c..a9fe87dd 100644
+--- a/Sources/Foundation/FileHandle.swift
++++ b/Sources/Foundation/FileHandle.swift
+@@ -8,7 +8,9 @@
+ //
+ 
+ @_implementationOnly import CoreFoundation
++#if !os(WASI)
+ import Dispatch
++#endif
+ 
+ // FileHandle has a .read(upToCount:) method. Just invoking read() will cause an ambiguity warning. Use _read instead.
+ // Same with close()/.close().
+@@ -90,6 +92,7 @@ open class FileHandle : NSObject {
+ 
+     private var _closeOnDealloc: Bool
+ 
++#if !os(WASI)
+     private var currentBackgroundActivityOwner: AnyObject? // Guarded by privateAsyncVariablesLock
+     
+     private var readabilitySource: DispatchSourceProtocol? // Guarded by privateAsyncVariablesLock
+@@ -213,6 +216,7 @@ open class FileHandle : NSObject {
+             }
+         }
+     }
++#endif
+ 
+     open var availableData: Data {
+         _checkFileHandle()
+@@ -626,6 +630,7 @@ open class FileHandle : NSObject {
+     }
+     
+     private func performOnQueueIfExists(_ block: () throws -> Void) throws {
++#if !os(WASI)
+         if let queue = queueIfExists {
+             var theError: Swift.Error?
+             queue.sync {
+@@ -637,6 +642,9 @@ open class FileHandle : NSObject {
+         } else {
+             try block()
+         }
++#else
++        try block()
++#endif
+     }
+     
+     @available(swift 5.0)
+@@ -651,6 +659,7 @@ open class FileHandle : NSObject {
+         guard self != FileHandle._nulldeviceFileHandle else { return }
+         guard _isPlatformHandleValid else { return }
+         
++        #if !os(WASI)
+         privateAsyncVariablesLock.lock()
+         writabilitySource?.cancel()
+         readabilitySource?.cancel()
+@@ -659,6 +668,7 @@ open class FileHandle : NSObject {
+         writabilitySource = nil
+         readabilitySource = nil
+         privateAsyncVariablesLock.unlock()
++        #endif
+ 
+ #if os(Windows)
+             // SR-13822 - Not Closing the file descriptor on Windows causes a Stack Overflow
+@@ -842,6 +852,8 @@ extension NSExceptionName {
+     public static let fileHandleOperationException = NSExceptionName(rawValue: "NSFileHandleOperationException")
+ }
+ 
++
++#if !os(WASI)
+ extension Notification.Name {
+     public static let NSFileHandleReadToEndOfFileCompletion = Notification.Name(rawValue: "NSFileHandleReadToEndOfFileCompletionNotification")
+     public static let NSFileHandleConnectionAccepted = Notification.Name(rawValue: "NSFileHandleConnectionAcceptedNotification")
+@@ -901,22 +913,25 @@ extension FileHandle {
+ #endif
+             }
+ 
++#if !os(WASI)
+             DispatchQueue.main.async {
+                 NotificationQueue.default.enqueue(Notification(name: FileHandle.readCompletionNotification, object: self, userInfo: userInfo), postingStyle: .asap, coalesceMask: .none, forModes: modes)
+             }
++#endif
+         }
+ 
+ #if os(Windows)
+         DispatchIO.read(fromHandle: self._handle, maxLength: 1024 * 1024, runningHandlerOn: queue) { (data, error) in
+           operation(data, error)
+         }
+-#else
++#elseif !os(WASI)
+         DispatchIO.read(fromFileDescriptor: fileDescriptor, maxLength: 1024 * 1024, runningHandlerOn: queue) { (data, error) in
+           operation(data, error)
+         }
+ #endif
+     }
+     
++#if !os(WASI)
+     open func readToEndOfFileInBackgroundAndNotify() {
+         readToEndOfFileInBackgroundAndNotify(forModes: [.default])
+     }
+@@ -1032,8 +1047,11 @@ extension FileHandle {
+         
+         owner.resume()
+     }
++#endif
+ }
++#endif
+ 
++#if !os(WASI)
+ open class Pipe: NSObject {
+     public let fileHandleForReading: FileHandle
+     public let fileHandleForWriting: FileHandle
+@@ -1078,4 +1096,4 @@ open class Pipe: NSObject {
+         super.init()
+     }
+ }
+-
++#endif
+diff --git a/Sources/Foundation/NSCharacterSet.swift b/Sources/Foundation/NSCharacterSet.swift
+index 0148771b..b4f3e706 100644
+--- a/Sources/Foundation/NSCharacterSet.swift
++++ b/Sources/Foundation/NSCharacterSet.swift
+@@ -193,7 +193,8 @@ open class NSCharacterSet : NSObject, NSCopying, NSMutableCopying, NSSecureCodin
+             return nil
+         }
+     }
+-    
++#endif
++
+     open class var supportsSecureCoding: Bool { return true }
+     
+     public required init?(coder aDecoder: NSCoder) {
+@@ -330,8 +331,7 @@ open class NSCharacterSet : NSObject, NSCopying, NSMutableCopying, NSSecureCodin
+             aCoder.encode(true, forKey: .characterSetIsInvertedKey)
+         }
+     }
+-#endif
+-    
++
+     open func characterIsMember(_ aCharacter: unichar) -> Bool {
+         return longCharacterIsMember(UInt32(aCharacter))
+     }
+diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
+index fd494ce7..aaeeb9ae 100644
+--- a/Sources/Foundation/NSData.swift
++++ b/Sources/Foundation/NSData.swift
+@@ -151,7 +151,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+         _init(bytes: bytes, length: length, copy: false, deallocator: deallocator)
+     }
+ 
+-#if !os(WASI)
+     /// Initializes a data object with the contents of the file at a given path.
+     public init(contentsOfFile path: String, options readOptionsMask: ReadingOptions = []) throws {
+         super.init()
+@@ -174,7 +173,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+             return nil
+         }
+     }
+-#endif
+ 
+     /// Initializes a data object with the contents of another data object.
+     public init(data: Data) {
+@@ -184,7 +182,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+         }
+     }
+ 
+-#if !os(WASI)
+     /// Initializes a data object with the data from the location specified by a given URL.
+     public init(contentsOf url: URL, options readOptionsMask: ReadingOptions = []) throws {
+         super.init()
+@@ -223,7 +220,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+             return try _NSNonfileURLContentLoader.current.contentsOf(url: url)
+         }
+     }
+-#endif
+ 
+     /// Initializes a data object with the given Base64 encoded string.
+     public init?(base64Encoded base64String: String, options: Base64DecodingOptions = []) {
+@@ -439,7 +435,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+         }
+     }
+ 
+-#if !os(WASI)
+     internal static func readBytesFromFileWithExtendedAttributes(_ path: String, options: ReadingOptions) throws -> NSDataReadResult {
+         guard let handle = FileHandle(path: path, flags: O_RDONLY, createMode: 0) else {
+             throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: nil)
+@@ -1013,7 +1008,6 @@ open class NSMutableData : NSData {
+         super.init(data: data)
+     }
+ 
+-#if !os(WASI)
+     public override init?(contentsOfFile path: String) {
+         super.init(contentsOfFile: path)
+     }
+@@ -1029,7 +1023,6 @@ open class NSMutableData : NSData {
+     public override init(contentsOf url: URL, options: NSData.ReadingOptions = []) throws {
+         try super.init(contentsOf: url, options: options)
+     }
+-#endif
+ 
+     public override init?(base64Encoded base64Data: Data, options: NSData.Base64DecodingOptions = []) {
+         super.init(base64Encoded: base64Data, options: options)
+diff --git a/Sources/Foundation/NSKeyedArchiver.swift b/Sources/Foundation/NSKeyedArchiver.swift
+index 8433b138..cddc5d30 100644
+--- a/Sources/Foundation/NSKeyedArchiver.swift
++++ b/Sources/Foundation/NSKeyedArchiver.swift
+@@ -140,6 +140,7 @@ open class NSKeyedArchiver : NSCoder {
+         return data._swiftObject
+     }
+     
++#if !os(WASI)
+     /// Archives an object graph rooted at a given object by encoding it into a data object
+     /// then atomically writes the resulting data object to a file at a given path,
+     /// and returns a Boolean value that indicates whether the operation was successful.
+@@ -189,7 +190,8 @@ open class NSKeyedArchiver : NSCoder {
+         return finishedEncoding
+ #endif
+     }
+-    
++#endif    
++
+     public convenience init(requiringSecureCoding: Bool) {
+         self.init(output: NSMutableData())
+         self.requiresSecureCoding = requiringSecureCoding
+@@ -241,7 +243,11 @@ open class NSKeyedArchiver : NSCoder {
+     }
+     
+     private func _writeBinaryData(_ plist : NSDictionary) -> Bool {
++#if os(WASI)
++        return false
++#else
+         return __CFBinaryPlistWriteToStream(plist, self._stream) > 0
++#endif
+     }
+     
+     /// Returns the encoded data for the archiver.
+diff --git a/Sources/Foundation/NSNumber.swift b/Sources/Foundation/NSNumber.swift
+index 883a44c2..6b5b51ba 100644
+--- a/Sources/Foundation/NSNumber.swift
++++ b/Sources/Foundation/NSNumber.swift
+@@ -827,6 +827,7 @@ open class NSNumber : NSValue {
+         }
+     }
+ 
++#if !os(WASI)
+     public required convenience init?(coder aDecoder: NSCoder) {
+         guard aDecoder.allowsKeyedCoding else {
+             preconditionFailure("Unkeyed coding is unsupported.")
+@@ -854,6 +855,7 @@ open class NSNumber : NSValue {
+             }
+         }
+     }
++#endif
+ 
+     open var int8Value: Int8 {
+         var value: Int64 = 0
+@@ -1114,6 +1116,7 @@ open class NSNumber : NSValue {
+         return true
+     }
+     
++#if !os(WASI)
+     open override func encode(with aCoder: NSCoder) {
+         guard aCoder.allowsKeyedCoding else {
+             preconditionFailure("Unkeyed coding is unsupported.")
+@@ -1148,6 +1151,7 @@ open class NSNumber : NSValue {
+     }
+ 
+     open override var classForCoder: AnyClass { return NSNumber.self }
++#endif
+ }
+ 
+ extension CFNumber : _NSBridgeable {
+diff --git a/Sources/Foundation/NSObjCRuntime.swift b/Sources/Foundation/NSObjCRuntime.swift
+index bc388d40..765ad6f1 100644
+--- a/Sources/Foundation/NSObjCRuntime.swift
++++ b/Sources/Foundation/NSObjCRuntime.swift
+@@ -261,40 +261,19 @@ internal let _NSClassesRenamedByObjCAPINotesInNetworkingOrXML: [(swiftName: Stri
+ 
+ internal let _NSClassesRenamedByObjCAPINotes: [(class: AnyClass, objCName: String)] = {
+     var map: [(AnyClass, String)] = [
+-        (ProcessInfo.self, "NSProcessInfo"),
+-        (Port.self, "NSPort"),
+-        (PortMessage.self, "NSPortMessage"),
+-        (SocketPort.self, "NSSocketPort"),
+-        (Bundle.self, "NSBundle"),
+         (ByteCountFormatter.self, "NSByteCountFormatter"),
+-        (Host.self, "NSHost"),
+         (DateFormatter.self, "NSDateFormatter"),
+         (DateIntervalFormatter.self, "NSDateIntervalFormatter"),
+         (EnergyFormatter.self, "NSEnergyFormatter"),
+-        (FileHandle.self, "NSFileHandle"),
+-        (FileManager.self, "NSFileManager"),
+         (Formatter.self, "NSFormatter"),
+-        (InputStream.self, "NSInputStream"),
+         (ISO8601DateFormatter.self, "NSISO8601DateFormatter"),
+         (JSONSerialization.self, "NSJSONSerialization"),
+         (LengthFormatter.self, "NSLengthFormatter"),
+         (MassFormatter.self, "NSMassFormatter"),
+-        (NotificationQueue.self, "NSNotificationQueue"),
+         (NumberFormatter.self, "NSNumberFormatter"),
+-        (Operation.self, "NSOperation"),
+-        (OperationQueue.self, "NSOperationQueue"),
+-        (OutputStream.self, "NSOutputStream"),
+         (PersonNameComponentsFormatter.self, "NSPersonNameComponentsFormatter"),
+-        (Pipe.self, "NSPipe"),
+-        (Progress.self, "NSProgress"),
+         (PropertyListSerialization.self, "NSPropertyListSerialization"),
+-        (RunLoop.self, "NSRunLoop"),
+         (Scanner.self, "NSScanner"),
+-        (Stream.self, "NSStream"),
+-        (Thread.self, "NSThread"),
+-        (Timer.self, "NSTimer"),
+-        (UserDefaults.self, "NSUserDefaults"),
+-        (FileManager.DirectoryEnumerator.self, "NSDirectoryEnumerator"),
+         (Dimension.self, "NSDimension"),
+         (Unit.self, "NSUnit"),
+         (UnitAcceleration.self, "NSUnitAcceleration"),
+@@ -322,8 +301,33 @@ internal let _NSClassesRenamedByObjCAPINotes: [(class: AnyClass, objCName: Strin
+         (UnitVolume.self, "NSUnitVolume"),
+         (UnitTemperature.self, "NSUnitTemperature"),
+     ]
+-#if !(os(iOS) || os(Android))
++#if !(os(iOS) || os(Android) || os(WASI))
+     map.append((Process.self, "NSTask"))
++#endif
++#if !os(WASI)
++    map += [
++        (Bundle.self, "NSBundle"),
++        (FileHandle.self, "NSFileHandle"),
++        (FileManager.self, "NSFileManager"),
++        (FileManager.DirectoryEnumerator.self, "NSDirectoryEnumerator"),
++        (Host.self, "NSHost"),
++        (InputStream.self, "NSInputStream"),
++        (NotificationQueue.self, "NSNotificationQueue"),
++        (Operation.self, "NSOperation"),
++        (OperationQueue.self, "NSOperationQueue"),
++        (OutputStream.self, "NSOutputStream"),
++        (Pipe.self, "NSPipe"),
++        (Port.self, "NSPort"),
++        (PortMessage.self, "NSPortMessage"),
++        (SocketPort.self, "NSSocketPort"),
++        (ProcessInfo.self, "NSProcessInfo"),
++        (Progress.self, "NSProgress"),
++        (RunLoop.self, "NSRunLoop"),
++        (Stream.self, "NSStream"),
++        (Thread.self, "NSThread"),
++        (Timer.self, "NSTimer"),
++        (UserDefaults.self, "NSUserDefaults"),
++    ]
+ #endif
+     return map
+ }()
+diff --git a/Sources/Foundation/NSSet.swift b/Sources/Foundation/NSSet.swift
+index 7f2318d6..6e65ad28 100644
+--- a/Sources/Foundation/NSSet.swift
++++ b/Sources/Foundation/NSSet.swift
+@@ -399,9 +399,11 @@ open class NSMutableSet : NSSet {
+         super.init(objects: [], count: 0)
+     }
+     
++#if !os(WASI)
+     public required convenience init?(coder aDecoder: NSCoder) {
+         self.init(array: NSSet._objects(from: aDecoder))
+     }
++#endif
+     
+     open func addObjects(from array: [Any]) {
+         if type(of: self) === NSMutableSet.self {
+@@ -547,6 +549,7 @@ open class NSCountedSet : NSMutableSet {
+         }
+     }
+     
++#if !os(WASI)
+     open override func encode(with coder: NSCoder) {
+         func fail(_ message: String) {
+             coder.failWithError(NSError(domain: NSCocoaErrorDomain, code: NSCoderReadCorruptError, userInfo: [NSLocalizedDescriptionKey: message]))
+@@ -565,6 +568,7 @@ open class NSCountedSet : NSMutableSet {
+             index += 1
+         }
+     }
++#endif
+ 
+     open override func copy(with zone: NSZone? = nil) -> Any {
+         if type(of: self) === NSCountedSet.self {
+diff --git a/Sources/Foundation/NSString.swift b/Sources/Foundation/NSString.swift
+index d81b20b5..60cc30a4 100644
+--- a/Sources/Foundation/NSString.swift
++++ b/Sources/Foundation/NSString.swift
+@@ -18,6 +18,7 @@ extension unichar {
+     }
+ }
+ 
++#if !os(WASI)
+ /// Returns a localized string, using the main bundle if one is not specified.
+ public
+ func NSLocalizedString(_ key: String,
+@@ -31,6 +32,7 @@ func NSLocalizedString(_ key: String,
+     return bundle.localizedString(forKey: key, value: value, table: tableName)
+ #endif
+ }
++#endif
+ 
+ internal let kCFStringEncodingMacRoman =  CFStringBuiltInEncodings.macRoman.rawValue
+ internal let kCFStringEncodingWindowsLatin1 =  CFStringBuiltInEncodings.windowsLatin1.rawValue
+@@ -241,7 +243,7 @@ open class NSString : NSObject, NSCopying, NSMutableCopying, NSSecureCoding, NSC
+     internal init(_ string: String) {
+         _storage = string
+     }
+-    
++
+     public convenience required init?(coder aDecoder: NSCoder) {
+         guard aDecoder.allowsKeyedCoding else {
+             preconditionFailure("Unkeyed coding is unsupported.")
+@@ -296,11 +298,11 @@ open class NSString : NSObject, NSCopying, NSMutableCopying, NSSecureCoding, NSC
+         characters.deallocate()
+         return result
+     }
+-    
++
+     public static var supportsSecureCoding: Bool {
+         return true
+     }
+-    
++
+     open func encode(with aCoder: NSCoder) {
+         if let aKeyedCoder = aCoder as? NSKeyedArchiver {
+             aKeyedCoder._encodePropertyList(self, forKey: "NS.string")
+@@ -1272,6 +1274,7 @@ extension NSString {
+         data = mData
+     }
+     
++#if !os(WASI)
+     internal func _writeTo(_ url: URL, _ useAuxiliaryFile: Bool, _ enc: UInt) throws {
+         var data = Data()
+         try _getExternalRepresentation(&data, url, enc)
+@@ -1285,6 +1288,7 @@ extension NSString {
+     open func write(toFile path: String, atomically useAuxiliaryFile: Bool, encoding enc: UInt) throws {
+         try _writeTo(URL(fileURLWithPath: path), useAuxiliaryFile, enc)
+     }
++#endif
+     
+     public convenience init(charactersNoCopy characters: UnsafeMutablePointer<unichar>, length: Int, freeWhenDone freeBuffer: Bool) /* "NoCopy" is a hint */ {
+         // ignore the no-copy-ness
+diff --git a/Sources/Foundation/NSStringAPI.swift b/Sources/Foundation/NSStringAPI.swift
+index efd7b38c..fdbc16c7 100644
+--- a/Sources/Foundation/NSStringAPI.swift
++++ b/Sources/Foundation/NSStringAPI.swift
+@@ -780,6 +780,7 @@ extension StringProtocol {
+             : _ns.compare(aString)
+     }
+ 
++#if !os(WASI)
+     // - (NSUInteger)
+     //     completePathIntoString:(NSString **)outputName
+     //     caseSensitive:(BOOL)flag
+@@ -848,6 +849,7 @@ extension StringProtocol {
+         return result
+         #endif // DEPLOYMENT_RUNTIME_SWIFT
+     }
++#endif
+ 
+     // - (NSArray *)
+     //     componentsSeparatedByCharactersInSet:(NSCharacterSet *)separator
+@@ -1300,6 +1302,7 @@ extension StringProtocol {
+     //===--- Omitted due to redundancy with "utf8" property -----------------===//
+     // - (const char *)UTF8String
+ 
++#if !os(WASI)
+     // - (BOOL)
+     //     writeToFile:(NSString *)path
+     //     atomically:(BOOL)useAuxiliaryFile
+@@ -1335,6 +1338,7 @@ extension StringProtocol {
+         try _ns.write(
+             to: url, atomically: useAuxiliaryFile, encoding: enc.rawValue)
+     }
++#endif
+ 
+     // - (nullable NSString *)stringByApplyingTransform:(NSString *)transform reverse:(BOOL)reverse NS_AVAILABLE(10_11, 9_0);
+ 
+diff --git a/Sources/Foundation/NSSwiftRuntime.swift b/Sources/Foundation/NSSwiftRuntime.swift
+index c079ed62..69fcc9af 100644
+--- a/Sources/Foundation/NSSwiftRuntime.swift
++++ b/Sources/Foundation/NSSwiftRuntime.swift
+@@ -184,7 +184,10 @@ internal func __CFInitializeSwift() {
+     _CFRuntimeBridgeTypeToClass(CFLocaleGetTypeID(), unsafeBitCast(NSLocale.self, to: UnsafeRawPointer.self))
+     _CFRuntimeBridgeTypeToClass(CFTimeZoneGetTypeID(), unsafeBitCast(NSTimeZone.self, to: UnsafeRawPointer.self))
+     _CFRuntimeBridgeTypeToClass(CFCharacterSetGetTypeID(), unsafeBitCast(_NSCFCharacterSet.self, to: UnsafeRawPointer.self))
++
++#if !os(WASI)
+     _CFRuntimeBridgeTypeToClass(_CFKeyedArchiverUIDGetTypeID(), unsafeBitCast(_NSKeyedArchiverUID.self, to: UnsafeRawPointer.self))
++#endif
+     
+ //    _CFRuntimeBridgeTypeToClass(CFErrorGetTypeID(), unsafeBitCast(NSError.self, UnsafeRawPointer.self))
+     _CFRuntimeBridgeTypeToClass(CFAttributedStringGetTypeID(), unsafeBitCast(NSMutableAttributedString.self, to: UnsafeRawPointer.self))
+diff --git a/Sources/Foundation/NSTimeZone.swift b/Sources/Foundation/NSTimeZone.swift
+index df429993..0633d9e3 100644
+--- a/Sources/Foundation/NSTimeZone.swift
++++ b/Sources/Foundation/NSTimeZone.swift
+@@ -39,7 +39,7 @@ open class NSTimeZone : NSObject, NSCopying, NSSecureCoding, NSCoding {
+             return nil
+         }
+     }
+-    
++
+     public convenience required init?(coder aDecoder: NSCoder) {
+         guard aDecoder.allowsKeyedCoding else {
+             preconditionFailure("Unkeyed coding is unsupported.")
+@@ -286,22 +286,24 @@ extension NSTimeZone {
+ 
+ }
+ 
++#if !os(WASI)
+ extension NSNotification.Name {
+     public static let NSSystemTimeZoneDidChange = NSNotification.Name(rawValue: kCFTimeZoneSystemTimeZoneDidChangeNotification._swiftObject)
+ }
++#endif
+ 
+ internal class __NSLocalTimeZone: NSTimeZone {
+     static var shared = __NSLocalTimeZone()
+-    
++
+     private init() {
+         super.init(_name: "GMT+0000")
+     }
+-    
++
+     public convenience required init?(coder aDecoder: NSCoder) {
+         // We do not encode details of the local time zone, merely the placeholder object.
+         self.init()
+     }
+-    
++
+     override func encode(with aCoder: NSCoder) {
+         // We do not encode details of the local time zone, merely the placeholder object.
+     }
+diff --git a/Sources/Foundation/Operation.swift b/Sources/Foundation/Operation.swift
+index 0945253b..d6a5d7b8 100644
+--- a/Sources/Foundation/Operation.swift
++++ b/Sources/Foundation/Operation.swift
+@@ -7,6 +7,7 @@
+ // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ //
+ 
++#if !os(WASI)
+ import Dispatch
+ 
+ internal let _NSOperationIsFinished = "isFinished"
+@@ -1438,3 +1439,4 @@ extension OperationQueue {
+         }
+     }
+ }
++#endif
+diff --git a/Sources/Foundation/ProcessInfo.swift b/Sources/Foundation/ProcessInfo.swift
+index dcbf6e1e..8c712fb0 100644
+--- a/Sources/Foundation/ProcessInfo.swift
++++ b/Sources/Foundation/ProcessInfo.swift
+@@ -61,11 +61,15 @@ open class ProcessInfo: NSObject {
+     }
+     
+     open var hostName: String {
++#if os(WASI)
++        return "localhost"
++#else
+         if let name = Host.current().name {
+             return name
+         } else {
+             return "localhost"
+         }
++#endif
+     }
+     
+     open var processName: String = _CFProcessNameString()._swiftObject
+@@ -296,6 +300,7 @@ open class ProcessInfo: NSObject {
+         return CFGetSystemUptime()
+     }
+     
++#if !os(WASI)
+     open var userName: String {
+         return NSUserName()
+     }
+@@ -303,6 +308,7 @@ open class ProcessInfo: NSObject {
+     open var fullUserName: String {
+         return NSFullUserName()
+     }
++#endif
+ 
+ 
+ #if os(Linux)
+diff --git a/Sources/Foundation/Progress.swift b/Sources/Foundation/Progress.swift
+index 11b96ca7..618171d2 100644
+--- a/Sources/Foundation/Progress.swift
++++ b/Sources/Foundation/Progress.swift
+@@ -7,6 +7,7 @@
+ // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ //
+ 
++#if !os(WASI)
+ import Dispatch
+ 
+ /**
+@@ -545,3 +546,4 @@ fileprivate class _ProgressTSD : NSObject {
+         childAttached = false
+     }
+ }
++#endif
+diff --git a/Sources/Foundation/RunLoop.swift b/Sources/Foundation/RunLoop.swift
+index 5ad595e6..ccd4ce0c 100644
+--- a/Sources/Foundation/RunLoop.swift
++++ b/Sources/Foundation/RunLoop.swift
+@@ -78,6 +78,17 @@ open class RunLoop: NSObject {
+         _cfRunLoopStorage = cfObject
+     }
+ 
++    #if os(WASI)
++    @available(*, unavailable, message: "RunLoop is not available on WASI")
++    open class var current: RunLoop {
++        fatalError("RunLoop is not available on WASI")
++    }
++
++    @available(*, unavailable, message: "RunLoop is not available on WASI")
++    open class var main: RunLoop {
++        fatalError("RunLoop is not available on WASI")
++    }
++    #else
+     open class var current: RunLoop {
+         return _CFRunLoopGet2(CFRunLoopGetCurrent()) as! RunLoop
+     }
+@@ -85,6 +96,7 @@ open class RunLoop: NSObject {
+     open class var main: RunLoop {
+         return _CFRunLoopGet2(_mainRunLoop._cfRunLoop) as! RunLoop
+     }
++    #endif // os(WASI)
+ 
+     open var currentMode: RunLoop.Mode? {
+         if let mode = CFRunLoopCopyCurrentMode(_cfRunLoop) {
+@@ -117,10 +129,16 @@ open class RunLoop: NSObject {
+         CFRunLoopAddTimer(_cfRunLoop, timer._cfObject, mode._cfStringUniquingKnown)
+     }
+ 
++    #if os(WASI)
++    @available(*, unavailable, message: "Port API is not available on WASI")
++    open func add(_ aPort: Any, forMode mode: RunLoop.Mode) {
++        fatalError("Ports are not supported on WASI")
++    }
++    #else
+     private let monitoredPortsWithModesLock = NSLock() // guards:
+     private var monitoredPortsWithModes: [Port: Set<RunLoop.Mode>] = [:]
+     private var monitoredPortObservers:  [Port: NSObjectProtocol]  = [:]
+-    
++
+     open func add(_ aPort: Port, forMode mode: RunLoop.Mode) {
+         var shouldSchedule = false
+         monitoredPortsWithModesLock.synchronized {
+@@ -175,6 +193,7 @@ open class RunLoop: NSObject {
+             aPort.remove(from: self, forMode: mode)
+         }
+     }
++    #endif // os(WASI)
+ 
+     open func limitDate(forMode mode: RunLoop.Mode) -> Date? {
+         if _cfRunLoop !== CFRunLoopGetCurrent() {
+diff --git a/Sources/Foundation/ScannerAPI.swift b/Sources/Foundation/ScannerAPI.swift
+index d3fe75ed..500b2f1d 100644
+--- a/Sources/Foundation/ScannerAPI.swift
++++ b/Sources/Foundation/ScannerAPI.swift
+@@ -43,7 +43,7 @@ extension Scanner {
+         if let value = scanInt64(representation: representation) {
+             return Int(value)
+         }
+-        #elseif arch(i386) || arch(arm)
++        #elseif arch(i386) || arch(arm) || arch(wasm32)
+         if let value = scanInt32(representation: representation) {
+             return Int(value)
+         }
+diff --git a/Sources/Foundation/URL.swift b/Sources/Foundation/URL.swift
+index 9ef15f9b..57e5e6a1 100644
+--- a/Sources/Foundation/URL.swift
++++ b/Sources/Foundation/URL.swift
+@@ -504,7 +504,7 @@ public struct URL : ReferenceConvertible, Equatable {
+         guard !string.isEmpty, let inner = NSURL(string: string, relativeTo: url) else { return nil }
+         _url = URL._converted(from: inner)
+     }
+-    
++
+     /// Initializes a newly created file URL referencing the local file or directory at path, relative to a base URL.
+     ///
+     /// If an empty string is used for the path, then the path is assumed to be ".".
+@@ -548,10 +548,12 @@ public struct URL : ReferenceConvertible, Equatable {
+         }
+     }
+ 
++#if !os(WASI)
+     /// Initializes a newly created URL referencing the local file or directory at the file system representation of the path. File system representation is a null-terminated C string with canonical UTF-8 encoding.
+     public init(fileURLWithFileSystemRepresentation path: UnsafePointer<Int8>, isDirectory: Bool, relativeTo baseURL: URL?) {
+         _url = URL._converted(from: NSURL(fileURLWithFileSystemRepresentation: path, isDirectory: isDirectory, relativeTo: baseURL))
+     }
++#endif
+     
+     public func hash(into hasher: inout Hasher) {
+         hasher.combine(_url)
+@@ -1046,7 +1048,7 @@ extension URL : Codable {
+     }
+ }
+ 
+-
++#if !os(WASI)
+ //===----------------------------------------------------------------------===//
+ // File references, for playgrounds.
+ //===----------------------------------------------------------------------===//
+@@ -1058,3 +1060,4 @@ extension URL : _ExpressibleByFileReferenceLiteral {
+ }
+ 
+ public typealias _FileReferenceLiteralType = URL
++#endif
+diff --git a/Sources/Foundation/UserDefaults.swift b/Sources/Foundation/UserDefaults.swift
+index fda2a9a9..224af9be 100644
+--- a/Sources/Foundation/UserDefaults.swift
++++ b/Sources/Foundation/UserDefaults.swift
+@@ -96,7 +96,9 @@ open class UserDefaults: NSObject {
+         suite = suitename
+         super.init()
+         
++#if !os(WASI)
+         setVolatileDomain(UserDefaults._parsedArgumentsDomain, forName: UserDefaults.argumentDomain)
++#endif
+     }
+     
+     open func object(forKey defaultName: String) -> Any? {
+@@ -279,8 +281,12 @@ open class UserDefaults: NSObject {
+         if let bVal = aVal as? URL {
+             return bVal
+         } else if let bVal = aVal as? String {
++#if !os(WASI)
+             let cVal = NSString(string: bVal).expandingTildeInPath
+             return URL(fileURLWithPath: cVal)
++#else
++            return nil
++#endif
+         } else if let bVal = aVal as? Data {
+             return NSKeyedUnarchiver.unarchiveObject(with: bVal) as? URL
+         }
+@@ -351,7 +357,9 @@ open class UserDefaults: NSObject {
+         }
+     }
+     
++#if !os(WASI)
+     private static let _parsedArgumentsDomain: [String: Any] = UserDefaults._parseArguments(ProcessInfo.processInfo.arguments)
++#endif
+     
+     private var _volatileDomains: [String: [String: Any]] = [:]
+     private let _volatileDomainsLock = NSLock()
+@@ -406,7 +414,9 @@ open class UserDefaults: NSObject {
+             
+             _ = defaults.synchronize()
+             
++#if !os(WASI)
+             NotificationCenter.default.post(name: UserDefaults.didChangeNotification, object: self)
++#endif
+         }
+     }
+     
+@@ -418,7 +428,9 @@ open class UserDefaults: NSObject {
+             
+             _ = defaults.synchronize()
+             
++#if !os(WASI)
+             NotificationCenter.default.post(name: UserDefaults.didChangeNotification, object: self)
++#endif
+         }
+     }
+     
+@@ -441,7 +453,9 @@ open class UserDefaults: NSObject {
+ }
+ 
+ extension UserDefaults {
++#if !os(WASI)
+     public static let didChangeNotification = NSNotification.Name(rawValue: "NSUserDefaultsDidChangeNotification")
++#endif
+     public static let globalDomain: String = "NSGlobalDomain"
+     public static let argumentDomain: String = "NSArgumentDomain"
+     public static let registrationDomain: String = "NSRegistrationDomain"
+diff --git a/Sources/FoundationXML/CMakeLists.txt b/Sources/FoundationXML/CMakeLists.txt
+index 5a73f70f..a09d0594 100644
+--- a/Sources/FoundationXML/CMakeLists.txt
++++ b/Sources/FoundationXML/CMakeLists.txt
+@@ -43,6 +43,12 @@ if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin|Windows")
+   target_link_options(FoundationXML PRIVATE "SHELL:-no-toolchain-stdlib-rpath")
+ endif()
+ 
++if(CMAKE_SYSTEM_NAME STREQUAL WASI)
++  target_compile_options(FoundationXML PRIVATE
++    "SHELL:-Xcc -D_WASI_EMULATED_SIGNAL
++           -Xcc -D_WASI_EMULATED_PROCESS_CLOCKS
++           -Xcc -D_WASI_EMULATED_MMAN")
++endif()
+ 
+ set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS FoundationXML)
+ _install_target(FoundationXML)
+-- 
+2.43.0
+

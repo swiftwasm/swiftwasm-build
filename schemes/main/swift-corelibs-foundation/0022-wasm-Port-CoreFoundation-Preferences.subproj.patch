@@ -1,0 +1,48 @@
+From f54f340fd195b0297340c6c4760cf31c0f1fd096 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 1 Mar 2024 08:52:29 +0000
+Subject: [PATCH] [wasm] Port CoreFoundation/Preferences.subproj
+
+---
+ CoreFoundation/Preferences.subproj/CFPreferences.c          | 4 ++--
+ CoreFoundation/Preferences.subproj/CFXMLPreferencesDomain.c | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/CoreFoundation/Preferences.subproj/CFPreferences.c b/CoreFoundation/Preferences.subproj/CFPreferences.c
+index e8f88bcb..f81c8796 100644
+--- a/CoreFoundation/Preferences.subproj/CFPreferences.c
++++ b/CoreFoundation/Preferences.subproj/CFPreferences.c
+@@ -420,7 +420,7 @@ static CFStringRef  _CFPreferencesStandardDomainCacheKey(CFStringRef  domainName
+ static CFURLRef _CFPreferencesURLForStandardDomainWithSafetyLevel(CFStringRef domainName, CFStringRef userName, CFStringRef hostName, unsigned long safeLevel) {
+     CFURLRef theURL = NULL;
+     CFAllocatorRef prefAlloc = __CFPreferencesAllocator();
+-#if TARGET_OS_OSX || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD
++#if TARGET_OS_OSX || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
+     CFURLRef prefDir = _preferencesCreateDirectoryForUserHostSafetyLevel(userName, hostName, safeLevel);
+     CFStringRef  appName;
+     CFStringRef  fileName;
+@@ -454,7 +454,7 @@ static CFURLRef _CFPreferencesURLForStandardDomainWithSafetyLevel(CFStringRef do
+ 	CFRelease(appName);
+     }
+     if (fileName) {
+-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
++#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
+         theURL = CFURLCreateWithFileSystemPathRelativeToBase(prefAlloc, fileName, kCFURLPOSIXPathStyle, false, prefDir);
+ #elif TARGET_OS_WIN32
+ 		theURL = CFURLCreateWithFileSystemPathRelativeToBase(prefAlloc, fileName, kCFURLWindowsPathStyle, false, prefDir);
+diff --git a/CoreFoundation/Preferences.subproj/CFXMLPreferencesDomain.c b/CoreFoundation/Preferences.subproj/CFXMLPreferencesDomain.c
+index 2c037657..c7a87de5 100644
+--- a/CoreFoundation/Preferences.subproj/CFXMLPreferencesDomain.c
++++ b/CoreFoundation/Preferences.subproj/CFXMLPreferencesDomain.c
+@@ -55,7 +55,7 @@ static void __CFMilliSleep(uint32_t msecs) {
+     SleepEx(msecs, false);
+ #elif defined(__svr4__) || defined(__hpux__)
+     sleep((msecs + 900) / 1000);
+-#elif TARGET_OS_OSX || TARGET_OS_LINUX || TARGET_OS_BSD
++#elif TARGET_OS_OSX || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
+     struct timespec input;
+     input.tv_sec = msecs / 1000;
+     input.tv_nsec = (msecs - input.tv_sec * 1000) * 1000000;
+-- 
+2.43.0
+

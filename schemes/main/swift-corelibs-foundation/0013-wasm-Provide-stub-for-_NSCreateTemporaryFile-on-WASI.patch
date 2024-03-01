@@ -1,27 +1,28 @@
-From 7af8051cbd212f407cd77a9fe9ee8fcecb00f98e Mon Sep 17 00:00:00 2001
+From 329bbcf05e18ccf9aea40b0752c6fb2038f36440 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:45:16 +0000
 Subject: [PATCH] [wasm] Provide stub for `_NSCreateTemporaryFile` on WASI
 
 ---
- Sources/Foundation/NSPathUtilities.swift | 5 ++++-
- 1 file changed, 4 insertions(+), 1 deletion(-)
+ Sources/Foundation/NSPathUtilities.swift | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
 
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index cfba2728..99b6f141 100644
+index 3d2507fd..51067bc0 100644
 --- a/Sources/Foundation/NSPathUtilities.swift
 +++ b/Sources/Foundation/NSPathUtilities.swift
-@@ -769,6 +769,9 @@ internal func _NSCreateTemporaryFile(_ filePath: String) throws -> (Int32, Strin
+@@ -766,6 +766,10 @@ internal func _NSCreateTemporaryFile(_ filePath: String) throws -> (Int32, Strin
      }
      // Don't close h, fd is transferred ownership
      let fd = _open_osfhandle(intptr_t(bitPattern: h), 0)
 +    return (fd, pathResult)
 +#elseif os(WASI)
++    // WASI does not have temp directories
 +    throw NSError(domain: NSPOSIXErrorDomain, code: Int(ENOTSUP))
  #else
      var template = URL(fileURLWithPath: filePath)
      
-@@ -804,8 +807,8 @@ internal func _NSCreateTemporaryFile(_ filePath: String) throws -> (Int32, Strin
+@@ -801,8 +805,8 @@ internal func _NSCreateTemporaryFile(_ filePath: String) throws -> (Int32, Strin
          close(fd)
          throw _NSErrorWithErrno(_errno, reading: false, path: pathResult)
      }
