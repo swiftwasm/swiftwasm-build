@@ -1,4 +1,4 @@
-From bd46f9ef7c662a66c2e395aad8d6bad18a73b45f Mon Sep 17 00:00:00 2001
+From da23dab74e7512eb017d6be11c7fa2e5b41aee20 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:49:57 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/URL.subproj/CFURL.c
@@ -8,7 +8,7 @@ Subject: [PATCH] [wasm] Port CoreFoundation/URL.subproj/CFURL.c
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/CoreFoundation/URL.subproj/CFURL.c b/CoreFoundation/URL.subproj/CFURL.c
-index 93d257c5..f8e58a4e 100644
+index 93d257c5..85adc844 100644
 --- a/CoreFoundation/URL.subproj/CFURL.c
 +++ b/CoreFoundation/URL.subproj/CFURL.c
 @@ -31,7 +31,7 @@
@@ -16,7 +16,7 @@ index 93d257c5..f8e58a4e 100644
  #if __has_include(<sys/syslog.h>)
  #include <sys/syslog.h>
 -#else
-+#elif !TARGET_OS_WASI
++#elif __has_include(<syslog.h>)
  #include <syslog.h>
  #endif
  #include <CoreFoundation/CFURLPriv.h>
