@@ -1,4 +1,4 @@
-From 4cf90efe278062a7cc570ff310b55a0156a081d5 Mon Sep 17 00:00:00 2001
+From 0a73c5f41cbfe0e847bbcd6216b203650f370100 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:52:55 +0000
 Subject: [PATCH] WebAssembly Support for CoreFoundation
