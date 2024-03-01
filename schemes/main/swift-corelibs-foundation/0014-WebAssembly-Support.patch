@@ -1,15 +1,15 @@
-From 01539f309d9bd02a1409c32e29290871f99560c0 Mon Sep 17 00:00:00 2001
+From f87dcbb99cd65c8fba7aaed3c95849b247508dcf Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 13:24:41 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
- CoreFoundation/Base.subproj/CFRuntime.c       | 22 ++++++--
+ CoreFoundation/Base.subproj/CFRuntime.c       | 15 ++++++
  .../Base.subproj/CoreFoundation_Prefix.h      |  2 +-
  .../Base.subproj/ForFoundationOnly.h          |  6 +--
  .../Base.subproj/ForSwiftFoundationOnly.h     |  6 +--
  .../SwiftRuntime/CoreFoundation.h             | 13 +++++
- CoreFoundation/CMakeLists.txt                 | 39 +++++++++++---
+ CoreFoundation/CMakeLists.txt                 | 31 ++++++++---
  CoreFoundation/Locale.subproj/CFLocale.c      |  6 ++-
  CoreFoundation/NumberDate.subproj/CFDate.c    | 12 ++---
  .../Parsing.subproj/CFPropertyList.c          | 11 ++--
@@ -19,12 +19,12 @@ Subject: [PATCH] WebAssembly Support
  .../PlugIn.subproj/CFBundle_InfoPlist.c       |  8 ++-
  .../PlugIn.subproj/CFBundle_Internal.h        |  3 ++
  .../PlugIn.subproj/CFBundle_Resources.c       |  4 ++
- .../Preferences.subproj/CFPreferences.c       | 16 +++++-
+ .../Preferences.subproj/CFPreferences.c       |  4 +-
  .../CFXMLPreferencesDomain.c                  |  2 +-
  CoreFoundation/RunLoop.subproj/CFRunLoop.c    |  2 +-
  CoreFoundation/Stream.subproj/CFStream.h      |  6 ++-
  .../String.subproj/CFCharacterSetData.S       |  8 +++
- CoreFoundation/String.subproj/CFString.c      | 16 +++---
+ CoreFoundation/String.subproj/CFString.c      | 11 ++--
  .../String.subproj/CFStringUtilities.c        | 18 +++----
  .../CFUniCharPropertyDatabase.S               |  8 +++
  CoreFoundation/String.subproj/CFUnicodeData.S |  8 +++
@@ -54,35 +54,21 @@ Subject: [PATCH] WebAssembly Support
  Sources/Foundation/URL.swift                  |  7 ++-
  Sources/Foundation/UserDefaults.swift         | 14 +++++
  Sources/FoundationXML/CMakeLists.txt          |  6 +++
- 50 files changed, 399 insertions(+), 130 deletions(-)
+ 50 files changed, 374 insertions(+), 123 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
-index 68b62a2b..f4372dd1 100644
+index 68b62a2b..0a10005a 100644
 --- a/CoreFoundation/Base.subproj/CFRuntime.c
 +++ b/CoreFoundation/Base.subproj/CFRuntime.c
-@@ -227,18 +227,18 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
-     [_kCFRuntimeIDCFXMLNode] = &__CFXMLNodeClass,
- #endif // TARGET_OS_OSX
-     
-+#if !TARGET_OS_WASI
-     [_kCFRuntimeIDCFBundle] = &__CFBundleClass,
-     [_kCFRuntimeIDCFPFactory] = &__CFPFactoryClass,
-     [_kCFRuntimeIDCFPlugInInstance] = &__CFPlugInInstanceClass,
--
-     [_kCFRuntimeIDCFPreferencesDomain] = &__CFPreferencesDomainClass,
-+#endif
+@@ -239,6 +239,7 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
  
- #if TARGET_OS_MAC
-     [_kCFRuntimeIDCFMachPort] = &__CFMachPortClass,
- #endif
  
--
--
+ 
 +#if !TARGET_OS_WASI
      [_kCFRuntimeIDCFRunLoopMode] = &__CFRunLoopModeClass,
      [_kCFRuntimeIDCFRunLoop] = &__CFRunLoopClass,
      [_kCFRuntimeIDCFRunLoopSource] = &__CFRunLoopSourceClass,
-@@ -247,6 +247,8 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
+@@ -247,6 +248,8 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
      [_kCFRuntimeIDCFSocket] = &__CFSocketClass,
      [_kCFRuntimeIDCFReadStream] = &__CFReadStreamClass,
      [_kCFRuntimeIDCFWriteStream] = &__CFWriteStreamClass,
@@ -91,21 +77,11 @@ index 68b62a2b..f4372dd1 100644
      [_kCFRuntimeIDCFAttributedString] = &__CFAttributedStringClass,
      [_kCFRuntimeIDCFRunArray] = &__CFRunArrayClass,
      [_kCFRuntimeIDCFCharacterSet] = &__CFCharacterSetClass,
-@@ -1316,7 +1318,9 @@ void __CFInitialize(void) {
- #endif
-         }
- 
-+#if !TARGET_OS_WASI
-         _CFProcessPath();	// cache this early
-+#endif
- 
-         __CFOAInitialize();
-         
-@@ -1787,6 +1791,18 @@ struct _NSCFXMLBridgeUntyped __NSCFXMLBridgeUntyped = {
+@@ -1787,6 +1790,18 @@ struct _NSCFXMLBridgeUntyped __NSCFXMLBridgeUntyped = {
    &kCFErrorLocalizedDescriptionKey,
  };
  
-+// This function is also provided in libdispatch.
++// This function is also provided in libdispatch but we need to define it here for platforms that don't have libdispatch.
 +#if !__HAS_DISPATCH__
 +// For CF functions with 'Get' semantics, the compiler currently assumes that the result is autoreleased and must be retained. It does so on all platforms by emitting a call to objc_retainAutoreleasedReturnValue. On Darwin, this is implemented by the ObjC runtime. On Linux, there is no runtime, and therefore we have to stub it out here ourselves. The compiler will eventually call swift_release to balance the retain below. This is a workaround until the compiler no longer emits this callout on Linux.
 +void * objc_retainAutoreleasedReturnValue(void *obj) {
@@ -178,18 +154,18 @@ index 40847559..df1ba11a 100644
  CF_EXPORT void _CFReadStreamInitialize(CFReadStreamRef readStream);
  CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index bac39185..6babff13 100644
+index bac39185..2c998482 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-@@ -84,6 +84,8 @@
+@@ -64,6 +64,8 @@
  #include <sys/stat.h>
- #endif // not __NR_statx
- 
+ #include <sys/syscall.h>
+ #include <termios.h>
 +#elif TARGET_OS_WASI
 +#include <sys/stat.h>
- #endif // TARGET_OS_LINUX
- 
- #include <stdlib.h>
+ #elif TARGET_OS_LINUX
+ #include <errno.h>
+ #include <features.h>
 @@ -444,7 +446,6 @@ CF_EXPORT CFCharacterSetRef _CFCharacterSetCreateCopy(CFAllocatorRef alloc, CFCh
  CF_EXPORT CFMutableCharacterSetRef _CFCharacterSetCreateMutableCopy(CFAllocatorRef alloc, CFCharacterSetRef theSet);
  CF_CROSS_PLATFORM_EXPORT void _CFCharacterSetInitCopyingSet(CFAllocatorRef alloc, CFMutableCharacterSetRef cset, CFCharacterSetRef theSet, bool isMutable, bool validateSubclasses);
@@ -248,7 +224,7 @@ index b373875a..6ad26f20 100644
  #include <CoreFoundation/CFSocket.h>
  #include <CoreFoundation/CFMachPort.h>
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index 4b3370a9..e1c57221 100644
+index 4b3370a9..e77e79c9 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
 @@ -140,6 +140,19 @@ else()
@@ -295,51 +271,22 @@ index 4b3370a9..e1c57221 100644
  target_compile_definitions(CoreFoundation
                             PRIVATE
                               $<$<COMPILE_LANGUAGE:ASM>:CF_CHARACTERSET_BITMAP="CharacterSets/CFCharacterSetBitmaps.bitmap">
-@@ -409,6 +418,7 @@ target_compile_definitions(CoreFoundation
- target_include_directories(CoreFoundation
-                            PRIVATE
-                              ${PROJECT_SOURCE_DIR})
-+
- target_link_libraries(CoreFoundation PRIVATE
-   ${CMAKE_DL_LIBS}
-   BlocksRuntime)
-@@ -419,6 +429,11 @@ if(HAS_LIBDISPATCH_API)
-     dispatch)
- endif()
- 
-+if(NOT BUILD_SHARED_LIBS)
-+  set_property(TARGET CoreFoundation PROPERTY STATIC_LIBRARY_OPTIONS
-+    $<TARGET_OBJECTS:BlocksRuntime>)
-+endif()
-+
- if(CMAKE_SYSTEM_NAME STREQUAL Android)
-   target_link_libraries(CoreFoundation PRIVATE
-     log)
-@@ -479,6 +494,8 @@ add_framework(CFXMLInterface
+@@ -479,6 +488,7 @@ add_framework(CFXMLInterface
                SOURCES
                  Parsing.subproj/CFXMLInterface.c)
  add_dependencies(CFXMLInterface CoreFoundation)
 +target_link_libraries(CFXMLInterface PRIVATE BlocksRuntime)
-+
  if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CFXMLInterface PRIVATE
      LibXml2::LibXml2)
-@@ -546,6 +563,7 @@ if(HAS_LIBDISPATCH_API)
-                         PRIVATE
-                           dispatch)
- endif()
-+
- if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
-   target_link_libraries(CoreFoundation
-                         PRIVATE
-@@ -561,6 +579,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -561,6 +571,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
                            -Xlinker;-alias_list;-Xlinker;Base.subproj/DarwinSymbolAliases;-twolevel_namespace;-sectcreate;__UNICODE;__csbitmaps;CharacterSets/CFCharacterSetBitmaps.bitmap;-sectcreate;__UNICODE;__properties;CharacterSets/CFUniCharPropertyDatabase.data;-sectcreate;__UNICODE;__data;CharacterSets/CFUnicodeData-L.mapping;-segprot;__UNICODE;r;r)
  endif()
  
 +if(CMAKE_SYSTEM_NAME STREQUAL WASI)
 +  # Enable emulated features and constant CFSTRINGS
 +  set(WASI_EMULATION_DEFS _WASI_EMULATED_MMAN _WASI_EMULATED_SIGNAL _WASI_EMULATED_PROCESS_CLOCKS)
-+  target_compile_definitions(CoreFoundation PRIVATE ${WASI_EMULATION_DEFS} __CONSTANT_CFSTRINGS__)
++  target_compile_definitions(CoreFoundation PRIVATE ${WASI_EMULATION_DEFS})
 +  target_compile_definitions(CFXMLInterface PRIVATE ${WASI_EMULATION_DEFS})
 +endif()
 +
@@ -620,28 +567,10 @@ index 601d014a..acccefea 100644
  #error Unknown or unspecified DEPLOYMENT_TARGET
  #endif
 diff --git a/CoreFoundation/Preferences.subproj/CFPreferences.c b/CoreFoundation/Preferences.subproj/CFPreferences.c
-index e8f88bcb..f2b5bf6f 100644
+index e8f88bcb..f81c8796 100644
 --- a/CoreFoundation/Preferences.subproj/CFPreferences.c
 +++ b/CoreFoundation/Preferences.subproj/CFPreferences.c
-@@ -387,6 +387,7 @@ static CFStringRef  _CFPreferencesCreateCachePrefixForUserHost(CFStringRef  user
-         return (CFStringRef)CFRetain(CFSTR("*/*/"));
-     }
-     CFMutableStringRef result = CFStringCreateMutable(__CFPreferencesAllocator(), 0);
-+    #if !TARGET_OS_WASI
-     if (userName == kCFPreferencesCurrentUser) {
-         userName = CFCopyUserName();
-         CFStringAppend(result, userName);
-@@ -395,6 +396,9 @@ static CFStringRef  _CFPreferencesCreateCachePrefixForUserHost(CFStringRef  user
-     } else if (userName == kCFPreferencesAnyUser) {
-         CFStringAppend(result, CFSTR("*/"));
-     }
-+    #else
-+    CFStringAppend(result, CFSTR("*/"));
-+    #endif
-     if (hostName == kCFPreferencesCurrentHost) {
-         CFStringRef hostID = _CFPreferencesGetByHostIdentifierString();
-         CFStringAppend(result, hostID);
-@@ -420,7 +424,7 @@ static CFStringRef  _CFPreferencesStandardDomainCacheKey(CFStringRef  domainName
+@@ -420,7 +420,7 @@ static CFStringRef  _CFPreferencesStandardDomainCacheKey(CFStringRef  domainName
  static CFURLRef _CFPreferencesURLForStandardDomainWithSafetyLevel(CFStringRef domainName, CFStringRef userName, CFStringRef hostName, unsigned long safeLevel) {
      CFURLRef theURL = NULL;
      CFAllocatorRef prefAlloc = __CFPreferencesAllocator();
@@ -650,23 +579,7 @@ index e8f88bcb..f2b5bf6f 100644
      CFURLRef prefDir = _preferencesCreateDirectoryForUserHostSafetyLevel(userName, hostName, safeLevel);
      CFStringRef  appName;
      CFStringRef  fileName;
-@@ -430,11 +434,15 @@ static CFURLRef _CFPreferencesURLForStandardDomainWithSafetyLevel(CFStringRef do
-     if (domainName == kCFPreferencesAnyApplication) {
-         appName = CFSTR(".GlobalPreferences");
-     } else if (domainName == kCFPreferencesCurrentApplication) {
-+#if TARGET_OS_WASI
-+        appName = NULL;
-+#else
-         CFBundleRef mainBundle = CFBundleGetMainBundle();
-         appName = mainBundle ? CFBundleGetIdentifier(mainBundle) : NULL;
-         if (!appName || CFStringGetLength(appName) == 0) {
-             appName = _CFProcessNameString();
-         }
-+#endif
-     } else {
-         appName = domainName;
-     }
-@@ -454,7 +462,7 @@ static CFURLRef _CFPreferencesURLForStandardDomainWithSafetyLevel(CFStringRef do
+@@ -454,7 +454,7 @@ static CFURLRef _CFPreferencesURLForStandardDomainWithSafetyLevel(CFStringRef do
  	CFRelease(appName);
      }
      if (fileName) {
@@ -675,24 +588,6 @@ index e8f88bcb..f2b5bf6f 100644
          theURL = CFURLCreateWithFileSystemPathRelativeToBase(prefAlloc, fileName, kCFURLPOSIXPathStyle, false, prefDir);
  #elif TARGET_OS_WIN32
  		theURL = CFURLCreateWithFileSystemPathRelativeToBase(prefAlloc, fileName, kCFURLWindowsPathStyle, false, prefDir);
-@@ -615,13 +623,17 @@ CF_PRIVATE CFArrayRef _CFPreferencesCreateDomainList(CFStringRef  userName, CFSt
-         
-         if (!CFStringHasPrefix(domainKey, suffix)) continue;
-         domainName = CFStringCreateWithSubstring(prefAlloc, domainKey, CFRangeMake(suffixLen, CFStringGetLength(domainKey) - suffixLen));
-+#if !TARGET_OS_WASI
-         if (CFEqual(domainName, CFSTR("*"))) {
-+#endif
-             CFRelease(domainName);
-             domainName = (CFStringRef)CFRetain(kCFPreferencesAnyApplication);
-+#if !TARGET_OS_WASI
-         } else if (CFEqual(domainName, kCFPreferencesCurrentApplication)) {
-             CFRelease(domainName);
-             domainName = (CFStringRef)CFRetain(_CFProcessNameString());
-         }
-+#endif
-         CFDictionaryRef d = _CFPreferencesDomainDeepCopyDictionary(domain);
-         keyCount = d ? CFDictionaryGetCount(d) : 0;
-         if (keyCount) CFRelease(d);
 diff --git a/CoreFoundation/Preferences.subproj/CFXMLPreferencesDomain.c b/CoreFoundation/Preferences.subproj/CFXMLPreferencesDomain.c
 index 2c037657..c7a87de5 100644
 --- a/CoreFoundation/Preferences.subproj/CFXMLPreferencesDomain.c
@@ -786,34 +681,20 @@ index 6cc016c3..53c71993 100644
  NO_EXEC_STACK_DIRECTIVE
  SAFESEH_REGISTRATION_DIRECTIVE
 diff --git a/CoreFoundation/String.subproj/CFString.c b/CoreFoundation/String.subproj/CFString.c
-index ad239807..77b2da53 100644
+index ad239807..453ec2dd 100644
 --- a/CoreFoundation/String.subproj/CFString.c
 +++ b/CoreFoundation/String.subproj/CFString.c
-@@ -2676,7 +2676,7 @@ static bool __CFStringFillCharacterSetInlineBuffer(CFCharacterSetInlineBuffer *b
+@@ -38,6 +38,9 @@
+ #if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
+ #include <unistd.h>
+ #endif
++#if TARGET_OS_WASI
++#include <sys/types.h>
++#endif
  
- #define kCFStringStackBufferLength (__kCFStringInlineBufferLength)
-     
--static const u_char __ASCII_LOWERCASE_TABLE[] = {
-+static const uint8_t __ASCII_LOWERCASE_TABLE[] = {
-     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
-     0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
-@@ -2694,11 +2694,11 @@ static const u_char __ASCII_LOWERCASE_TABLE[] = {
- 
- // This function is an implementation of strncasecmp_l that does not stop comparing at embedded null bytes
- // We are not calling to LibC APIs such as tolower_l here because calling to those APIs (as compared to using a lookup table) introduced significant performance regressions
--CF_INLINE int __CFStringCompareASCIICaseInsensitive(const u_char *str1, const u_char *str2, size_t n) {
-+CF_INLINE int __CFStringCompareASCIICaseInsensitive(const uint8_t *str1, const uint8_t *str2, size_t n) {
-     if (n != 0) {
-         do {
--            u_char a = __ASCII_LOWERCASE_TABLE[*str1++];
--            u_char b = __ASCII_LOWERCASE_TABLE[*str2++];
-+            uint8_t a = __ASCII_LOWERCASE_TABLE[*str1++];
-+            uint8_t b = __ASCII_LOWERCASE_TABLE[*str2++];
-             if (a != b) {
-                 return a - b;
-             }
-@@ -3364,7 +3364,7 @@ Boolean CFStringFindWithOptionsAndLocale(CFStringRef string, CFStringRef stringT
+ #if defined(__GNUC__)
+ #define LONG_DOUBLE_SUPPORT 1
+@@ -3364,7 +3367,7 @@ Boolean CFStringFindWithOptionsAndLocale(CFStringRef string, CFStringRef stringT
                                          if (delta == 1) {
                                              preventStr1FoldingUntil = currentCluster.location + currentCluster.length;
                                          } else {
@@ -822,7 +703,7 @@ index ad239807..77b2da53 100644
                                          }
                                      }
                                  }
-@@ -6276,7 +6276,7 @@ enum {
+@@ -6276,7 +6279,7 @@ enum {
      CFFormatIncompleteSpecifierType = 43    /* special case for a trailing incomplete specifier */
  };
  
@@ -831,7 +712,7 @@ index ad239807..77b2da53 100644
  /* Only come in here if spec->type is CFFormatLongType or CFFormatDoubleType. Pass in 0 for width or precision if not specified. Returns false if couldn't do the format (with the assumption the caller falls back to unlocalized).
  */
  static Boolean __CFStringFormatLocalizedNumber(CFMutableStringRef output, CFLocaleRef locale, const CFPrintValue *values, const CFFormatSpec *spec, SInt32 width, SInt32 precision, Boolean hasPrecision) {
-@@ -6811,7 +6811,7 @@ CF_INLINE void _CFStringFormatReplacementDictionaryAppendRange(CFMutableDictiona
+@@ -6811,7 +6814,7 @@ CF_INLINE void _CFStringFormatReplacementDictionaryAppendRange(CFMutableDictiona
      CFDictionarySetValue(replacement, _kCFStringFormatMetadataReplacementRangeLocationKey, rangeLocationObject);
      CFRelease(rangeLocationObject);
      
@@ -840,7 +721,7 @@ index ad239807..77b2da53 100644
      CFNumberRef rangeLengthObject = CFNumberCreate(kCFAllocatorSystemDefault, kCFNumberCFIndexType, &length);
      CFDictionarySetValue(replacement, _kCFStringFormatMetadataReplacementRangeLengthKey, rangeLengthObject);
      CFRelease(rangeLengthObject);
-@@ -7493,7 +7493,7 @@ static Boolean __CFStringAppendFormatCore(CFMutableStringRef outputString, CFStr
+@@ -7493,7 +7496,7 @@ static Boolean __CFStringAppendFormatCore(CFMutableStringRef outputString, CFStr
  	switch (specs[curSpec].type) {
  	case CFFormatLongType:
  	case CFFormatDoubleType:
