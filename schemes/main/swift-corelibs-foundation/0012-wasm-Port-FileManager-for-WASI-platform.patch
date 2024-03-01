@@ -1,18 +1,15 @@
-From 7e1450c7077833872b48cb14468abf0f69e31d11 Mon Sep 17 00:00:00 2001
+From febae37f03ef22f923b07fda059a15e3d03abbb8 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Wed, 14 Feb 2024 12:42:51 +0000
+Date: Fri, 1 Mar 2024 09:12:57 +0000
 Subject: [PATCH] [wasm] Port FileManager for WASI platform
 
 ---
- .../Base.subproj/ForSwiftFoundationOnly.h     | 16 ++++-
- Sources/Foundation/Data.swift                 |  5 +-
+ .../Base.subproj/ForSwiftFoundationOnly.h     | 16 +++-
  Sources/Foundation/FileHandle.swift           |  6 ++
- Sources/Foundation/FileManager+POSIX.swift    | 69 +++++++++++++++++++
+ Sources/Foundation/FileManager+POSIX.swift    | 73 +++++++++++++++++++
  Sources/Foundation/FileManager.swift          | 13 +++-
  Sources/Foundation/NSData.swift               |  3 +-
- Sources/Foundation/NSPathUtilities.swift      |  2 -
- Sources/Foundation/NSURL.swift                | 14 ----
- 8 files changed, 102 insertions(+), 26 deletions(-)
+ 5 files changed, 105 insertions(+), 6 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 index 37d38f26..bac39185 100644
@@ -63,50 +60,6 @@ index 37d38f26..bac39185 100644
  }
  
  #endif
-diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
-index 23254e6b..091adbfa 100644
---- a/Sources/Foundation/Data.swift
-+++ b/Sources/Foundation/Data.swift
-@@ -36,6 +36,7 @@
- @usableFromInline let memcpy = Musl.memcpy
- @usableFromInline let memcmp = Musl.memcmp
- #elseif canImport(WASILibc)
-+@_implementationOnly import wasi_emulated_mman
- @usableFromInline let calloc = WASILibc.calloc
- @usableFromInline let malloc = WASILibc.malloc
- @usableFromInline let free = WASILibc.free
-@@ -2048,7 +2049,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
-         }
-     }
-     
--#if !os(WASI)
-     /// Initialize a `Data` with the contents of a `URL`.
-     ///
-     /// - parameter url: The `URL` to read.
-@@ -2061,7 +2061,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
-             return Data(bytes: d.bytes, count: d.length)
-         }
-     }
--#endif
-     
-     /// Initialize a `Data` from a Base-64 encoded String using the given options.
-     ///
-@@ -2325,7 +2324,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
-     }
- #endif
-     
--#if !os(WASI)
-     /// Write the contents of the `Data` to a location.
-     ///
-     /// - parameter url: The location to write the data into.
-@@ -2346,7 +2344,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
- #endif
-         }
-     }
--#endif
-     
-     // MARK: -
-     
 diff --git a/Sources/Foundation/FileHandle.swift b/Sources/Foundation/FileHandle.swift
 index 285bed70..5fb7258c 100644
 --- a/Sources/Foundation/FileHandle.swift
@@ -125,7 +78,7 @@ index 285bed70..5fb7258c 100644
  
  #if canImport(WinSDK)
 diff --git a/Sources/Foundation/FileManager+POSIX.swift b/Sources/Foundation/FileManager+POSIX.swift
-index 1c50e458..0f8e941c 100644
+index 1c50e458..4d4a2b48 100644
 --- a/Sources/Foundation/FileManager+POSIX.swift
 +++ b/Sources/Foundation/FileManager+POSIX.swift
 @@ -106,6 +106,32 @@ extension FileManager {
@@ -180,17 +133,19 @@ index 1c50e458..0f8e941c 100644
      }
  
      internal func _createSymbolicLink(atPath path: String, withDestinationPath destPath: String) throws {
-@@ -515,6 +546,9 @@ extension FileManager {
+@@ -515,6 +546,11 @@ extension FileManager {
      }
          
      internal func _recursiveDestinationOfSymbolicLink(atPath path: String) throws -> String {
 +        #if canImport(WASILibc)
++        // TODO: Remove this guard when realpath implementation will be released
++        // See https://github.com/WebAssembly/wasi-libc/pull/473
 +        throw _NSErrorWithErrno(ENOTSUP, reading: true, path: path)
 +        #else
          // Throw error if path is not a symbolic link:
          let path = try _destinationOfSymbolicLink(atPath: path)
          
-@@ -528,10 +562,14 @@ extension FileManager {
+@@ -528,10 +564,16 @@ extension FileManager {
          }
  
          return String(cString: resolvedPath)
@@ -200,12 +155,14 @@ index 1c50e458..0f8e941c 100644
      /* Returns a String with a canonicalized path for the element at the specified path. */
      internal func _canonicalizedPath(toFileAtPath path: String) throws -> String {
 +        #if canImport(WASILibc)
++        // TODO: Remove this guard when realpath implementation will be released
++        // See https://github.com/WebAssembly/wasi-libc/pull/473
 +        throw _NSErrorWithErrno(ENOTSUP, reading: true, path: path)
 +        #else
          let bufSize = Int(PATH_MAX + 1)
          var buf = [Int8](repeating: 0, count: bufSize)
          let done = try _fileSystemRepresentation(withPath: path) {
-@@ -542,6 +580,7 @@ extension FileManager {
+@@ -542,6 +584,7 @@ extension FileManager {
          }
          
          return self.string(withFileSystemRepresentation: buf, length: strlen(buf))
@@ -213,7 +170,7 @@ index 1c50e458..0f8e941c 100644
      }
  
      internal func _readFrom(fd: Int32, toBuffer buffer: UnsafeMutablePointer<UInt8>, length bytesToRead: Int, filename: String) throws -> Int {
-@@ -599,12 +638,14 @@ extension FileManager {
+@@ -599,12 +642,14 @@ extension FileManager {
          }
          defer { close(dstfd) }
  
@@ -228,7 +185,7 @@ index 1c50e458..0f8e941c 100644
  
          if fileInfo.st_size == 0 {
              // no copying required
-@@ -749,6 +790,10 @@ extension FileManager {
+@@ -749,6 +794,10 @@ extension FileManager {
              if rmdir(fsRep) == 0 {
                  return
              } else if errno == ENOTEMPTY {
@@ -239,7 +196,7 @@ index 1c50e458..0f8e941c 100644
                  let ps = UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>.allocate(capacity: 2)
                  ps.initialize(to: UnsafeMutablePointer(mutating: fsRep))
                  ps.advanced(by: 1).initialize(to: nil)
-@@ -791,6 +836,7 @@ extension FileManager {
+@@ -791,6 +840,7 @@ extension FileManager {
                  } else {
                      let _ = _NSErrorWithErrno(ENOTEMPTY, reading: false, path: path)
                  }
@@ -247,7 +204,7 @@ index 1c50e458..0f8e941c 100644
              } else if errno != ENOTDIR {
                  throw _NSErrorWithErrno(errno, reading: false, path: path)
              } else if unlink(fsRep) != 0 {
-@@ -893,6 +939,7 @@ extension FileManager {
+@@ -893,6 +943,7 @@ extension FileManager {
                      return false
                  }
  
@@ -255,7 +212,7 @@ index 1c50e458..0f8e941c 100644
                  // Stat the parent directory, if that fails, return false.
                  let parentS = try _lstatFile(atPath: path, withFileSystemRepresentation: parentFsRep)
  
-@@ -903,6 +950,7 @@ extension FileManager {
+@@ -903,6 +954,7 @@ extension FileManager {
                      // If the current user owns the file, return true.
                      return s.st_uid == getuid()
                  }
@@ -263,7 +220,7 @@ index 1c50e458..0f8e941c 100644
  
                  // Return true as the best guess.
                  return true
-@@ -1073,6 +1121,26 @@ extension FileManager {
+@@ -1073,6 +1125,26 @@ extension FileManager {
          return temp._bridgeToObjectiveC().appendingPathComponent(dest)
      }
  
@@ -290,7 +247,7 @@ index 1c50e458..0f8e941c 100644
      internal class NSURLDirectoryEnumerator : DirectoryEnumerator {
          var _url : URL
          var _options : FileManager.DirectoryEnumerationOptions
-@@ -1206,6 +1274,7 @@ extension FileManager {
+@@ -1206,6 +1278,7 @@ extension FileManager {
              return nil
          }
      }
@@ -373,95 +330,6 @@ index e004c950..fd494ce7 100644
  
      // MARK: - Bytes
      /// Copies a number of bytes from the start of the data object into a given buffer.
-diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index 1726b351..cfba2728 100644
---- a/Sources/Foundation/NSPathUtilities.swift
-+++ b/Sources/Foundation/NSPathUtilities.swift
-@@ -655,7 +655,6 @@ extension NSString {
- 
- }
- 
--#if !os(WASI)
- extension FileManager {
-     public enum SearchPathDirectory: UInt {
-         
-@@ -831,4 +830,3 @@ internal func _NSCleanupTemporaryFile(_ auxFilePath: String, _ filePath: String)
-     })
- #endif
- }
--#endif
-diff --git a/Sources/Foundation/NSURL.swift b/Sources/Foundation/NSURL.swift
-index 4b6a2a5b..4d31e2ba 100644
---- a/Sources/Foundation/NSURL.swift
-+++ b/Sources/Foundation/NSURL.swift
-@@ -556,9 +556,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-     // TODO: should be `checkResourceIsReachableAndReturnError` with autoreleased error parameter.
-     // Currently Autoreleased pointers is not supported on Linux.
-     open func checkResourceIsReachable() throws -> Bool {
--#if os(WASI)
--        return false
--#else
-         guard isFileURL,
-             let path = path else {
-                 throw NSError(domain: NSCocoaErrorDomain,
-@@ -574,7 +571,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
-         }
-         
-         return true
--#endif
-     }
- 
-     /* Returns a file path URL that refers to the same resource as a specified URL. File path URLs use a file system style path. An error will occur if the url parameter is not a file URL. A file reference URL's resource must exist and be reachable to be converted to a file path URL. Symbol is present in iOS 4, but performs no operation.
-@@ -918,12 +914,8 @@ extension NSURL {
-         if selfPath.isAbsolutePath {
-             absolutePath = selfPath
-         } else {
--#if os(WASI)
--            return nil
--#else
-             let workingDir = FileManager.default.currentDirectoryPath
-             absolutePath = workingDir._bridgeToObjectiveC().appendingPathComponent(selfPath)
--#endif
-         }
- 
- #if os(Windows)
-@@ -971,20 +963,16 @@ extension NSURL {
- 
-             default:
-                 resolvedPath = resolvedPath._bridgeToObjectiveC().appendingPathComponent(component)
--#if !os(WASI)
-                 if let destination = FileManager.default._tryToResolveTrailingSymlinkInPath(resolvedPath) {
-                     resolvedPath = destination
-                 }
--#endif
-             }
-         }
- 
-         // It might be a responsibility of NSURL(fileURLWithPath:). Check it.
-         var isExistingDirectory: ObjCBool = false
- 
--#if !os(WASI)
-         let _ = FileManager.default.fileExists(atPath: resolvedPath, isDirectory: &isExistingDirectory)
--#endif
- 
-         if excludeSystemDirs {
-             resolvedPath = resolvedPath._tryToRemovePathPrefix("/private") ?? resolvedPath
-@@ -1063,7 +1051,6 @@ extension NSURL : _StructTypeBridgeable {
- 
- // -----
- 
--#if !os(WASI)
- internal func _CFSwiftURLCopyResourcePropertyForKey(_ url: CFTypeRef, _ key: CFString, _ valuePointer: UnsafeMutablePointer<Unmanaged<CFTypeRef>?>?, _ errorPointer: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> _DarwinCompatibleBoolean {
-     do {
-         let key = URLResourceKey(rawValue: key._swiftObject)
-@@ -1597,7 +1584,6 @@ fileprivate extension URLResourceValuesStorage {
-         }
-     }
- }
--#endif
- 
- // -----
- 
 -- 
 2.43.0
 

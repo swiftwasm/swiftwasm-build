@@ -1,0 +1,208 @@
+From 7cc07dbfb909b016658932b660f40aceb7f76add Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 1 Mar 2024 08:52:55 +0000
+Subject: [PATCH] WebAssembly Support for CoreFoundation
+
+---
+ CoreFoundation/Locale.subproj/CFLocale.c        |  6 ++++--
+ CoreFoundation/NumberDate.subproj/CFDate.c      | 12 ++++++------
+ CoreFoundation/Parsing.subproj/CFPropertyList.c | 11 +++++++----
+ CoreFoundation/RunLoop.subproj/CFRunLoop.c      |  2 +-
+ CoreFoundation/Stream.subproj/CFStream.h        |  6 +++++-
+ 5 files changed, 23 insertions(+), 14 deletions(-)
+
+diff --git a/CoreFoundation/Locale.subproj/CFLocale.c b/CoreFoundation/Locale.subproj/CFLocale.c
+index 738ff28a..344dbbad 100644
+--- a/CoreFoundation/Locale.subproj/CFLocale.c
++++ b/CoreFoundation/Locale.subproj/CFLocale.c
+@@ -19,15 +19,15 @@
+ #include <CoreFoundation/CFNumber.h>
+ #include "CFInternal.h"
+ #include "CFRuntime_Internal.h"
+-#if !TARGET_OS_WASI
+ #include <CoreFoundation/CFPreferences.h>
++#if !TARGET_OS_WASI
+ #include "CFBundle_Internal.h"
+ #else
+ #include "CFBase.h"
+ #endif
+ #include "CFLocaleInternal.h"
+ #include <stdatomic.h>
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
+ #include <unicode/uloc.h>           // ICU locales
+ #include <unicode/ulocdata.h>       // ICU locale data
+ #include <unicode/ucal.h>
+@@ -586,12 +586,14 @@ static CFStringRef _CFLocaleCreateLocaleIdentifierForAvailableLocalizations(CFAr
+ 
+         // Combine `availableLocalizations` with `preferredLanguages` to get `preferredLocalizations`, whose #0 object indicates the localization that the app is current launched in.
+         CFArrayRef preferredLocalizations = NULL; {
++#if !TARGET_OS_WASI
+             // Since `availableLocalizations` can contains legacy lproj names such as `English`, `French`, etc. we need to canonicalize these into language identifiers such as `en`, `fr`, etc. Otherwise the logic that later compares these to language identifiers will fail. (<rdar://problem/37141123>)
+             CFArrayRef canonicalizedAvailableLocalizations = _CFLocaleCopyPreferredLanguagesFromPrefs(availableLocalizations);
+             if (canonicalizedAvailableLocalizations) {
+                 preferredLocalizations = CFBundleCopyLocalizationsForPreferences(canonicalizedAvailableLocalizations, canonicalizedPreferredLanguages);
+                 CFRelease(canonicalizedAvailableLocalizations);
+             }
++#endif
+         }
+         
+         if (preferredLocalizations && CFArrayGetCount(preferredLocalizations) > 0) {
+diff --git a/CoreFoundation/NumberDate.subproj/CFDate.c b/CoreFoundation/NumberDate.subproj/CFDate.c
+index e6abb43c..3be4a850 100644
+--- a/CoreFoundation/NumberDate.subproj/CFDate.c
++++ b/CoreFoundation/NumberDate.subproj/CFDate.c
+@@ -359,7 +359,7 @@ CFAbsoluteTime CFGregorianDateGetAbsoluteTime(CFGregorianDate gdate, CFTimeZoneR
+     CFAbsoluteTime at;
+     at = 86400.0 * __CFAbsoluteFromYMD(gdate.year - 2001, gdate.month, gdate.day);
+     at += 3600.0 * gdate.hour + 60.0 * gdate.minute + gdate.second;
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+     if (NULL != tz) {
+ 	__CFGenericValidateType(tz, CFTimeZoneGetTypeID());
+     }
+@@ -378,7 +378,7 @@ CFGregorianDate CFAbsoluteTimeGetGregorianDate(CFAbsoluteTime at, CFTimeZoneRef
+     int64_t absolute, year;
+     int8_t month, day;
+     CFAbsoluteTime fixedat;
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+     if (NULL != tz) {
+ 	__CFGenericValidateType(tz, CFTimeZoneGetTypeID());
+     }
+@@ -406,7 +406,7 @@ CFAbsoluteTime CFAbsoluteTimeAddGregorianUnits(CFAbsoluteTime at, CFTimeZoneRef
+     CFAbsoluteTime candidate_at0, candidate_at1;
+     uint8_t monthdays;
+ 
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+     if (NULL != tz) {
+ 	__CFGenericValidateType(tz, CFTimeZoneGetTypeID());
+     }
+@@ -525,7 +525,7 @@ CFGregorianUnits CFAbsoluteTimeGetDifferenceAsGregorianUnits(CFAbsoluteTime at1,
+ SInt32 CFAbsoluteTimeGetDayOfWeek(CFAbsoluteTime at, CFTimeZoneRef tz) {
+     int64_t absolute;
+     CFAbsoluteTime fixedat;
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+     if (NULL != tz) {
+ 	__CFGenericValidateType(tz, CFTimeZoneGetTypeID());
+     }
+@@ -541,7 +541,7 @@ SInt32 CFAbsoluteTimeGetDayOfYear(CFAbsoluteTime at, CFTimeZoneRef tz) {
+     CFAbsoluteTime fixedat;
+     int64_t absolute, year;
+     int8_t month, day;
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+     if (NULL != tz) {
+ 	__CFGenericValidateType(tz, CFTimeZoneGetTypeID());
+     }
+@@ -560,7 +560,7 @@ SInt32 CFAbsoluteTimeGetWeekOfYear(CFAbsoluteTime at, CFTimeZoneRef tz) {
+     int64_t absolute, year;
+     int8_t month, day;
+     CFAbsoluteTime fixedat;
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+     if (NULL != tz) {
+ 	__CFGenericValidateType(tz, CFTimeZoneGetTypeID());
+     }
+diff --git a/CoreFoundation/Parsing.subproj/CFPropertyList.c b/CoreFoundation/Parsing.subproj/CFPropertyList.c
+index 1a402990..9c6d3ae0 100644
+--- a/CoreFoundation/Parsing.subproj/CFPropertyList.c
++++ b/CoreFoundation/Parsing.subproj/CFPropertyList.c
+@@ -2325,7 +2325,7 @@ static CFStringEncoding encodingForXMLData(CFDataRef data, CFErrorRef *error, CF
+         if (len == 5 && (*base == 'u' || *base == 'U') && (base[1] == 't' || base[1] == 'T') && (base[2] == 'f' || base[2] == 'F') && (base[3] == '-') && (base[4] == '8'))
+             return kCFStringEncodingUTF8;
+         encodingName = CFStringCreateWithBytes(kCFAllocatorSystemDefault, base, len, kCFStringEncodingISOLatin1, false);
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+         CFStringEncoding enc = CFStringConvertIANACharSetNameToEncoding(encodingName);
+         if (enc != kCFStringEncodingInvalidId) {
+             if (encodingName) {CFRelease(encodingName); }
+@@ -2898,7 +2898,6 @@ CFPropertyListRef CFPropertyListCreateFromXMLData(CFAllocatorRef allocator, CFDa
+     return result;
+ }
+ 
+-#if !TARGET_OS_WASI
+ CFDataRef CFPropertyListCreateData(CFAllocatorRef allocator, CFPropertyListRef propertyList, CFPropertyListFormat format, CFOptionFlags options, CFErrorRef *error) {
+     CFAssert1(format != kCFPropertyListOpenStepFormat, __kCFLogAssertion, "%s(): kCFPropertyListOpenStepFormat not supported for writing", __PRETTY_FUNCTION__);
+     CFAssert2(format == kCFPropertyListXMLFormat_v1_0 || format == kCFPropertyListBinaryFormat_v1_0, __kCFLogAssertion, "%s(): Unrecognized option %ld", __PRETTY_FUNCTION__, format);
+@@ -2922,7 +2921,9 @@ CFDataRef CFPropertyListCreateData(CFAllocatorRef allocator, CFPropertyListRef p
+         }
+         
+         data = _CFPropertyListCreateXMLData(allocator, propertyList, false);
+-    } else if (format == kCFPropertyListBinaryFormat_v1_0) {        // TODO: Is it more efficient to create a stream here or just use a mutable data?
++    } else if (format == kCFPropertyListBinaryFormat_v1_0) {        
++#if !TARGET_OS_WASI
++        // TODO: Is it more efficient to create a stream here or just use a mutable data?
+         CFWriteStreamRef stream = CFWriteStreamCreateWithAllocatedBuffers(kCFAllocatorSystemDefault, allocator);
+         CFWriteStreamOpen(stream);
+         CFIndex len = CFPropertyListWrite(propertyList, stream, format, options, error);
+@@ -2930,7 +2931,8 @@ CFDataRef CFPropertyListCreateData(CFAllocatorRef allocator, CFPropertyListRef p
+             data = (CFDataRef)CFWriteStreamCopyProperty(stream, kCFStreamPropertyDataWritten);
+         }
+         CFWriteStreamClose(stream);
+-	CFRelease(stream);
++        CFRelease(stream);
++#endif
+     } else {
+ 	CFLog(kCFLogLevelError, CFSTR("Unknown format option"));
+     }
+@@ -2938,6 +2940,7 @@ CFDataRef CFPropertyListCreateData(CFAllocatorRef allocator, CFPropertyListRef p
+     return data;
+ }
+ 
++#if !TARGET_OS_WASI
+ CFIndex CFPropertyListWrite(CFPropertyListRef propertyList, CFWriteStreamRef stream, CFPropertyListFormat format, CFOptionFlags options, CFErrorRef *error) {
+     CFAssert1(stream != NULL, __kCFLogAssertion, "%s(): NULL stream not allowed", __PRETTY_FUNCTION__);
+     CFAssert1(format != kCFPropertyListOpenStepFormat, __kCFLogAssertion, "%s(): kCFPropertyListOpenStepFormat not supported for writing", __PRETTY_FUNCTION__);
+diff --git a/CoreFoundation/RunLoop.subproj/CFRunLoop.c b/CoreFoundation/RunLoop.subproj/CFRunLoop.c
+index f202dda2..f63a6fff 100644
+--- a/CoreFoundation/RunLoop.subproj/CFRunLoop.c
++++ b/CoreFoundation/RunLoop.subproj/CFRunLoop.c
+@@ -62,9 +62,9 @@ extern dispatch_queue_t _dispatch_runloop_root_queue_create_4CF(const char *_Nul
+ #if TARGET_OS_MAC
+ extern mach_port_t _dispatch_runloop_root_queue_get_port_4CF(dispatch_queue_t queue);
+ #endif
+-#endif
+ extern void _dispatch_source_set_runloop_timer_4CF(dispatch_source_t source, dispatch_time_t start, uint64_t interval, uint64_t leeway);
+ extern bool _dispatch_runloop_root_queue_perform_4CF(dispatch_queue_t queue);
++#endif
+ 
+ #if TARGET_OS_MAC
+ typedef mach_port_t dispatch_runloop_handle_t;
+diff --git a/CoreFoundation/Stream.subproj/CFStream.h b/CoreFoundation/Stream.subproj/CFStream.h
+index b3ed2378..feeef1f5 100644
+--- a/CoreFoundation/Stream.subproj/CFStream.h
++++ b/CoreFoundation/Stream.subproj/CFStream.h
+@@ -17,7 +17,10 @@
+ #include <CoreFoundation/CFRunLoop.h>
+ #include <CoreFoundation/CFSocket.h>
+ #include <CoreFoundation/CFError.h>
++
++#if __HAS_DISPATCH__
+ #include <dispatch/dispatch.h>
++#endif
+ 
+ CF_IMPLICIT_BRIDGING_ENABLED
+ CF_EXTERN_C_BEGIN
+@@ -456,7 +459,7 @@ void CFReadStreamUnscheduleFromRunLoop(CFReadStreamRef _Null_unspecified stream,
+ CF_EXPORT
+ void CFWriteStreamUnscheduleFromRunLoop(CFWriteStreamRef _Null_unspecified stream, CFRunLoopRef _Null_unspecified runLoop, CFRunLoopMode _Null_unspecified runLoopMode);
+ 
+-
++#if __HAS_DISPATCH__
+ /*
+  * Specify the dispatch queue upon which the client callbacks will be invoked.
+  * Passing NULL for the queue will prevent future callbacks from being invoked.
+@@ -480,6 +483,7 @@ dispatch_queue_t _Null_unspecified CFReadStreamCopyDispatchQueue(CFReadStreamRef
+ 
+ CF_EXPORT
+ dispatch_queue_t _Null_unspecified CFWriteStreamCopyDispatchQueue(CFWriteStreamRef _Null_unspecified stream) API_AVAILABLE(macos(10.9), ios(7.0), watchos(2.0), tvos(9.0));
++#endif
+ 
+ 
+ /* The following API is deprecated starting in 10.5; please use CFRead/WriteStreamCopyError(), above, instead */
+-- 
+2.43.0
+

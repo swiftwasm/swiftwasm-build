@@ -1,0 +1,217 @@
+From 60e5fee97c1f1f8f2dedb269343dbb7d1c1cf9b8 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 1 Mar 2024 09:09:43 +0000
+Subject: [PATCH] [wasm] Remove too conservative guards around file operations
+
+Those guards were added to prevent the build from failing on WASI, but
+they are too conservative and the latest wasi-libc is now providing
+enough support for these operations.
+---
+ Sources/Foundation/Data.swift            |  5 +----
+ Sources/Foundation/NSPathUtilities.swift | 13 ++++---------
+ Sources/Foundation/NSURL.swift           | 14 --------------
+ 3 files changed, 5 insertions(+), 27 deletions(-)
+
+diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
+index 23254e6b..091adbfa 100644
+--- a/Sources/Foundation/Data.swift
++++ b/Sources/Foundation/Data.swift
+@@ -36,6 +36,7 @@
+ @usableFromInline let memcpy = Musl.memcpy
+ @usableFromInline let memcmp = Musl.memcmp
+ #elseif canImport(WASILibc)
++@_implementationOnly import wasi_emulated_mman
+ @usableFromInline let calloc = WASILibc.calloc
+ @usableFromInline let malloc = WASILibc.malloc
+ @usableFromInline let free = WASILibc.free
+@@ -2048,7 +2049,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+         }
+     }
+     
+-#if !os(WASI)
+     /// Initialize a `Data` with the contents of a `URL`.
+     ///
+     /// - parameter url: The `URL` to read.
+@@ -2061,7 +2061,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+             return Data(bytes: d.bytes, count: d.length)
+         }
+     }
+-#endif
+     
+     /// Initialize a `Data` from a Base-64 encoded String using the given options.
+     ///
+@@ -2325,7 +2324,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+     }
+ #endif
+     
+-#if !os(WASI)
+     /// Write the contents of the `Data` to a location.
+     ///
+     /// - parameter url: The location to write the data into.
+@@ -2346,7 +2344,6 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
+ #endif
+         }
+     }
+-#endif
+     
+     // MARK: -
+     
+diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
+index 1726b351..3d2507fd 100644
+--- a/Sources/Foundation/NSPathUtilities.swift
++++ b/Sources/Foundation/NSPathUtilities.swift
+@@ -195,7 +195,6 @@ extension String {
+         return temp
+     }
+     
+-#if !os(WASI)
+     internal func _tryToRemovePathPrefix(_ prefix: String) -> String? {
+         guard self != prefix else {
+             return nil
+@@ -208,7 +207,6 @@ extension String {
+         
+         return nil
+     }
+-#endif
+ }
+ 
+ extension NSString {
+@@ -338,7 +336,6 @@ extension NSString {
+         return result._stringByFixingSlashes()
+     }
+ 
+-#if !os(WASI)
+     public var expandingTildeInPath: String {
+         guard hasPrefix("~") else {
+             return _swiftObject
+@@ -359,7 +356,6 @@ extension NSString {
+         
+         return result
+     }
+-#endif
+ 
+ #if os(Windows)
+     public var unixPath: String {
+@@ -374,7 +370,6 @@ extension NSString {
+     }
+ #endif
+     
+-#if !os(WASI)
+     public var standardizingPath: String {
+ #if os(Windows)
+         let expanded = unixPath.expandingTildeInPath
+@@ -422,8 +417,6 @@ extension NSString {
+         
+         return resolvedPath
+     }
+-#endif
+-    
+     public func stringsByAppendingPaths(_ paths: [String]) -> [String] {
+         if self == "" {
+             return paths
+@@ -655,7 +648,6 @@ extension NSString {
+ 
+ }
+ 
+-#if !os(WASI)
+ extension FileManager {
+     public enum SearchPathDirectory: UInt {
+         
+@@ -731,6 +723,9 @@ public func NSHomeDirectory() -> String {
+ }
+ 
+ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
++#if os(WASI) // WASI does not have user concept
++    return nil
++#else
+     let userName = user?._cfObject
+     guard let homeDir = CFCopyHomeDirectoryURLForUser(userName)?.takeRetainedValue() else {
+         return nil
+@@ -738,6 +733,7 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
+     
+     let url: URL = homeDir._swiftObject
+     return url.path
++#endif
+ }
+ 
+ public func NSUserName() -> String {
+@@ -831,4 +827,3 @@ internal func _NSCleanupTemporaryFile(_ auxFilePath: String, _ filePath: String)
+     })
+ #endif
+ }
+-#endif
+diff --git a/Sources/Foundation/NSURL.swift b/Sources/Foundation/NSURL.swift
+index 4b6a2a5b..4d31e2ba 100644
+--- a/Sources/Foundation/NSURL.swift
++++ b/Sources/Foundation/NSURL.swift
+@@ -556,9 +556,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+     // TODO: should be `checkResourceIsReachableAndReturnError` with autoreleased error parameter.
+     // Currently Autoreleased pointers is not supported on Linux.
+     open func checkResourceIsReachable() throws -> Bool {
+-#if os(WASI)
+-        return false
+-#else
+         guard isFileURL,
+             let path = path else {
+                 throw NSError(domain: NSCocoaErrorDomain,
+@@ -574,7 +571,6 @@ open class NSURL : NSObject, NSSecureCoding, NSCopying {
+         }
+         
+         return true
+-#endif
+     }
+ 
+     /* Returns a file path URL that refers to the same resource as a specified URL. File path URLs use a file system style path. An error will occur if the url parameter is not a file URL. A file reference URL's resource must exist and be reachable to be converted to a file path URL. Symbol is present in iOS 4, but performs no operation.
+@@ -918,12 +914,8 @@ extension NSURL {
+         if selfPath.isAbsolutePath {
+             absolutePath = selfPath
+         } else {
+-#if os(WASI)
+-            return nil
+-#else
+             let workingDir = FileManager.default.currentDirectoryPath
+             absolutePath = workingDir._bridgeToObjectiveC().appendingPathComponent(selfPath)
+-#endif
+         }
+ 
+ #if os(Windows)
+@@ -971,20 +963,16 @@ extension NSURL {
+ 
+             default:
+                 resolvedPath = resolvedPath._bridgeToObjectiveC().appendingPathComponent(component)
+-#if !os(WASI)
+                 if let destination = FileManager.default._tryToResolveTrailingSymlinkInPath(resolvedPath) {
+                     resolvedPath = destination
+                 }
+-#endif
+             }
+         }
+ 
+         // It might be a responsibility of NSURL(fileURLWithPath:). Check it.
+         var isExistingDirectory: ObjCBool = false
+ 
+-#if !os(WASI)
+         let _ = FileManager.default.fileExists(atPath: resolvedPath, isDirectory: &isExistingDirectory)
+-#endif
+ 
+         if excludeSystemDirs {
+             resolvedPath = resolvedPath._tryToRemovePathPrefix("/private") ?? resolvedPath
+@@ -1063,7 +1051,6 @@ extension NSURL : _StructTypeBridgeable {
+ 
+ // -----
+ 
+-#if !os(WASI)
+ internal func _CFSwiftURLCopyResourcePropertyForKey(_ url: CFTypeRef, _ key: CFString, _ valuePointer: UnsafeMutablePointer<Unmanaged<CFTypeRef>?>?, _ errorPointer: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> _DarwinCompatibleBoolean {
+     do {
+         let key = URLResourceKey(rawValue: key._swiftObject)
+@@ -1597,7 +1584,6 @@ fileprivate extension URLResourceValuesStorage {
+         }
+     }
+ }
+-#endif
+ 
+ // -----
+ 
+-- 
+2.43.0
+

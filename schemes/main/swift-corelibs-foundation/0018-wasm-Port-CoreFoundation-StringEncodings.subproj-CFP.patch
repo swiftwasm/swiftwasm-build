@@ -1,0 +1,35 @@
+From 4a81e78983cc2859ec0a37523fcbf04668d29a26 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 1 Mar 2024 08:50:27 +0000
+Subject: [PATCH] [wasm] Port
+ CoreFoundation/StringEncodings.subproj/CFPlatformConverters.c
+
+---
+ CoreFoundation/StringEncodings.subproj/CFPlatformConverters.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CoreFoundation/StringEncodings.subproj/CFPlatformConverters.c b/CoreFoundation/StringEncodings.subproj/CFPlatformConverters.c
+index 177e0375..b4d81b09 100644
+--- a/CoreFoundation/StringEncodings.subproj/CFPlatformConverters.c
++++ b/CoreFoundation/StringEncodings.subproj/CFPlatformConverters.c
+@@ -27,7 +27,7 @@ CF_INLINE bool __CFIsPlatformConverterAvailable(int encoding) {
+ #endif
+ }
+ 
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+ 
+ static const CFStringEncodingConverter __CFICUBootstrap = {
+     .toBytes.standard = NULL,
+@@ -65,7 +65,7 @@ CF_PRIVATE const CFStringEncodingConverter *__CFStringEncodingGetExternalConvert
+     if (__CFIsPlatformConverterAvailable(encoding)) {
+         return &__CFPlatformBootstrap;
+     } else {
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
+         if (__CFStringEncodingGetICUName(encoding)) {
+             return &__CFICUBootstrap;
+         }
+-- 
+2.43.0
+
