@@ -257,9 +257,9 @@ jobs:
       # build script for it yet. So we create a symlink to wasmtime for now.
       # We should remove this step once we unify the build script with apple/swift's build-preset
       # based build script.
-      - run: ln -s "$(which wasmtime)" "$(dirname "$(which wasmtime)")/wasmkit-cli"
+      - run: ln -sf "$(which wasmtime)" "$(dirname "$(which wasmtime)")/wasmkit-cli"
         if: ${{ matrix.run_stdlib_test && matrix.container == null }}
-      - run: docker exec -u root swiftwasm-ci-buildbot bash -c 'ln -s "$(which wasmtime)" "$(dirname "$(which wasmtime)")/wasmkit-cli"'
+      - run: docker exec -u root swiftwasm-ci-buildbot bash -c 'ln -sf "$(which wasmtime)" "$(dirname "$(which wasmtime)")/wasmkit-cli"'
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}
 
       - name: Run stdlib tests for wasi-wasm32
