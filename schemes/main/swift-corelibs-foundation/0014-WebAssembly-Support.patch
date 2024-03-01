@@ -1,59 +1,60 @@
-From 896d34a87781f5b730c71199a91b6ff7c6d4605d Mon Sep 17 00:00:00 2001
+From 01539f309d9bd02a1409c32e29290871f99560c0 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 13:24:41 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
- CoreFoundation/Base.subproj/CFRuntime.c       | 22 +++++-
- .../Base.subproj/ForFoundationOnly.h          |  4 +-
- .../Base.subproj/ForSwiftFoundationOnly.h     |  4 +-
- .../SwiftRuntime/CoreFoundation.h             | 13 ++++
- CoreFoundation/CMakeLists.txt                 | 71 +++++++++++++------
- CoreFoundation/Locale.subproj/CFLocale.c      |  6 +-
- CoreFoundation/NumberDate.subproj/CFDate.c    | 12 ++--
- .../Parsing.subproj/CFPropertyList.c          | 11 +--
+ CoreFoundation/Base.subproj/CFRuntime.c       | 22 ++++++--
+ .../Base.subproj/CoreFoundation_Prefix.h      |  2 +-
+ .../Base.subproj/ForFoundationOnly.h          |  6 +--
+ .../Base.subproj/ForSwiftFoundationOnly.h     |  6 +--
+ .../SwiftRuntime/CoreFoundation.h             | 13 +++++
+ CoreFoundation/CMakeLists.txt                 | 39 +++++++++++---
+ CoreFoundation/Locale.subproj/CFLocale.c      |  6 ++-
+ CoreFoundation/NumberDate.subproj/CFDate.c    | 12 ++---
+ .../Parsing.subproj/CFPropertyList.c          | 11 ++--
+ CoreFoundation/PlugIn.subproj/CFBundle.c      |  2 +-
  .../PlugIn.subproj/CFBundle_BinaryTypes.h     |  1 +
  .../PlugIn.subproj/CFBundle_Executable.c      |  2 +-
  .../PlugIn.subproj/CFBundle_InfoPlist.c       |  8 ++-
- .../PlugIn.subproj/CFBundle_Internal.h        |  3 +
+ .../PlugIn.subproj/CFBundle_Internal.h        |  3 ++
  .../PlugIn.subproj/CFBundle_Resources.c       |  4 ++
- .../Preferences.subproj/CFPreferences.c       | 16 ++++-
+ .../Preferences.subproj/CFPreferences.c       | 16 +++++-
  .../CFXMLPreferencesDomain.c                  |  2 +-
  CoreFoundation/RunLoop.subproj/CFRunLoop.c    |  2 +-
- CoreFoundation/Stream.subproj/CFStream.h      |  6 +-
+ CoreFoundation/Stream.subproj/CFStream.h      |  6 ++-
  .../String.subproj/CFCharacterSetData.S       |  8 +++
- CoreFoundation/String.subproj/CFString.c      | 16 ++---
- .../String.subproj/CFStringUtilities.c        | 18 ++---
+ CoreFoundation/String.subproj/CFString.c      | 16 +++---
+ .../String.subproj/CFStringUtilities.c        | 18 +++----
  .../CFUniCharPropertyDatabase.S               |  8 +++
  CoreFoundation/String.subproj/CFUnicodeData.S |  8 +++
  .../CFPlatformConverters.c                    |  4 +-
- .../CFStringEncodingConverter.c               | 12 ++--
+ .../CFStringEncodingConverter.c               | 12 ++---
  CoreFoundation/URL.subproj/CFURL.c            |  2 +-
- Sources/Foundation/Bundle.swift               | 40 +++++++++++
- Sources/Foundation/CMakeLists.txt             | 39 +++++++---
- Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++
+ Sources/Foundation/CMakeLists.txt             | 39 ++++++++++----
+ Sources/Foundation/DateFormatter.swift        | 51 +++++++++++++++++++
  .../DispatchData+DataProtocol.swift           |  3 +-
- Sources/Foundation/FileHandle.swift           | 22 +++++-
- Sources/Foundation/NSCharacterSet.swift       |  6 +-
- Sources/Foundation/NSData.swift               |  7 --
+ Sources/Foundation/FileHandle.swift           | 22 +++++++-
+ Sources/Foundation/NSCharacterSet.swift       |  6 +--
+ Sources/Foundation/NSData.swift               |  7 ---
  Sources/Foundation/NSKeyedArchiver.swift      |  8 ++-
  Sources/Foundation/NSNumber.swift             |  4 ++
- Sources/Foundation/NSObjCRuntime.swift        | 48 +++++++------
- Sources/Foundation/NSPathUtilities.swift      | 11 ++-
+ Sources/Foundation/NSObjCRuntime.swift        | 48 +++++++++--------
+ Sources/Foundation/NSPathUtilities.swift      | 11 ++--
  Sources/Foundation/NSSet.swift                |  4 ++
- Sources/Foundation/NSString.swift             | 10 ++-
+ Sources/Foundation/NSString.swift             | 10 ++--
  Sources/Foundation/NSStringAPI.swift          |  4 ++
- Sources/Foundation/NSSwiftRuntime.swift       |  3 +
- Sources/Foundation/NSTimeZone.swift           | 10 +--
+ Sources/Foundation/NSSwiftRuntime.swift       |  3 ++
+ Sources/Foundation/NSTimeZone.swift           | 10 ++--
  Sources/Foundation/Operation.swift            |  2 +
- Sources/Foundation/ProcessInfo.swift          |  6 ++
+ Sources/Foundation/ProcessInfo.swift          |  6 +++
  Sources/Foundation/Progress.swift             |  2 +
- Sources/Foundation/RunLoop.swift              | 21 +++++-
+ Sources/Foundation/RunLoop.swift              | 21 +++++++-
  Sources/Foundation/ScannerAPI.swift           |  2 +-
- Sources/Foundation/URL.swift                  |  7 +-
- Sources/Foundation/UserDefaults.swift         | 14 ++++
- Sources/FoundationXML/CMakeLists.txt          |  6 ++
- 49 files changed, 453 insertions(+), 140 deletions(-)
+ Sources/Foundation/URL.swift                  |  7 ++-
+ Sources/Foundation/UserDefaults.swift         | 14 +++++
+ Sources/FoundationXML/CMakeLists.txt          |  6 +++
+ 50 files changed, 399 insertions(+), 130 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..f4372dd1 100644
@@ -119,8 +120,21 @@ index 68b62a2b..f4372dd1 100644
  // Call out to the CF-level finalizer, because the object is going to go away.
  CF_CROSS_PLATFORM_EXPORT void _CFDeinit(CFTypeRef cf) {
      __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
+diff --git a/CoreFoundation/Base.subproj/CoreFoundation_Prefix.h b/CoreFoundation/Base.subproj/CoreFoundation_Prefix.h
+index 928fef00..c3981310 100644
+--- a/CoreFoundation/Base.subproj/CoreFoundation_Prefix.h
++++ b/CoreFoundation/Base.subproj/CoreFoundation_Prefix.h
+@@ -260,7 +260,7 @@ CF_INLINE uint64_t mach_absolute_time() {
+     ULONGLONG ullTime;
+ 	QueryUnbiasedInterruptTimePrecise(&ullTime);
+     return ullTime;
+-#elif TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_MAC
++#elif TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_MAC || TARGET_OS_WASI
+     struct timespec ts;
+     clock_gettime(CLOCK_MONOTONIC, &ts);
+     return (uint64_t)ts.tv_nsec + (uint64_t)ts.tv_sec * 1000000000UL;
 diff --git a/CoreFoundation/Base.subproj/ForFoundationOnly.h b/CoreFoundation/Base.subproj/ForFoundationOnly.h
-index 40847559..86fa81ec 100644
+index 40847559..df1ba11a 100644
 --- a/CoreFoundation/Base.subproj/ForFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForFoundationOnly.h
 @@ -28,10 +28,8 @@
@@ -134,7 +148,23 @@ index 40847559..86fa81ec 100644
  #include <math.h>
  #include <limits.h>
  
-@@ -651,11 +649,11 @@ CF_CROSS_PLATFORM_EXPORT void _CFURLInitWithFileSystemPathRelativeToBase(CFURLRe
+@@ -102,7 +100,6 @@ CF_EXPORT BOOL _NSIsNSCFConstantString(NSISARGTYPE arg);
+ CF_EXPORT BOOL _NSIsNSIndexSet(NSISARGTYPE arg);
+ CF_EXPORT BOOL _NSIsNSAttributedString(NSISARGTYPE arg);
+ 
+-#if !TARGET_OS_WASI
+ #pragma mark - CFBundle
+ 
+ #include <CoreFoundation/CFBundlePriv.h>
+@@ -127,7 +124,6 @@ CF_EXPORT Boolean _CFBundleLoadExecutableAndReturnError(CFBundleRef bundle, Bool
+ CF_EXPORT CFErrorRef _CFBundleCreateError(CFAllocatorRef _Nullable allocator, CFBundleRef bundle, CFIndex code);
+ 
+ _CF_EXPORT_SCOPE_END
+-#endif
+ 
+ #pragma mark - CFUUID
+ 
+@@ -651,11 +647,11 @@ CF_CROSS_PLATFORM_EXPORT void _CFURLInitWithFileSystemPathRelativeToBase(CFURLRe
  CF_CROSS_PLATFORM_EXPORT Boolean _CFURLInitWithURLString(CFURLRef url, CFStringRef string, Boolean checkForLegalCharacters, _Nullable CFURLRef baseURL);
  CF_CROSS_PLATFORM_EXPORT Boolean _CFURLInitAbsoluteURLWithBytes(CFURLRef url, const UInt8 *relativeURLBytes, CFIndex length, CFStringEncoding encoding, _Nullable CFURLRef baseURL);
  
@@ -148,7 +178,7 @@ index 40847559..86fa81ec 100644
  CF_EXPORT void _CFReadStreamInitialize(CFReadStreamRef readStream);
  CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index bac39185..2e430e5b 100644
+index bac39185..6babff13 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 @@ -84,6 +84,8 @@
@@ -160,7 +190,23 @@ index bac39185..2e430e5b 100644
  #endif // TARGET_OS_LINUX
  
  #include <stdlib.h>
-@@ -559,7 +561,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
+@@ -444,7 +446,6 @@ CF_EXPORT CFCharacterSetRef _CFCharacterSetCreateCopy(CFAllocatorRef alloc, CFCh
+ CF_EXPORT CFMutableCharacterSetRef _CFCharacterSetCreateMutableCopy(CFAllocatorRef alloc, CFCharacterSetRef theSet);
+ CF_CROSS_PLATFORM_EXPORT void _CFCharacterSetInitCopyingSet(CFAllocatorRef alloc, CFMutableCharacterSetRef cset, CFCharacterSetRef theSet, bool isMutable, bool validateSubclasses);
+ 
+-#if !TARGET_OS_WASI
+ CF_EXPORT _Nullable CFErrorRef CFReadStreamCopyError(CFReadStreamRef _Null_unspecified stream);
+ 
+ CF_EXPORT _Nullable CFErrorRef CFWriteStreamCopyError(CFWriteStreamRef _Null_unspecified stream);
+@@ -453,7 +454,6 @@ CF_CROSS_PLATFORM_EXPORT CFStringRef _Nullable _CFBundleCopyExecutablePath(CFBun
+ CF_CROSS_PLATFORM_EXPORT Boolean _CFBundleSupportsFHSBundles(void);
+ CF_CROSS_PLATFORM_EXPORT Boolean _CFBundleSupportsFreestandingBundles(void);
+ CF_CROSS_PLATFORM_EXPORT CFStringRef _Nullable _CFBundleCopyLoadedImagePathForAddress(const void *p);
+-#endif
+ 
+ CF_CROSS_PLATFORM_EXPORT CFStringRef __CFTimeZoneCopyDataVersionString(void);
+ 
+@@ -559,7 +559,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
  
  #if TARGET_OS_WIN32
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode);
@@ -202,10 +248,10 @@ index b373875a..6ad26f20 100644
  #include <CoreFoundation/CFSocket.h>
  #include <CoreFoundation/CFMachPort.h>
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index 4b3370a9..4079af58 100644
+index 4b3370a9..e1c57221 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
-@@ -140,6 +140,34 @@ else()
+@@ -140,6 +140,19 @@ else()
    set(FRAMEWORK_LIBRARY_TYPE STATIC)
  endif()
  
@@ -213,21 +259,6 @@ index 4b3370a9..4079af58 100644
 +
 +if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
 +  list(APPEND CF_WASI_UNAVAILABLE_SOURCES 
-+    # PlugIn
-+    PlugIn.subproj/CFBundle_Binary.c
-+    PlugIn.subproj/CFBundle.c
-+    PlugIn.subproj/CFBundle_DebugStrings.c
-+    PlugIn.subproj/CFBundle_Executable.c
-+    PlugIn.subproj/CFBundle_Grok.c
-+    PlugIn.subproj/CFBundle_InfoPlist.c
-+    PlugIn.subproj/CFBundle_Locale.c
-+    PlugIn.subproj/CFBundle_Main.c
-+    PlugIn.subproj/CFBundle_ResourceFork.c
-+    PlugIn.subproj/CFBundle_Resources.c
-+    PlugIn.subproj/CFBundle_SplitFileName.c
-+    PlugIn.subproj/CFBundle_Strings.c
-+    PlugIn.subproj/CFBundle_Tables.c
-+    PlugIn.subproj/CFPlugIn.c
 +    # RunLoop
 +    RunLoop.subproj/CFRunLoop.c
 +    RunLoop.subproj/CFSocket.c
@@ -240,32 +271,7 @@ index 4b3370a9..4079af58 100644
  add_framework(CoreFoundation
                  ${FRAMEWORK_LIBRARY_TYPE}
                FRAMEWORK_DIRECTORY
-@@ -342,36 +370,15 @@ add_framework(CoreFoundation
-                 Parsing.subproj/CFBinaryPList.c
-                 Parsing.subproj/CFOldStylePList.c
-                 Parsing.subproj/CFPropertyList.c
--                # PlugIn
--                PlugIn.subproj/CFBundle_Binary.c
--                PlugIn.subproj/CFBundle.c
--                PlugIn.subproj/CFBundle_DebugStrings.c
--                PlugIn.subproj/CFBundle_Executable.c
--                PlugIn.subproj/CFBundle_Grok.c
--                PlugIn.subproj/CFBundle_InfoPlist.c
--                PlugIn.subproj/CFBundle_Locale.c
--                PlugIn.subproj/CFBundle_Main.c
--                PlugIn.subproj/CFBundle_ResourceFork.c
--                PlugIn.subproj/CFBundle_Resources.c
--                PlugIn.subproj/CFBundle_SplitFileName.c
--                PlugIn.subproj/CFBundle_Strings.c
--                PlugIn.subproj/CFBundle_Tables.c
--                PlugIn.subproj/CFPlugIn.c
-                 # Preferences
--                Preferences.subproj/CFApplicationPreferences.c
-                 Preferences.subproj/CFPreferences.c
-+                Preferences.subproj/CFApplicationPreferences.c
-                 Preferences.subproj/CFXMLPreferencesDomain.c
-                 # RunLoop
-                 # TODO(compnerd) make this empty on non-Mach targets
+@@ -366,12 +379,6 @@ add_framework(CoreFoundation
                  # RunLoop.subproj/CFMachPort.c
                  # RunLoop.subproj/CFMachPort_Lifetime.c
                  # RunLoop.subproj/CFMessagePort.c
@@ -485,6 +491,19 @@ index 1a402990..9c6d3ae0 100644
  CFIndex CFPropertyListWrite(CFPropertyListRef propertyList, CFWriteStreamRef stream, CFPropertyListFormat format, CFOptionFlags options, CFErrorRef *error) {
      CFAssert1(stream != NULL, __kCFLogAssertion, "%s(): NULL stream not allowed", __PRETTY_FUNCTION__);
      CFAssert1(format != kCFPropertyListOpenStepFormat, __kCFLogAssertion, "%s(): kCFPropertyListOpenStepFormat not supported for writing", __PRETTY_FUNCTION__);
+diff --git a/CoreFoundation/PlugIn.subproj/CFBundle.c b/CoreFoundation/PlugIn.subproj/CFBundle.c
+index e9e6db3d..bdf20e0d 100644
+--- a/CoreFoundation/PlugIn.subproj/CFBundle.c
++++ b/CoreFoundation/PlugIn.subproj/CFBundle.c
+@@ -42,7 +42,7 @@
+ #endif
+ #endif /* BINARY_SUPPORT_DLFCN */
+ 
+-#if TARGET_OS_MAC
++#if TARGET_OS_MAC || TARGET_OS_WASI
+ #include <fcntl.h>
+ #elif TARGET_OS_WIN32
+ #include <fcntl.h>
 diff --git a/CoreFoundation/PlugIn.subproj/CFBundle_BinaryTypes.h b/CoreFoundation/PlugIn.subproj/CFBundle_BinaryTypes.h
 index 7528e80e..33e74b3f 100644
 --- a/CoreFoundation/PlugIn.subproj/CFBundle_BinaryTypes.h
@@ -511,7 +530,7 @@ index 365504a9..6dcd4470 100644
          executableURL = CFURLCreateWithFileSystemPathRelativeToBase(kCFAllocatorSystemDefault, exeName, kCFURLPOSIXPathStyle, false, urlPath);
          if (!_binaryLoadable(executableURL)) {
 diff --git a/CoreFoundation/PlugIn.subproj/CFBundle_InfoPlist.c b/CoreFoundation/PlugIn.subproj/CFBundle_InfoPlist.c
-index 3a9e0101..7be06173 100644
+index 3a9e0101..5f4c926b 100644
 --- a/CoreFoundation/PlugIn.subproj/CFBundle_InfoPlist.c
 +++ b/CoreFoundation/PlugIn.subproj/CFBundle_InfoPlist.c
 @@ -15,7 +15,7 @@
@@ -546,7 +565,7 @@ index 3a9e0101..7be06173 100644
  #elif TARGET_OS_BSD
      return CFSTR("FreeBSD");
 +#elif TARGET_OS_WASI
-+    return CFStr("WASI");
++    return CFSTR("WASI");
  #else
  #error Unknown or unspecified DEPLOYMENT_TARGET
  #endif
@@ -1074,61 +1093,6 @@ index 93d257c5..f8e58a4e 100644
  #include <syslog.h>
  #endif
  #include <CoreFoundation/CFURLPriv.h>
-diff --git a/Sources/Foundation/Bundle.swift b/Sources/Foundation/Bundle.swift
-index 67223bfc..ea97b402 100644
---- a/Sources/Foundation/Bundle.swift
-+++ b/Sources/Foundation/Bundle.swift
-@@ -7,6 +7,7 @@
- // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
- //
- 
-+#if !os(WASI)
- @_implementationOnly import CoreFoundation
- 
- @_silgen_name("swift_getTypeContextDescriptor")
-@@ -427,3 +428,42 @@ open class Bundle: NSObject {
-         return Int(bitPattern: CFHash(_bundle))
-     }
- }
-+
-+#else
-+
-+open class Bundle {
-+    public let bundlePath: String
-+
-+    public static let main = Bundle(path: "")!
-+
-+    public init?(path: String) {
-+        bundlePath = path
-+    }
-+
-+    // -----------------------------------------------------------------------------------
-+
-+    // MARK: - Path Resource Lookup - Instance
-+
-+    open func path(forResource name: String?, ofType ext: String?) -> String? {
-+        path(forResource: name, ofType: ext, inDirectory: nil)
-+    }
-+
-+    open func path(forResource name: String?, ofType ext: String?, inDirectory subpath: String?) -> String? {
-+        guard let name = name else { return nil }
-+
-+        let subpathOrEmpty: String
-+        if let subpath = subpath {
-+            subpathOrEmpty = "\(subpath)/"
-+        } else {
-+            subpathOrEmpty = ""
-+        }
-+
-+        if let ext = ext {
-+            return "\(bundlePath)/\(subpathOrEmpty)\(name).\(ext)"
-+        } else {
-+            return "\(bundlePath)/\(subpathOrEmpty)\(name)"
-+        }
-+    }
-+}
-+
-+#endif
 diff --git a/Sources/Foundation/CMakeLists.txt b/Sources/Foundation/CMakeLists.txt
 index fbb0b62b..d9516268 100644
 --- a/Sources/Foundation/CMakeLists.txt
