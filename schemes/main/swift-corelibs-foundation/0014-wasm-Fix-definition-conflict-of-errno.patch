@@ -1,4 +1,4 @@
-From 06fe4f854c34e708e48153603a0029678b474d01 Mon Sep 17 00:00:00 2001
+From ec789524f7020ef0e48eab75fd11a7090b6ef5db Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 23 Feb 2024 04:08:12 +0000
 Subject: [PATCH] [wasm] Fix definition conflict of `errno`

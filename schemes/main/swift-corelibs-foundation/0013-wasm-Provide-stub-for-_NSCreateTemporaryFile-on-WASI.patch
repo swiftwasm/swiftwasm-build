@@ -1,4 +1,4 @@
-From 329bbcf05e18ccf9aea40b0752c6fb2038f36440 Mon Sep 17 00:00:00 2001
+From 9c111b4e9ebd970845c91ae0d78618ee1f7708e5 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:45:16 +0000
 Subject: [PATCH] [wasm] Provide stub for `_NSCreateTemporaryFile` on WASI
