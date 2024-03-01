@@ -1,4 +1,4 @@
-From e1cede9ca682e0626662a988d29690714d7de7b0 Mon Sep 17 00:00:00 2001
+From c16b3337293c3a27563c6a0629565b52dd19a3a0 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:50:07 +0000
 Subject: [PATCH] [wasm] Port `CoreFoundation/StringEncodings.subproj`

@@ -1,4 +1,4 @@
-From b9b4d71c464581eaeb6a36f7a52db1e865c01978 Mon Sep 17 00:00:00 2001
+From 424d35995f893a94ae0eabf3cd69d61eeb64b094 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:51:05 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/PlugIn.subproj
@@ -6,11 +6,10 @@ Subject: [PATCH] [wasm] Port CoreFoundation/PlugIn.subproj
 ---
  CoreFoundation/PlugIn.subproj/CFBundle.c             | 2 +-
  CoreFoundation/PlugIn.subproj/CFBundle_BinaryTypes.h | 1 +
- CoreFoundation/PlugIn.subproj/CFBundle_Executable.c  | 2 +-
  CoreFoundation/PlugIn.subproj/CFBundle_InfoPlist.c   | 8 +++++++-
- CoreFoundation/PlugIn.subproj/CFBundle_Internal.h    | 3 +++
+ CoreFoundation/PlugIn.subproj/CFBundle_Internal.h    | 5 ++++-
  CoreFoundation/PlugIn.subproj/CFBundle_Resources.c   | 4 ++++
- 6 files changed, 17 insertions(+), 3 deletions(-)
+ 5 files changed, 17 insertions(+), 3 deletions(-)
 
 diff --git a/CoreFoundation/PlugIn.subproj/CFBundle.c b/CoreFoundation/PlugIn.subproj/CFBundle.c
 index e9e6db3d..bdf20e0d 100644
@@ -37,19 +36,6 @@ index 7528e80e..33e74b3f 100644
  #else
  #error Unknown or unspecified DEPLOYMENT_TARGET
  #endif
-diff --git a/CoreFoundation/PlugIn.subproj/CFBundle_Executable.c b/CoreFoundation/PlugIn.subproj/CFBundle_Executable.c
-index 365504a9..6dcd4470 100644
---- a/CoreFoundation/PlugIn.subproj/CFBundle_Executable.c
-+++ b/CoreFoundation/PlugIn.subproj/CFBundle_Executable.c
-@@ -74,7 +74,7 @@ static CFURLRef _CFBundleCopyExecutableURLRaw(CFURLRef urlPath, CFStringRef exeN
-     CFURLRef executableURL = NULL;
-     if (!urlPath || !exeName) return NULL;
-     
--#if !DEPLOYMENT_RUNTIME_OBJC && !TARGET_OS_WIN32
-+#if !DEPLOYMENT_RUNTIME_OBJC && !TARGET_OS_WIN32 && !TARGET_OS_WASI
-     if (!executableURL) {
-         executableURL = CFURLCreateWithFileSystemPathRelativeToBase(kCFAllocatorSystemDefault, exeName, kCFURLPOSIXPathStyle, false, urlPath);
-         if (!_binaryLoadable(executableURL)) {
 diff --git a/CoreFoundation/PlugIn.subproj/CFBundle_InfoPlist.c b/CoreFoundation/PlugIn.subproj/CFBundle_InfoPlist.c
 index 3a9e0101..5f4c926b 100644
 --- a/CoreFoundation/PlugIn.subproj/CFBundle_InfoPlist.c
@@ -91,10 +77,17 @@ index 3a9e0101..5f4c926b 100644
  #error Unknown or unspecified DEPLOYMENT_TARGET
  #endif
 diff --git a/CoreFoundation/PlugIn.subproj/CFBundle_Internal.h b/CoreFoundation/PlugIn.subproj/CFBundle_Internal.h
-index def3aafc..7707d166 100644
+index def3aafc..6aa18128 100644
 --- a/CoreFoundation/PlugIn.subproj/CFBundle_Internal.h
 +++ b/CoreFoundation/PlugIn.subproj/CFBundle_Internal.h
-@@ -38,6 +38,7 @@ CF_EXTERN_C_BEGIN
+@@ -32,12 +32,13 @@ CF_EXTERN_C_BEGIN
+ // FHS bundles are supported on the Swift and C runtimes, except on Windows.
+ #if !DEPLOYMENT_RUNTIME_OBJC && !TARGET_OS_WIN32
+ 
+-#if TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_ANDROID
++#if TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_ANDROID || TARGET_OS_WASI
+ #define _CFBundleFHSSharedLibraryFilenamePrefix CFSTR("lib")
+ #define _CFBundleFHSSharedLibraryFilenameSuffix CFSTR(".so")
  #elif TARGET_OS_MAC
  #define _CFBundleFHSSharedLibraryFilenamePrefix CFSTR("lib")
  #define _CFBundleFHSSharedLibraryFilenameSuffix CFSTR(".dylib")
