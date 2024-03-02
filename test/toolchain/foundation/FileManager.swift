@@ -2,7 +2,7 @@
 // RUN: rm -rf %t.dir
 // RUN: mkdir -p %t.dir
 // RUN: %{wasm_run} --dir %t.dir::/tmp --dir %S/Inputs::/Inputs %t.wasm | %{FileCheck} %s
-// REQUIRES: FileCheck
+// REQUIRES: FileCheck && scheme=main
 
 import Foundation
 
