@@ -1,4 +1,4 @@
-From 3db3bf02723177e5d9c4e9d037f6114ae6618728 Mon Sep 17 00:00:00 2001
+From ec9ed77acd095ece8b16a5624a4541c5aea8646a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 09:09:43 +0000
 Subject: [PATCH] [wasm] Remove too conservative guards around file operations
@@ -8,10 +8,10 @@ they are too conservative and the latest wasi-libc is now providing
 enough support for these operations.
 ---
  Sources/Foundation/Data.swift            |  5 +----
- Sources/Foundation/NSData.swift          |  7 -------
+ Sources/Foundation/NSData.swift          |  8 --------
  Sources/Foundation/NSPathUtilities.swift | 13 ++++---------
  Sources/Foundation/NSURL.swift           | 14 --------------
- 4 files changed, 5 insertions(+), 34 deletions(-)
+ 4 files changed, 5 insertions(+), 35 deletions(-)
 
 diff --git a/Sources/Foundation/Data.swift b/Sources/Foundation/Data.swift
 index 23254e6b..091adbfa 100644
@@ -58,7 +58,7 @@ index 23254e6b..091adbfa 100644
      // MARK: -
      
 diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
-index e004c950..b1474899 100644
+index e004c950..ae0ac585 100644
 --- a/Sources/Foundation/NSData.swift
 +++ b/Sources/Foundation/NSData.swift
 @@ -151,7 +151,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
@@ -101,7 +101,15 @@ index e004c950..b1474899 100644
      internal static func readBytesFromFileWithExtendedAttributes(_ path: String, options: ReadingOptions) throws -> NSDataReadResult {
          guard let handle = FileHandle(path: path, flags: O_RDONLY, createMode: 0) else {
              throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: nil)
-@@ -1012,7 +1007,6 @@ open class NSMutableData : NSData {
+@@ -545,7 +540,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+         }
+         try write(toFile: url.path, options: writeOptionsMask)
+     }
+-#endif
+ 
+     // MARK: - Bytes
+     /// Copies a number of bytes from the start of the data object into a given buffer.
+@@ -1012,7 +1006,6 @@ open class NSMutableData : NSData {
          super.init(data: data)
      }
  
@@ -109,7 +117,7 @@ index e004c950..b1474899 100644
      public override init?(contentsOfFile path: String) {
          super.init(contentsOfFile: path)
      }
-@@ -1028,7 +1022,6 @@ open class NSMutableData : NSData {
+@@ -1028,7 +1021,6 @@ open class NSMutableData : NSData {
      public override init(contentsOf url: URL, options: NSData.ReadingOptions = []) throws {
          try super.init(contentsOf: url, options: options)
      }

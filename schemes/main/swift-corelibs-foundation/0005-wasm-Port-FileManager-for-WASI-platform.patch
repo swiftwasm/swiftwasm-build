@@ -1,4 +1,4 @@
-From c1ec4388e662d866894b51962cef592e4e9b1328 Mon Sep 17 00:00:00 2001
+From 232e89b439816fe1ab82ea5d1efc020e9adcc700 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 09:12:57 +0000
 Subject: [PATCH] [wasm] Port FileManager for WASI platform
@@ -7,9 +7,9 @@ Subject: [PATCH] [wasm] Port FileManager for WASI platform
  .../Base.subproj/ForSwiftFoundationOnly.h     | 16 +++-
  Sources/Foundation/FileHandle.swift           |  6 ++
  Sources/Foundation/FileManager+POSIX.swift    | 73 +++++++++++++++++++
- Sources/Foundation/FileManager.swift          | 13 +++-
- Sources/Foundation/NSData.swift               |  3 +-
- 5 files changed, 105 insertions(+), 6 deletions(-)
+ Sources/Foundation/FileManager.swift          | 11 +++
+ Sources/Foundation/NSData.swift               |  2 +
+ 5 files changed, 105 insertions(+), 3 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 index 37d38f26..bac39185 100644
@@ -78,7 +78,7 @@ index 285bed70..5fb7258c 100644
  
  #if canImport(WinSDK)
 diff --git a/Sources/Foundation/FileManager+POSIX.swift b/Sources/Foundation/FileManager+POSIX.swift
-index 1c50e458..4d4a2b48 100644
+index 1c50e458..105f938c 100644
 --- a/Sources/Foundation/FileManager+POSIX.swift
 +++ b/Sources/Foundation/FileManager+POSIX.swift
 @@ -106,6 +106,32 @@ extension FileManager {
@@ -137,7 +137,7 @@ index 1c50e458..4d4a2b48 100644
      }
          
      internal func _recursiveDestinationOfSymbolicLink(atPath path: String) throws -> String {
-+        #if canImport(WASILibc)
++        #if os(WASI)
 +        // TODO: Remove this guard when realpath implementation will be released
 +        // See https://github.com/WebAssembly/wasi-libc/pull/473
 +        throw _NSErrorWithErrno(ENOTSUP, reading: true, path: path)
@@ -154,7 +154,7 @@ index 1c50e458..4d4a2b48 100644
  
      /* Returns a String with a canonicalized path for the element at the specified path. */
      internal func _canonicalizedPath(toFileAtPath path: String) throws -> String {
-+        #if canImport(WASILibc)
++        #if os(WASI)
 +        // TODO: Remove this guard when realpath implementation will be released
 +        // See https://github.com/WebAssembly/wasi-libc/pull/473
 +        throw _NSErrorWithErrno(ENOTSUP, reading: true, path: path)
@@ -174,7 +174,7 @@ index 1c50e458..4d4a2b48 100644
          }
          defer { close(dstfd) }
  
-+        #if !os(WASI)
++        #if !os(WASI) // WASI doesn't have ownership concept
          // Set the file permissions using fchmod() instead of when open()ing to avoid umask() issues
          let permissions = fileInfo.st_mode & ~S_IFMT
          guard fchmod(dstfd, permissions) == 0 else {
@@ -256,7 +256,7 @@ index 1c50e458..4d4a2b48 100644
      internal func _updateTimes(atPath path: String, withFileSystemRepresentation fsr: UnsafePointer<Int8>, creationTime: Date? = nil, accessTime: Date? = nil, modificationTime: Date? = nil) throws {
          let stat = try _lstatFile(atPath: path, withFileSystemRepresentation: fsr)
 diff --git a/Sources/Foundation/FileManager.swift b/Sources/Foundation/FileManager.swift
-index 1aa3038a..cfe264f5 100644
+index 1aa3038a..fdd84115 100644
 --- a/Sources/Foundation/FileManager.swift
 +++ b/Sources/Foundation/FileManager.swift
 @@ -21,6 +21,10 @@ import CRT
@@ -289,28 +289,17 @@ index 1aa3038a..cfe264f5 100644
                  
                  case .modificationDate: fallthrough
                  case ._accessDate:
-@@ -567,7 +576,7 @@ open class FileManager : NSObject {
+@@ -567,6 +576,8 @@ open class FileManager : NSObject {
          result[.deviceIdentifier] = NSNumber(value: UInt64(s.st_rdev))
          let attributes = try windowsFileAttributes(atPath: path)
          let type = FileAttributeType(attributes: attributes, atPath: path)
--#else
-+#elseif !os(WASI)
++#elseif os(WASI)
++        let type = FileAttributeType(statMode: mode_t(s.st_mode))
+ #else
          if let pwd = getpwuid(s.st_uid), pwd.pointee.pw_name != nil {
              let name = String(cString: pwd.pointee.pw_name)
-             result[.ownerAccountName] = name
-@@ -577,9 +586,9 @@ open class FileManager : NSObject {
-             let name = String(cString: grd.pointee.gr_name)
-             result[.groupOwnerAccountName] = name
-         }
-+#endif
- 
-         let type = FileAttributeType(statMode: mode_t(s.st_mode))
--#endif
-         result[.type] = type
- 
-         if type == .typeBlockSpecial || type == .typeCharacterSpecial {
 diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
-index b1474899..aaeeb9ae 100644
+index ae0ac585..aaeeb9ae 100644
 --- a/Sources/Foundation/NSData.swift
 +++ b/Sources/Foundation/NSData.swift
 @@ -493,6 +493,8 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
@@ -322,14 +311,6 @@ index b1474899..aaeeb9ae 100644
  #endif
              guard let fh = FileHandle(path: path, flags: flags, createMode: createMode) else {
                  throw _NSErrorWithErrno(errno, reading: false, path: path)
-@@ -540,7 +542,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
-         }
-         try write(toFile: url.path, options: writeOptionsMask)
-     }
--#endif
- 
-     // MARK: - Bytes
-     /// Copies a number of bytes from the start of the data object into a given buffer.
 -- 
 2.43.0
 
