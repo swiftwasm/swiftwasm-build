@@ -1,4 +1,4 @@
-From b40bece49c1e30ae16f2453f9f4db2caa03d5730 Mon Sep 17 00:00:00 2001
+From 78ce69abcaad6f361db1c6f46e2a36ad112c8e93 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:52:21 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/Base.subproj

@@ -1,4 +1,4 @@
-From cdfaa13b637622e2f91085249eddea6cc2fb35b9 Mon Sep 17 00:00:00 2001
+From 3c67d533d67fb87364225493b36d686c2cdc419a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:09:08 +0000
 Subject: [PATCH] [wasm] Port use of `dirent` for wasi-libc
