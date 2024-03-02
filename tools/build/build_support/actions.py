@@ -69,6 +69,12 @@ class ApplyPatchesAction(Action):
         if status != 0:
             raise Exception('Repository is not clean. Please commit or stash your changes.')
 
+        # Reset "am" state
+        try:
+            self.system('git', '-C', self.repo_dir, 'am', '--abort')
+        except Exception:
+            pass  # Ignore errors if there's no "am" in progress
+
         staging_branch = self.compute_unique_branch_name('swiftwasm-staging/{}'.format(self.options.tag))
         self.system('git', '-C', self.repo_dir, 'switch', '-c', staging_branch)
         for patch in patches:
