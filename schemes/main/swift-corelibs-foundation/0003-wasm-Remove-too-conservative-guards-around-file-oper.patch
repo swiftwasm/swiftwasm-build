@@ -1,4 +1,4 @@
-From ec9ed77acd095ece8b16a5624a4541c5aea8646a Mon Sep 17 00:00:00 2001
+From 6f8c51d1df686fbafd468e53ce5d76f918b24bee Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 09:09:43 +0000
 Subject: [PATCH] [wasm] Remove too conservative guards around file operations
@@ -58,7 +58,7 @@ index 23254e6b..091adbfa 100644
      // MARK: -
      
 diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
-index e004c950..ae0ac585 100644
+index 5f364030..aaeeb9ae 100644
 --- a/Sources/Foundation/NSData.swift
 +++ b/Sources/Foundation/NSData.swift
 @@ -151,7 +151,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
@@ -101,7 +101,7 @@ index e004c950..ae0ac585 100644
      internal static func readBytesFromFileWithExtendedAttributes(_ path: String, options: ReadingOptions) throws -> NSDataReadResult {
          guard let handle = FileHandle(path: path, flags: O_RDONLY, createMode: 0) else {
              throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: nil)
-@@ -545,7 +540,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+@@ -547,7 +542,6 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
          }
          try write(toFile: url.path, options: writeOptionsMask)
      }
@@ -109,7 +109,7 @@ index e004c950..ae0ac585 100644
  
      // MARK: - Bytes
      /// Copies a number of bytes from the start of the data object into a given buffer.
-@@ -1012,7 +1006,6 @@ open class NSMutableData : NSData {
+@@ -1014,7 +1008,6 @@ open class NSMutableData : NSData {
          super.init(data: data)
      }
  
@@ -117,7 +117,7 @@ index e004c950..ae0ac585 100644
      public override init?(contentsOfFile path: String) {
          super.init(contentsOfFile: path)
      }
-@@ -1028,7 +1021,6 @@ open class NSMutableData : NSData {
+@@ -1030,7 +1023,6 @@ open class NSMutableData : NSData {
      public override init(contentsOf url: URL, options: NSData.ReadingOptions = []) throws {
          try super.init(contentsOf: url, options: options)
      }
@@ -126,10 +126,10 @@ index e004c950..ae0ac585 100644
      public override init?(base64Encoded base64Data: Data, options: NSData.Base64DecodingOptions = []) {
          super.init(base64Encoded: base64Data, options: options)
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index 1726b351..3d2507fd 100644
+index f7e69c46..32538456 100644
 --- a/Sources/Foundation/NSPathUtilities.swift
 +++ b/Sources/Foundation/NSPathUtilities.swift
-@@ -195,7 +195,6 @@ extension String {
+@@ -204,7 +204,6 @@ extension String {
          return temp
      }
      
@@ -137,7 +137,7 @@ index 1726b351..3d2507fd 100644
      internal func _tryToRemovePathPrefix(_ prefix: String) -> String? {
          guard self != prefix else {
              return nil
-@@ -208,7 +207,6 @@ extension String {
+@@ -217,7 +216,6 @@ extension String {
          
          return nil
      }
@@ -145,7 +145,7 @@ index 1726b351..3d2507fd 100644
  }
  
  extension NSString {
-@@ -338,7 +336,6 @@ extension NSString {
+@@ -347,7 +345,6 @@ extension NSString {
          return result._stringByFixingSlashes()
      }
  
@@ -153,7 +153,7 @@ index 1726b351..3d2507fd 100644
      public var expandingTildeInPath: String {
          guard hasPrefix("~") else {
              return _swiftObject
-@@ -359,7 +356,6 @@ extension NSString {
+@@ -368,7 +365,6 @@ extension NSString {
          
          return result
      }
@@ -161,7 +161,7 @@ index 1726b351..3d2507fd 100644
  
  #if os(Windows)
      public var unixPath: String {
-@@ -374,7 +370,6 @@ extension NSString {
+@@ -383,7 +379,6 @@ extension NSString {
      }
  #endif
      
@@ -169,7 +169,7 @@ index 1726b351..3d2507fd 100644
      public var standardizingPath: String {
  #if os(Windows)
          let expanded = unixPath.expandingTildeInPath
-@@ -422,8 +417,6 @@ extension NSString {
+@@ -431,8 +426,6 @@ extension NSString {
          
          return resolvedPath
      }
@@ -178,7 +178,7 @@ index 1726b351..3d2507fd 100644
      public func stringsByAppendingPaths(_ paths: [String]) -> [String] {
          if self == "" {
              return paths
-@@ -655,7 +648,6 @@ extension NSString {
+@@ -664,7 +657,6 @@ extension NSString {
  
  }
  
@@ -186,7 +186,7 @@ index 1726b351..3d2507fd 100644
  extension FileManager {
      public enum SearchPathDirectory: UInt {
          
-@@ -731,6 +723,9 @@ public func NSHomeDirectory() -> String {
+@@ -740,6 +732,9 @@ public func NSHomeDirectory() -> String {
  }
  
  public func NSHomeDirectoryForUser(_ user: String?) -> String? {
@@ -196,7 +196,7 @@ index 1726b351..3d2507fd 100644
      let userName = user?._cfObject
      guard let homeDir = CFCopyHomeDirectoryURLForUser(userName)?.takeRetainedValue() else {
          return nil
-@@ -738,6 +733,7 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
+@@ -747,6 +742,7 @@ public func NSHomeDirectoryForUser(_ user: String?) -> String? {
      
      let url: URL = homeDir._swiftObject
      return url.path
@@ -204,7 +204,7 @@ index 1726b351..3d2507fd 100644
  }
  
  public func NSUserName() -> String {
-@@ -831,4 +827,3 @@ internal func _NSCleanupTemporaryFile(_ auxFilePath: String, _ filePath: String)
+@@ -844,4 +840,3 @@ internal func _NSCleanupTemporaryFile(_ auxFilePath: String, _ filePath: String)
      })
  #endif
  }

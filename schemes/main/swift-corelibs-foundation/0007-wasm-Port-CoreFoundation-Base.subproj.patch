@@ -1,4 +1,4 @@
-From 78ce69abcaad6f361db1c6f46e2a36ad112c8e93 Mon Sep 17 00:00:00 2001
+From 328e6de136efee6f5a90e07bc1a4fa0eee9a0886 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:52:21 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/Base.subproj
@@ -90,7 +90,7 @@ index 40847559..df1ba11a 100644
  CF_EXPORT void _CFReadStreamInitialize(CFReadStreamRef readStream);
  CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index bac39185..2c998482 100644
+index d78eeddf..a3fc3691 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 @@ -64,6 +64,8 @@
