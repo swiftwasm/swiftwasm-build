@@ -1,0 +1,48 @@
+From b05d956dd468662ea1f6febd7839f279b59b630d Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 14 Feb 2024 12:09:08 +0000
+Subject: [PATCH] [wasm] Port use of `dirent` for wasi-libc
+
+wasi-libc defines `d_name` as "flexible array member" which is not
+supported by ClangImporter yet. This patch replaces the use of `d_name`
+with a helper function `_direntName` to work around the issue.
+---
+ CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h | 4 ++++
+ Sources/Foundation/FileManager+POSIX.swift           | 6 ++----
+ 2 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
+index d78eeddf..bac39185 100644
+--- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
++++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
+@@ -576,6 +576,10 @@ static inline int _direntNameLength(struct dirent *entry) {
+ #endif
+ }
+ 
++static inline char *_direntName(struct dirent *entry) {
++    return entry->d_name;
++}
++
+ // major() and minor() might be implemented as macros or functions.
+ static inline unsigned int _dev_major(dev_t rdev) {
+ #if !TARGET_OS_WASI
+diff --git a/Sources/Foundation/FileManager+POSIX.swift b/Sources/Foundation/FileManager+POSIX.swift
+index 462d9341..105f938c 100644
+--- a/Sources/Foundation/FileManager+POSIX.swift
++++ b/Sources/Foundation/FileManager+POSIX.swift
+@@ -447,10 +447,8 @@ extension FileManager {
+             errno = 0
+             while let entry = readdir(dir) {
+                 let length = Int(_direntNameLength(entry))
+-                let entryName = withUnsafePointer(to: entry.pointee.d_name) { (ptr) -> String in
+-                    let namePtr = UnsafeRawPointer(ptr).assumingMemoryBound(to: CChar.self)
+-                    return string(withFileSystemRepresentation: namePtr, length: length)
+-                }
++                let namePtr = UnsafeRawPointer(_direntName(entry)).assumingMemoryBound(to: CChar.self)
++                let entryName = string(withFileSystemRepresentation: namePtr, length: length)
+                 if entryName != "." && entryName != ".." {
+                     let entryType = Int32(entry.pointee.d_type)
+                     try closure(entryName, entryType)
+-- 
+2.43.0
+
