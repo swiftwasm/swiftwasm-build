@@ -1,4 +1,4 @@
-From 14d685f292d2924feaf7e26c3fa76431fe60c6a4 Mon Sep 17 00:00:00 2001
+From 35a65a1dd030c55ca315eaa5138d6f3df3e193da Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:43:15 +0000
 Subject: [PATCH] HACK: [wasm] Hard-define wasi-libc constants
@@ -9,7 +9,7 @@ They are defined in the way ClangImporter can't handle them
  1 file changed, 10 insertions(+)
 
 diff --git a/Sources/Foundation/FileManager+POSIX.swift b/Sources/Foundation/FileManager+POSIX.swift
-index 7c2a4e9c..1c50e458 100644
+index a69d71e9..462d9341 100644
 --- a/Sources/Foundation/FileManager+POSIX.swift
 +++ b/Sources/Foundation/FileManager+POSIX.swift
 @@ -13,6 +13,16 @@ internal func &(left: UInt32, right: mode_t) -> mode_t {
