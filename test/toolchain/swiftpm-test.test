@@ -5,3 +5,7 @@ RUN: rm -rf %t.dir
 RUN: mkdir -p %t.dir
 RUN: %{swift} package init --package-path %t.dir --name Example
 RUN: %{swift} build --package-path %t.dir --triple wasm32-unknown-wasi --build-tests -Xswiftc -resource-dir -Xswiftc %{package_path}/usr/lib/swift_static
+RUN: %{wasm_run} %t.dir/.build/debug/ExamplePackageTests.wasm | %{FileCheck} %s
+
+CHECK: Test Suite 'All tests' passed at
+CHECK:          Executed 1 test, with 0 failures (0 unexpected) in
