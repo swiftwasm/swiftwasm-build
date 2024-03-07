@@ -1,4 +1,4 @@
-From ce3547fe974e427d7d5415a48e1395664df0db7c Mon Sep 17 00:00:00 2001
+From 9297f985f1d8df85bac06582f183b123f5baa0d2 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 24 Feb 2024 11:17:15 +0000
 Subject: [PATCH] WebAssembly Support
@@ -17,12 +17,12 @@ Subject: [PATCH] WebAssembly Support
  Sources/XCTest/Public/XCAbstractTest.swift    |   2 +
  Sources/XCTest/Public/XCTestCase.swift        |  68 +++++--
  Sources/XCTest/Public/XCTestErrors.swift      |   9 +
- Sources/XCTest/Public/XCTestMain.swift        |  27 +++
+ Sources/XCTest/Public/XCTestMain.swift        |  29 +++
  Sources/XCTest/Public/XCTestObservation.swift |   9 +-
  .../Public/XCTestObservationCenter.swift      |   4 +
  Sources/XCTest/Public/XCTestSuite.swift       |   8 +-
  cmake/modules/SwiftSupport.cmake              |   2 +
- 18 files changed, 517 insertions(+), 37 deletions(-)
+ 18 files changed, 519 insertions(+), 37 deletions(-)
  create mode 100644 Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp
  create mode 100644 Sources/XCTest/Private/Shims.swift
  create mode 100644 Sources/XCTest/Public/CodableObserver.swift
@@ -929,7 +929,7 @@ index a18af0a..00fc381 100644
  public extension XCTestError {
      /// Indicates that one or more expectations failed to be fulfilled in time
 diff --git a/Sources/XCTest/Public/XCTestMain.swift b/Sources/XCTest/Public/XCTestMain.swift
-index 33572e7..b55c7b9 100644
+index 33572e7..fc4cf01 100644
 --- a/Sources/XCTest/Public/XCTestMain.swift
 +++ b/Sources/XCTest/Public/XCTestMain.swift
 @@ -30,6 +30,9 @@
@@ -964,15 +964,15 @@ index 33572e7..b55c7b9 100644
          rootTestSuite.addTest(currentTestSuite)
      } else {
          rootTestSuite = XCTestSuite(name: "Selected tests")
-@@ -145,11 +154,29 @@ public func XCTMain(
+@@ -145,11 +154,31 @@ public func XCTMain(
              observationCenter.addTestObserver(observer)
          }
  
 +#if !os(WASI)
          observationCenter.testBundleWillStart(testBundle)
 +#endif
-+        @Sendable func afterRun() -> CInt {
          rootTestSuite.run()
++        @Sendable func afterRun() -> CInt {
 +#if !os(WASI)
          observationCenter.testBundleDidFinish(testBundle)
 +#endif
@@ -981,13 +981,15 @@ index 33572e7..b55c7b9 100644
 +        }
 +
 +        if let performTask = rootTestSuite.performTask {
-+            var exitCode: CInt = EXIT_FAILURE
 +            Task {
 +                _ = await performTask.value
-+                exitCode = afterRun()
++                exit(afterRun())
 +            }
 +            XCTMainRunLoopMain()
-+            return exitCode
++            // XCTMainRunLoopMain may return if the run loop needs to be run outside
++            // of this process. In that case, we return dummy value to satisfy the
++            // type checker.
++            return 0
 +        } else {
 +            return afterRun()
 +        }
@@ -1093,10 +1095,10 @@ index 177dd1c..870b878 100644
  
      public init(name: String) {
 diff --git a/cmake/modules/SwiftSupport.cmake b/cmake/modules/SwiftSupport.cmake
-index 373c0fe..98dd0dc 100644
+index 3c9dbc5..cabd5d1 100644
 --- a/cmake/modules/SwiftSupport.cmake
 +++ b/cmake/modules/SwiftSupport.cmake
-@@ -34,6 +34,8 @@ function(get_swift_host_arch result_var_name)
+@@ -36,6 +36,8 @@ function(get_swift_host_arch result_var_name)
      set("${result_var_name}" "i686" PARENT_SCOPE)
    elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "i686")
      set("${result_var_name}" "i686" PARENT_SCOPE)
