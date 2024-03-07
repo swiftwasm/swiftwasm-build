@@ -1,4 +1,4 @@
-From 1edf3396dcbfb0cc11470e9b98e96ed62a45c500 Mon Sep 17 00:00:00 2001
+From f136cb1e7b64edcfe828cf99034f0f2b3316ceaf Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:52:39 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/CMakeLists.txt
