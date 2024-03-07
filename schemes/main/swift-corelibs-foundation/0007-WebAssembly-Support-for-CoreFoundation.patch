@@ -1,31 +1,30 @@
-From 2f6820357b047160ec34e5d7998c82c0128336cd Mon Sep 17 00:00:00 2001
+From 260d82f3b30182ea44b016d4ec6c2b6da8d8ed19 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:52:55 +0000
 Subject: [PATCH] WebAssembly Support for CoreFoundation
 
 ---
- CoreFoundation/Locale.subproj/CFLocale.c        |  6 ++++--
+ CoreFoundation/Locale.subproj/CFLocale.c        |  6 +-----
  CoreFoundation/NumberDate.subproj/CFDate.c      | 12 ++++++------
  CoreFoundation/Parsing.subproj/CFPropertyList.c | 11 +++++++----
  CoreFoundation/RunLoop.subproj/CFRunLoop.c      |  2 +-
  CoreFoundation/Stream.subproj/CFStream.h        |  6 +++++-
- 5 files changed, 23 insertions(+), 14 deletions(-)
+ 5 files changed, 20 insertions(+), 17 deletions(-)
 
 diff --git a/CoreFoundation/Locale.subproj/CFLocale.c b/CoreFoundation/Locale.subproj/CFLocale.c
-index 738ff28a..344dbbad 100644
+index 738ff28a..2c2a942d 100644
 --- a/CoreFoundation/Locale.subproj/CFLocale.c
 +++ b/CoreFoundation/Locale.subproj/CFLocale.c
-@@ -19,15 +19,15 @@
+@@ -19,15 +19,11 @@
  #include <CoreFoundation/CFNumber.h>
  #include "CFInternal.h"
  #include "CFRuntime_Internal.h"
 -#if !TARGET_OS_WASI
  #include <CoreFoundation/CFPreferences.h>
-+#if !TARGET_OS_WASI
  #include "CFBundle_Internal.h"
- #else
- #include "CFBase.h"
- #endif
+-#else
+-#include "CFBase.h"
+-#endif
  #include "CFLocaleInternal.h"
  #include <stdatomic.h>
 -#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD
@@ -33,21 +32,6 @@ index 738ff28a..344dbbad 100644
  #include <unicode/uloc.h>           // ICU locales
  #include <unicode/ulocdata.h>       // ICU locale data
  #include <unicode/ucal.h>
-@@ -586,12 +586,14 @@ static CFStringRef _CFLocaleCreateLocaleIdentifierForAvailableLocalizations(CFAr
- 
-         // Combine `availableLocalizations` with `preferredLanguages` to get `preferredLocalizations`, whose #0 object indicates the localization that the app is current launched in.
-         CFArrayRef preferredLocalizations = NULL; {
-+#if !TARGET_OS_WASI
-             // Since `availableLocalizations` can contains legacy lproj names such as `English`, `French`, etc. we need to canonicalize these into language identifiers such as `en`, `fr`, etc. Otherwise the logic that later compares these to language identifiers will fail. (<rdar://problem/37141123>)
-             CFArrayRef canonicalizedAvailableLocalizations = _CFLocaleCopyPreferredLanguagesFromPrefs(availableLocalizations);
-             if (canonicalizedAvailableLocalizations) {
-                 preferredLocalizations = CFBundleCopyLocalizationsForPreferences(canonicalizedAvailableLocalizations, canonicalizedPreferredLanguages);
-                 CFRelease(canonicalizedAvailableLocalizations);
-             }
-+#endif
-         }
-         
-         if (preferredLocalizations && CFArrayGetCount(preferredLocalizations) > 0) {
 diff --git a/CoreFoundation/NumberDate.subproj/CFDate.c b/CoreFoundation/NumberDate.subproj/CFDate.c
 index e6abb43c..3be4a850 100644
 --- a/CoreFoundation/NumberDate.subproj/CFDate.c

@@ -1,4 +1,4 @@
-From 7eb64731365eca35909ac1dfb22bb784820ec13e Mon Sep 17 00:00:00 2001
+From 93ff7ebb627a85ae66fbf183ba33e410ea8fc837 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sun, 4 Feb 2024 16:17:42 +0000
 Subject: [PATCH] [wasm] Port `CoreFoundation/Base.subproj/CFInternal.h`

@@ -1,4 +1,4 @@
-From 35a65a1dd030c55ca315eaa5138d6f3df3e193da Mon Sep 17 00:00:00 2001
+From 567956a8dd189d84a4dece2fae63c6a076b7c59e Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:43:15 +0000
 Subject: [PATCH] HACK: [wasm] Hard-define wasi-libc constants
