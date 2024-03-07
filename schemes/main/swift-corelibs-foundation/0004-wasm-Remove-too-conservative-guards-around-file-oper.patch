@@ -1,4 +1,4 @@
-From dbe6b5132041b71e175957698a0c0fac582c6f51 Mon Sep 17 00:00:00 2001
+From b5dce1ffc09ce7556d7b049705f1780a8d03960d Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 09:09:43 +0000
 Subject: [PATCH] [wasm] Remove too conservative guards around file operations

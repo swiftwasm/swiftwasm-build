@@ -1,0 +1,49 @@
+From b04ef17562589560d7afddbbfa79df3087baa182 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 7 Mar 2024 16:24:23 +0000
+Subject: [PATCH] [wasm] Guard RunLoop.subproj sources with `__HAS_DISPATCH__`
+
+---
+ CoreFoundation/RunLoop.subproj/CFRunLoop.c | 3 +++
+ CoreFoundation/RunLoop.subproj/CFSocket.c  | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/CoreFoundation/RunLoop.subproj/CFRunLoop.c b/CoreFoundation/RunLoop.subproj/CFRunLoop.c
+index f202dda2..0a1bcc72 100644
+--- a/CoreFoundation/RunLoop.subproj/CFRunLoop.c
++++ b/CoreFoundation/RunLoop.subproj/CFRunLoop.c
+@@ -8,6 +8,8 @@
+ 	Responsibility: Michael LeHew
+ */
+ 
++#if __HAS_DISPATCH__
++
+ #include <CoreFoundation/CFRunLoop.h>
+ #include <CoreFoundation/CFSet.h>
+ #include <CoreFoundation/CFBag.h>
+@@ -4756,3 +4758,4 @@ void CFRunLoopTimerSetTolerance(CFRunLoopTimerRef rlt, CFTimeInterval tolerance)
+ #endif
+ }
+ 
++#endif /* __HAS_DISPATCH__ */
+diff --git a/CoreFoundation/RunLoop.subproj/CFSocket.c b/CoreFoundation/RunLoop.subproj/CFSocket.c
+index 31add9ef..357dab68 100644
+--- a/CoreFoundation/RunLoop.subproj/CFSocket.c
++++ b/CoreFoundation/RunLoop.subproj/CFSocket.c
+@@ -8,6 +8,8 @@
+ 	Responsibility: Michael LeHew
+ */
+ 
++#if __HAS_DISPATCH__
++
+ #include <CoreFoundation/CFSocket.h>
+ #include <sys/types.h>
+ #include <math.h>
+@@ -2639,3 +2641,4 @@ CF_EXPORT uint16_t CFSocketGetDefaultNameRegistryPortNumber(void) {
+     return __CFSocketDefaultNameRegistryPortNumber;
+ }
+ 
++#endif /* __HAS_DISPATCH__ */
+-- 
+2.43.0
+
