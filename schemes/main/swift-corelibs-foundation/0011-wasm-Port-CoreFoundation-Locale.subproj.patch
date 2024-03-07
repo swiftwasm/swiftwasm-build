@@ -1,0 +1,35 @@
+From b6824e9a3fd0e60035a5e4826f6f7b1b9aadb30f Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 7 Mar 2024 18:27:46 +0000
+Subject: [PATCH] [wasm] Port CoreFoundation/Locale.subproj
+
+* Remove no longer needed `#if !TARGET_OS_WASI`
+* Add WASI to the list of ICU supported platforms
+---
+ CoreFoundation/Locale.subproj/CFLocale.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/CoreFoundation/Locale.subproj/CFLocale.c b/CoreFoundation/Locale.subproj/CFLocale.c
+index 738ff28a..2c2a942d 100644
+--- a/CoreFoundation/Locale.subproj/CFLocale.c
++++ b/CoreFoundation/Locale.subproj/CFLocale.c
+@@ -19,15 +19,11 @@
+ #include <CoreFoundation/CFNumber.h>
+ #include "CFInternal.h"
+ #include "CFRuntime_Internal.h"
+-#if !TARGET_OS_WASI
+ #include <CoreFoundation/CFPreferences.h>
+ #include "CFBundle_Internal.h"
+-#else
+-#include "CFBase.h"
+-#endif
+ #include "CFLocaleInternal.h"
+ #include <stdatomic.h>
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
+ #include <unicode/uloc.h>           // ICU locales
+ #include <unicode/ulocdata.h>       // ICU locale data
+ #include <unicode/ucal.h>
+-- 
+2.43.0
+

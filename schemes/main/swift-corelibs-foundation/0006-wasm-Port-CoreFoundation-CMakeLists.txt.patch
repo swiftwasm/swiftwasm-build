@@ -1,61 +1,17 @@
-From f136cb1e7b64edcfe828cf99034f0f2b3316ceaf Mon Sep 17 00:00:00 2001
+From 7dd259e6e374022fa4a6bb8d3ce5b261dbe5c5f1 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:52:39 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/CMakeLists.txt
 
 ---
- CoreFoundation/CMakeLists.txt | 31 ++++++++++++++++++++++++-------
- 1 file changed, 24 insertions(+), 7 deletions(-)
+ CoreFoundation/CMakeLists.txt | 8 ++++++++
+ 1 file changed, 8 insertions(+)
 
 diff --git a/CoreFoundation/CMakeLists.txt b/CoreFoundation/CMakeLists.txt
-index 4b3370a9..e77e79c9 100644
+index 4b3370a9..4a21cd45 100644
 --- a/CoreFoundation/CMakeLists.txt
 +++ b/CoreFoundation/CMakeLists.txt
-@@ -140,6 +140,19 @@ else()
-   set(FRAMEWORK_LIBRARY_TYPE STATIC)
- endif()
- 
-+set(CF_WASI_UNAVAILABLE_SOURCES)
-+
-+if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
-+  list(APPEND CF_WASI_UNAVAILABLE_SOURCES 
-+    # RunLoop
-+    RunLoop.subproj/CFRunLoop.c
-+    RunLoop.subproj/CFSocket.c
-+    # Stream
-+    Stream.subproj/CFConcreteStreams.c
-+    Stream.subproj/CFSocketStream.c
-+    Stream.subproj/CFStream.c)
-+endif()
-+
- add_framework(CoreFoundation
-                 ${FRAMEWORK_LIBRARY_TYPE}
-               FRAMEWORK_DIRECTORY
-@@ -366,12 +379,6 @@ add_framework(CoreFoundation
-                 # RunLoop.subproj/CFMachPort.c
-                 # RunLoop.subproj/CFMachPort_Lifetime.c
-                 # RunLoop.subproj/CFMessagePort.c
--                RunLoop.subproj/CFRunLoop.c
--                RunLoop.subproj/CFSocket.c
--                # Stream
--                Stream.subproj/CFConcreteStreams.c
--                Stream.subproj/CFSocketStream.c
--                Stream.subproj/CFStream.c
-                 # String
-                 String.subproj/CFAttributedString.c
-                 String.subproj/CFBurstTrie.c
-@@ -399,7 +406,9 @@ add_framework(CoreFoundation
-                 URL.subproj/CFURLAccess.c
-                 URL.subproj/CFURL.c
-                 URL.subproj/CFURLComponents.c
--                URL.subproj/CFURLComponents_URIParser.c)
-+                URL.subproj/CFURLComponents_URIParser.c
-+                
-+                ${CF_WASI_UNAVAILABLE_SOURCES})
- target_compile_definitions(CoreFoundation
-                            PRIVATE
-                              $<$<COMPILE_LANGUAGE:ASM>:CF_CHARACTERSET_BITMAP="CharacterSets/CFCharacterSetBitmaps.bitmap">
-@@ -479,6 +488,7 @@ add_framework(CFXMLInterface
+@@ -479,6 +479,7 @@ add_framework(CFXMLInterface
                SOURCES
                  Parsing.subproj/CFXMLInterface.c)
  add_dependencies(CFXMLInterface CoreFoundation)
@@ -63,7 +19,7 @@ index 4b3370a9..e77e79c9 100644
  if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
    target_link_libraries(CFXMLInterface PRIVATE
      LibXml2::LibXml2)
-@@ -561,6 +571,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+@@ -561,6 +562,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
                            -Xlinker;-alias_list;-Xlinker;Base.subproj/DarwinSymbolAliases;-twolevel_namespace;-sectcreate;__UNICODE;__csbitmaps;CharacterSets/CFCharacterSetBitmaps.bitmap;-sectcreate;__UNICODE;__properties;CharacterSets/CFUniCharPropertyDatabase.data;-sectcreate;__UNICODE;__data;CharacterSets/CFUnicodeData-L.mapping;-segprot;__UNICODE;r;r)
  endif()
  

@@ -1,0 +1,65 @@
+From a79046959cf116072901095068b9a6ebcd87097f Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sun, 4 Feb 2024 16:17:42 +0000
+Subject: [PATCH] [wasm] Guard out the use of `libdispatch` types
+
+To avoid the use of `libdispatch` types in the `CoreFoundation` module when unavailable
+---
+ CoreFoundation/Base.subproj/CFInternal.h | 3 ++-
+ CoreFoundation/Stream.subproj/CFStream.h | 6 +++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/CoreFoundation/Base.subproj/CFInternal.h b/CoreFoundation/Base.subproj/CFInternal.h
+index 6f998890..e5cc3840 100644
+--- a/CoreFoundation/Base.subproj/CFInternal.h
++++ b/CoreFoundation/Base.subproj/CFInternal.h
+@@ -1203,12 +1203,13 @@ CF_INLINE dispatch_queue_t __CFDispatchQueueGetGenericBackground(void) {
+     return dispatch_get_global_queue(QOS_CLASS_UTILITY, DISPATCH_QUEUE_OVERCOMMIT);
+ }
+ 
++CF_PRIVATE dispatch_data_t _CFDataCreateDispatchData(CFDataRef data); //avoids copying in most cases
++
+ #endif
+ 
+ CF_PRIVATE CFStringRef _CFStringCopyBundleUnloadingProtectedString(CFStringRef str);
+ 
+ CF_PRIVATE uint8_t *_CFDataGetBytePtrNonObjC(CFDataRef data);
+-CF_PRIVATE dispatch_data_t _CFDataCreateDispatchData(CFDataRef data); //avoids copying in most cases
+ 
+ // Use this for functions that are intended to be breakpoint hooks. If you do not, the compiler may optimize them away.
+ // Based on: BREAKPOINT_FUNCTION in objc-os.h
+diff --git a/CoreFoundation/Stream.subproj/CFStream.h b/CoreFoundation/Stream.subproj/CFStream.h
+index b3ed2378..feeef1f5 100644
+--- a/CoreFoundation/Stream.subproj/CFStream.h
++++ b/CoreFoundation/Stream.subproj/CFStream.h
+@@ -17,7 +17,10 @@
+ #include <CoreFoundation/CFRunLoop.h>
+ #include <CoreFoundation/CFSocket.h>
+ #include <CoreFoundation/CFError.h>
++
++#if __HAS_DISPATCH__
+ #include <dispatch/dispatch.h>
++#endif
+ 
+ CF_IMPLICIT_BRIDGING_ENABLED
+ CF_EXTERN_C_BEGIN
+@@ -456,7 +459,7 @@ void CFReadStreamUnscheduleFromRunLoop(CFReadStreamRef _Null_unspecified stream,
+ CF_EXPORT
+ void CFWriteStreamUnscheduleFromRunLoop(CFWriteStreamRef _Null_unspecified stream, CFRunLoopRef _Null_unspecified runLoop, CFRunLoopMode _Null_unspecified runLoopMode);
+ 
+-
++#if __HAS_DISPATCH__
+ /*
+  * Specify the dispatch queue upon which the client callbacks will be invoked.
+  * Passing NULL for the queue will prevent future callbacks from being invoked.
+@@ -480,6 +483,7 @@ dispatch_queue_t _Null_unspecified CFReadStreamCopyDispatchQueue(CFReadStreamRef
+ 
+ CF_EXPORT
+ dispatch_queue_t _Null_unspecified CFWriteStreamCopyDispatchQueue(CFWriteStreamRef _Null_unspecified stream) API_AVAILABLE(macos(10.9), ios(7.0), watchos(2.0), tvos(9.0));
++#endif
+ 
+ 
+ /* The following API is deprecated starting in 10.5; please use CFRead/WriteStreamCopyError(), above, instead */
+-- 
+2.43.0
+

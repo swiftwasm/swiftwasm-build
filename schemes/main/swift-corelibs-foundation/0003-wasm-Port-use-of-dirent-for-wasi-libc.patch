@@ -1,4 +1,4 @@
-From e1562f1dc2e28ab6635d7140595d404b7f07fb51 Mon Sep 17 00:00:00 2001
+From b2188187b1f3c86ecff58b09f7655bdf8837b009 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:09:08 +0000
 Subject: [PATCH] [wasm] Port use of `dirent` for wasi-libc
@@ -12,10 +12,10 @@ with a helper function `_direntName` to work around the issue.
  2 files changed, 6 insertions(+), 4 deletions(-)
 
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index d78eeddf..bac39185 100644
+index c6e63fac..d5390c88 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-@@ -576,6 +576,10 @@ static inline int _direntNameLength(struct dirent *entry) {
+@@ -578,6 +578,10 @@ static inline int _direntNameLength(struct dirent *entry) {
  #endif
  }
  
@@ -27,10 +27,10 @@ index d78eeddf..bac39185 100644
  static inline unsigned int _dev_major(dev_t rdev) {
  #if !TARGET_OS_WASI
 diff --git a/Sources/Foundation/FileManager+POSIX.swift b/Sources/Foundation/FileManager+POSIX.swift
-index 462d9341..105f938c 100644
+index f2f723fa..73d81718 100644
 --- a/Sources/Foundation/FileManager+POSIX.swift
 +++ b/Sources/Foundation/FileManager+POSIX.swift
-@@ -447,10 +447,8 @@ extension FileManager {
+@@ -449,10 +449,8 @@ extension FileManager {
              errno = 0
              while let entry = readdir(dir) {
                  let length = Int(_direntNameLength(entry))
