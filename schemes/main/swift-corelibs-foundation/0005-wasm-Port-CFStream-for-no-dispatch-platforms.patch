@@ -1,4 +1,4 @@
-From 9a5e81eb27c79df6e55adf8d4486ed2e4245b6ab Mon Sep 17 00:00:00 2001
+From efc01825039b5d0c59310fc8b59ce483a4b57dd1 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Thu, 7 Mar 2024 17:42:11 +0000
 Subject: [PATCH] [wasm] Port CFStream for no-dispatch platforms

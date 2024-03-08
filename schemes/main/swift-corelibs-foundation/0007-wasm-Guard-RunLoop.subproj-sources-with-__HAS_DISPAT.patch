@@ -1,4 +1,4 @@
-From b04ef17562589560d7afddbbfa79df3087baa182 Mon Sep 17 00:00:00 2001
+From 48c5fd496d295e64edd0d4f4941939c65261df8b Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Thu, 7 Mar 2024 16:24:23 +0000
 Subject: [PATCH] [wasm] Guard RunLoop.subproj sources with `__HAS_DISPATCH__`
