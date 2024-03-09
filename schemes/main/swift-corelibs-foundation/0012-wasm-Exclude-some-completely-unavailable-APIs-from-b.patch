@@ -1,0 +1,228 @@
+From aa18351443a39de72436f75d44ccfa0125607b30 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 8 Mar 2024 09:29:25 +0000
+Subject: [PATCH] [wasm] Exclude some completely unavailable APIs from build
+
+---
+ .../DispatchData+DataProtocol.swift           |  3 ++-
+ Sources/Foundation/NSNotification.swift       |  4 ++++
+ Sources/Foundation/NotificationQueue.swift    |  3 +++
+ Sources/Foundation/Operation.swift            |  2 ++
+ Sources/Foundation/Port.swift                 |  9 +++++++++
+ Sources/Foundation/Process.swift              |  3 +++
+ Sources/Foundation/Progress.swift             |  2 ++
+ Sources/Foundation/RunLoop.swift              | 20 +++++++++++++++++++
+ Sources/Foundation/Thread.swift               |  2 ++
+ Sources/Foundation/UserDefaults.swift         |  4 ++++
+ 10 files changed, 51 insertions(+), 1 deletion(-)
+
+diff --git a/Sources/Foundation/DispatchData+DataProtocol.swift b/Sources/Foundation/DispatchData+DataProtocol.swift
+index 520e2351..f95353eb 100644
+--- a/Sources/Foundation/DispatchData+DataProtocol.swift
++++ b/Sources/Foundation/DispatchData+DataProtocol.swift
+@@ -10,7 +10,7 @@
+ //
+ //===----------------------------------------------------------------------===//
+ 
+-
++#if canImport(Dispatch)
+ import Dispatch
+ 
+ extension DispatchData : DataProtocol {
+@@ -54,3 +54,4 @@ extension DispatchData : DataProtocol {
+         return regions
+     }
+ }
++#endif
+diff --git a/Sources/Foundation/NSNotification.swift b/Sources/Foundation/NSNotification.swift
+index 82f75361..ff25a3b1 100644
+--- a/Sources/Foundation/NSNotification.swift
++++ b/Sources/Foundation/NSNotification.swift
+@@ -82,6 +82,8 @@ open class NSNotification: NSObject, NSCopying, NSCoding {
+     }
+ }
+ 
++#if canImport(Dispatch)
++
+ private class NSNotificationReceiver : NSObject {
+     fileprivate var name: Notification.Name?
+     fileprivate var block: ((Notification) -> Void)?
+@@ -191,3 +193,5 @@ open class NotificationCenter: NSObject {
+     }
+ 
+ }
++
++#endif // canImport(Dispatch)
+diff --git a/Sources/Foundation/NotificationQueue.swift b/Sources/Foundation/NotificationQueue.swift
+index a6cc935e..bf3e5d8e 100644
+--- a/Sources/Foundation/NotificationQueue.swift
++++ b/Sources/Foundation/NotificationQueue.swift
+@@ -7,6 +7,7 @@
+ // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ //
+ 
++#if canImport(Dispatch)
+ @_implementationOnly import CoreFoundation
+ 
+ extension NotificationQueue {
+@@ -176,3 +177,5 @@ open class NotificationQueue: NSObject {
+     }
+ 
+ }
++
++#endif
+diff --git a/Sources/Foundation/Operation.swift b/Sources/Foundation/Operation.swift
+index 0945253b..2f8fc54d 100644
+--- a/Sources/Foundation/Operation.swift
++++ b/Sources/Foundation/Operation.swift
+@@ -7,6 +7,7 @@
+ // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ //
+ 
++#if canImport(Dispatch)
+ import Dispatch
+ 
+ internal let _NSOperationIsFinished = "isFinished"
+@@ -1438,3 +1439,4 @@ extension OperationQueue {
+         }
+     }
+ }
++#endif
+diff --git a/Sources/Foundation/Port.swift b/Sources/Foundation/Port.swift
+index c481f966..c53263f0 100644
+--- a/Sources/Foundation/Port.swift
++++ b/Sources/Foundation/Port.swift
+@@ -83,6 +83,13 @@ public protocol PortDelegate: AnyObject {
+     func handle(_ message: PortMessage)
+ }
+ 
++#if os(WASI)
++
++@available(*, unavailable, message: "SocketPort is not available on this platform.")
++open class SocketPort: Port {}
++
++#else
++
+ #if canImport(Glibc) && !os(Android) && !os(OpenBSD)
+ import Glibc
+ fileprivate let SOCK_STREAM = Int32(Glibc.SOCK_STREAM.rawValue)
+@@ -1106,3 +1113,5 @@ fileprivate extension Data {
+         return self[...self.index(self.startIndex, offsetBy: range.upperBound)]
+     }
+ }
++
++#endif
+diff --git a/Sources/Foundation/Process.swift b/Sources/Foundation/Process.swift
+index 8d5ac465..0f32045e 100644
+--- a/Sources/Foundation/Process.swift
++++ b/Sources/Foundation/Process.swift
+@@ -7,6 +7,7 @@
+ // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ //
+ 
++#if canImport(Dispatch)
+ @_implementationOnly import CoreFoundation
+ #if os(Windows)
+ import WinSDK
+@@ -1174,3 +1175,5 @@ extension Process {
+     
+     public static let didTerminateNotification = NSNotification.Name(rawValue: "NSTaskDidTerminateNotification")
+ }
++
++#endif
+diff --git a/Sources/Foundation/Progress.swift b/Sources/Foundation/Progress.swift
+index 11b96ca7..efa27889 100644
+--- a/Sources/Foundation/Progress.swift
++++ b/Sources/Foundation/Progress.swift
+@@ -7,6 +7,7 @@
+ // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ //
+ 
++#if canImport(Dispatch)
+ import Dispatch
+ 
+ /**
+@@ -545,3 +546,4 @@ fileprivate class _ProgressTSD : NSObject {
+         childAttached = false
+     }
+ }
++#endif
+diff --git a/Sources/Foundation/RunLoop.swift b/Sources/Foundation/RunLoop.swift
+index 5ad595e6..9323346f 100644
+--- a/Sources/Foundation/RunLoop.swift
++++ b/Sources/Foundation/RunLoop.swift
+@@ -51,6 +51,24 @@ extension RunLoop.Mode {
+     }
+ }
+ 
++#if !canImport(Dispatch)
++
++open class RunLoop: NSObject {
++    @available(*, unavailable, message: "RunLoop is not available on WASI")
++    open class var current: RunLoop {
++        fatalError("RunLoop is not available on WASI")
++    }
++
++    @available(*, unavailable, message: "RunLoop is not available on WASI")
++    open class var main: RunLoop {
++        fatalError("RunLoop is not available on WASI")
++    }
++
++    internal final var currentCFRunLoop: CFRunLoop { NSUnsupported() }
++}
++
++#else
++
+ internal func _NSRunLoopNew(_ cf: CFRunLoop) -> Unmanaged<AnyObject> {
+     let rl = Unmanaged<RunLoop>.passRetained(RunLoop(cfObject: cf))
+     return unsafeBitCast(rl, to: Unmanaged<AnyObject>.self) // this retain is balanced on the other side of the CF fence
+@@ -421,3 +439,5 @@ extension RunLoop._Source {
+       unsafeBitCast(_cfSourceStorage, to: CFRunLoopSource.self)
+     }
+ }
++
++#endif // canImport(Dispatch)
+diff --git a/Sources/Foundation/Thread.swift b/Sources/Foundation/Thread.swift
+index 7fbcbb52..166a5d3f 100644
+--- a/Sources/Foundation/Thread.swift
++++ b/Sources/Foundation/Thread.swift
+@@ -7,6 +7,7 @@
+ // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ //
+ 
++#if canImport(Dispatch)
+ @_implementationOnly import CoreFoundation
+ #if os(Windows)
+ import WinSDK
+@@ -448,3 +449,4 @@ extension NSNotification.Name {
+     public static let NSDidBecomeSingleThreaded = NSNotification.Name(rawValue: "NSDidBecomeSingleThreadedNotification")
+     public static let NSThreadWillExit = NSNotification.Name(rawValue: "NSThreadWillExitNotification")
+ }
++#endif
+diff --git a/Sources/Foundation/UserDefaults.swift b/Sources/Foundation/UserDefaults.swift
+index fda2a9a9..23f035b6 100644
+--- a/Sources/Foundation/UserDefaults.swift
++++ b/Sources/Foundation/UserDefaults.swift
+@@ -406,7 +406,9 @@ open class UserDefaults: NSObject {
+             
+             _ = defaults.synchronize()
+             
++#if canImport(Dispatch)
+             NotificationCenter.default.post(name: UserDefaults.didChangeNotification, object: self)
++#endif
+         }
+     }
+     
+@@ -418,7 +420,9 @@ open class UserDefaults: NSObject {
+             
+             _ = defaults.synchronize()
+             
++#if canImport(Dispatch)
+             NotificationCenter.default.post(name: UserDefaults.didChangeNotification, object: self)
++#endif
+         }
+     }
+     
+-- 
+2.43.0
+

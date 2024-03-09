@@ -1,4 +1,4 @@
-From b27e5ce8e96f2e3c7c9dbac72190d1b8f6fd3450 Mon Sep 17 00:00:00 2001
+From 8a134e8325b57444e3b97e82278582caf6c9a363 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Wed, 14 Feb 2024 12:43:15 +0000
 Subject: [PATCH] [wasm] Grab wasi-libc constants manually

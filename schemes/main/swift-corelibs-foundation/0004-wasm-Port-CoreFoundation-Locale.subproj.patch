@@ -1,4 +1,4 @@
-From b6824e9a3fd0e60035a5e4826f6f7b1b9aadb30f Mon Sep 17 00:00:00 2001
+From 7891776c9d1aa7c1499b91efffe145183f12625a Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Thu, 7 Mar 2024 18:27:46 +0000
 Subject: [PATCH] [wasm] Port CoreFoundation/Locale.subproj

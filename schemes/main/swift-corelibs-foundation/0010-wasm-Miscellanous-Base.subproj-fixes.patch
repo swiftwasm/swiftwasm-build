@@ -1,16 +1,35 @@
-From 4a5e29405b13985fcf5111bdca10468b46a5ac69 Mon Sep 17 00:00:00 2001
+From fcdcbc1b3e7c1adfac08b4827338f7279ed6f11f Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 1 Mar 2024 08:52:21 +0000
-Subject: [PATCH] [wasm] Port CoreFoundation/Base.subproj
+Subject: [PATCH] [wasm] Miscellanous Base.subproj fixes
 
+* Remove too conservative include guards
+* Update class table to exclude unavailable classes
+* Port mach_absolute_time to WASI platform
 ---
- CoreFoundation/Base.subproj/CFRuntime.c                   | 2 ++
- CoreFoundation/Base.subproj/CoreFoundation_Prefix.h       | 2 +-
- CoreFoundation/Base.subproj/ForFoundationOnly.h           | 6 +-----
- CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h      | 5 ++---
- CoreFoundation/Base.subproj/SwiftRuntime/CoreFoundation.h | 4 +++-
- 5 files changed, 9 insertions(+), 10 deletions(-)
+ CoreFoundation/Base.subproj/CFPriv.h                     | 2 --
+ CoreFoundation/Base.subproj/CFRuntime.c                  | 2 ++
+ CoreFoundation/Base.subproj/CoreFoundation_Prefix.h      | 2 +-
+ CoreFoundation/Base.subproj/ForFoundationOnly.h          | 6 ------
+ CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h     | 9 ++-------
+ .../Base.subproj/SwiftRuntime/CoreFoundation.h           | 4 +++-
+ 6 files changed, 8 insertions(+), 17 deletions(-)
 
+diff --git a/CoreFoundation/Base.subproj/CFPriv.h b/CoreFoundation/Base.subproj/CFPriv.h
+index 73292b09..c877565b 100644
+--- a/CoreFoundation/Base.subproj/CFPriv.h
++++ b/CoreFoundation/Base.subproj/CFPriv.h
+@@ -46,10 +46,8 @@
+ #include <CoreFoundation/CFMessagePort.h>
+ #endif
+ 
+-#if !TARGET_OS_WASI
+ #include <CoreFoundation/CFRunLoop.h>
+ #include <CoreFoundation/CFSocket.h>
+-#endif
+ #include <CoreFoundation/CFBundlePriv.h>
+ 
+ 
 diff --git a/CoreFoundation/Base.subproj/CFRuntime.c b/CoreFoundation/Base.subproj/CFRuntime.c
 index 68b62a2b..bdd43eaa 100644
 --- a/CoreFoundation/Base.subproj/CFRuntime.c
@@ -44,7 +63,7 @@ index 77678304..c1176c76 100644
      clock_gettime(CLOCK_MONOTONIC, &ts);
      return (uint64_t)ts.tv_nsec + (uint64_t)ts.tv_sec * 1000000000UL;
 diff --git a/CoreFoundation/Base.subproj/ForFoundationOnly.h b/CoreFoundation/Base.subproj/ForFoundationOnly.h
-index 40847559..df1ba11a 100644
+index 40847559..1eb77df7 100644
 --- a/CoreFoundation/Base.subproj/ForFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForFoundationOnly.h
 @@ -28,10 +28,8 @@
@@ -74,7 +93,7 @@ index 40847559..df1ba11a 100644
  
  #pragma mark - CFUUID
  
-@@ -651,11 +647,11 @@ CF_CROSS_PLATFORM_EXPORT void _CFURLInitWithFileSystemPathRelativeToBase(CFURLRe
+@@ -651,7 +647,6 @@ CF_CROSS_PLATFORM_EXPORT void _CFURLInitWithFileSystemPathRelativeToBase(CFURLRe
  CF_CROSS_PLATFORM_EXPORT Boolean _CFURLInitWithURLString(CFURLRef url, CFStringRef string, Boolean checkForLegalCharacters, _Nullable CFURLRef baseURL);
  CF_CROSS_PLATFORM_EXPORT Boolean _CFURLInitAbsoluteURLWithBytes(CFURLRef url, const UInt8 *relativeURLBytes, CFIndex length, CFStringEncoding encoding, _Nullable CFURLRef baseURL);
  
@@ -82,13 +101,16 @@ index 40847559..df1ba11a 100644
  CF_EXPORT Boolean _CFRunLoopFinished(CFRunLoopRef rl, CFStringRef mode);
  CF_EXPORT CFTypeRef _CFRunLoopGet2(CFRunLoopRef rl);
  CF_EXPORT Boolean _CFRunLoopIsCurrent(CFRunLoopRef rl);
+@@ -662,7 +657,6 @@ CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
+ CF_EXPORT void _CFReadStreamDeallocate(CFReadStreamRef readStream);
+ CF_EXPORT void _CFWriteStreamDeallocate(CFWriteStreamRef writeStream);
+ CF_EXPORT CFReadStreamRef CFReadStreamCreateWithData(_Nullable CFAllocatorRef alloc, CFDataRef data);
+-#endif
  
-+#if !TARGET_OS_WASI
- CF_EXPORT CFIndex _CFStreamInstanceSize(void);
- CF_EXPORT void _CFReadStreamInitialize(CFReadStreamRef readStream);
- CF_EXPORT void _CFWriteStreamInitialize(CFWriteStreamRef writeStream);
+ #if TARGET_OS_MAC
+ typedef struct {
 diff --git a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
-index d5390c88..d0994bda 100644
+index d5390c88..fdaa914e 100644
 --- a/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 +++ b/CoreFoundation/Base.subproj/ForSwiftFoundationOnly.h
 @@ -66,6 +66,7 @@
@@ -99,7 +121,27 @@ index d5390c88..d0994bda 100644
  #elif TARGET_OS_LINUX
  #include <errno.h>
  #include <features.h>
-@@ -446,7 +447,6 @@ CF_EXPORT CFCharacterSetRef _CFCharacterSetCreateCopy(CFAllocatorRef alloc, CFCh
+@@ -382,9 +383,7 @@ CF_PRIVATE uint64_t __CFMemorySize(void);
+ CF_PRIVATE CFIndex __CFActiveProcessorCount(void);
+ CF_CROSS_PLATFORM_EXPORT CFStringRef CFCopyFullUserName(void);
+ 
+-#if !TARGET_OS_WASI
+ extern CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
+-#endif
+ 
+ #if !__COREFOUNDATION_FORFOUNDATIONONLY__
+ typedef const struct __CFKeyedArchiverUID * CFKeyedArchiverUIDRef;
+@@ -396,9 +395,7 @@ extern uint32_t _CFKeyedArchiverUIDGetValue(CFKeyedArchiverUIDRef uid);
+ extern CFIndex __CFBinaryPlistWriteToStream(CFPropertyListRef plist, CFTypeRef stream);
+ CF_CROSS_PLATFORM_EXPORT CFDataRef _CFPropertyListCreateXMLDataWithExtras(CFAllocatorRef allocator, CFPropertyListRef propertyList);
+ 
+-#if !TARGET_OS_WASI
+ extern CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
+-#endif
+ 
+ CF_EXPORT char *_Nullable *_Nonnull _CFEnviron(void);
+ 
+@@ -446,7 +443,6 @@ CF_EXPORT CFCharacterSetRef _CFCharacterSetCreateCopy(CFAllocatorRef alloc, CFCh
  CF_EXPORT CFMutableCharacterSetRef _CFCharacterSetCreateMutableCopy(CFAllocatorRef alloc, CFCharacterSetRef theSet);
  CF_CROSS_PLATFORM_EXPORT void _CFCharacterSetInitCopyingSet(CFAllocatorRef alloc, CFMutableCharacterSetRef cset, CFCharacterSetRef theSet, bool isMutable, bool validateSubclasses);
  
@@ -107,7 +149,7 @@ index d5390c88..d0994bda 100644
  CF_EXPORT _Nullable CFErrorRef CFReadStreamCopyError(CFReadStreamRef _Null_unspecified stream);
  
  CF_EXPORT _Nullable CFErrorRef CFWriteStreamCopyError(CFWriteStreamRef _Null_unspecified stream);
-@@ -455,7 +455,6 @@ CF_CROSS_PLATFORM_EXPORT CFStringRef _Nullable _CFBundleCopyExecutablePath(CFBun
+@@ -455,7 +451,6 @@ CF_CROSS_PLATFORM_EXPORT CFStringRef _Nullable _CFBundleCopyExecutablePath(CFBun
  CF_CROSS_PLATFORM_EXPORT Boolean _CFBundleSupportsFHSBundles(void);
  CF_CROSS_PLATFORM_EXPORT Boolean _CFBundleSupportsFreestandingBundles(void);
  CF_CROSS_PLATFORM_EXPORT CFStringRef _Nullable _CFBundleCopyLoadedImagePathForAddress(const void *p);
@@ -115,7 +157,7 @@ index d5390c88..d0994bda 100644
  
  CF_CROSS_PLATFORM_EXPORT CFStringRef __CFTimeZoneCopyDataVersionString(void);
  
-@@ -561,7 +560,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
+@@ -561,7 +556,7 @@ CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
  
  #if TARGET_OS_WIN32
  CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode);
