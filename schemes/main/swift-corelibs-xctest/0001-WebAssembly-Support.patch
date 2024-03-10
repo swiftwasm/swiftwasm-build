@@ -1,37 +1,32 @@
-From 9297f985f1d8df85bac06582f183b123f5baa0d2 Mon Sep 17 00:00:00 2001
+From 7b6b1a3599b9d40d3476e38870aafecca8a3f7e1 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 24 Feb 2024 11:17:15 +0000
 Subject: [PATCH] WebAssembly Support
 
 ---
- CMakeLists.txt                                |  63 +++++-
- Package.swift                                 |   3 +-
- .../ConcurrencySupport/ConcurrencySupport.cpp |  22 ++
- Sources/XCTest/Private/PrintObserver.swift    |  12 +-
+ CMakeLists.txt                                |  60 +++++-
+ .../ConcurrencySupport/ConcurrencySupport.cpp |  22 +++
  Sources/XCTest/Private/Shims.swift            |  49 +++++
  Sources/XCTest/Private/TestListing.swift      |   2 +
  Sources/XCTest/Private/WaiterManager.swift    |  15 ++
- .../XCTestCase.TearDownBlocksState.swift      |  22 +-
+ .../XCTestCase.TearDownBlocksState.swift      |  22 ++-
  .../Public/Asynchronous/XCTWaiter.swift       |  46 +++++
- Sources/XCTest/Public/CodableObserver.swift   | 191 ++++++++++++++++++
+ Sources/XCTest/Public/CodableObserver.swift   | 187 ++++++++++++++++++
  Sources/XCTest/Public/XCAbstractTest.swift    |   2 +
  Sources/XCTest/Public/XCTestCase.swift        |  68 +++++--
- Sources/XCTest/Public/XCTestErrors.swift      |   9 +
  Sources/XCTest/Public/XCTestMain.swift        |  29 +++
- Sources/XCTest/Public/XCTestObservation.swift |   9 +-
- .../Public/XCTestObservationCenter.swift      |   4 +
  Sources/XCTest/Public/XCTestSuite.swift       |   8 +-
  cmake/modules/SwiftSupport.cmake              |   2 +
- 18 files changed, 519 insertions(+), 37 deletions(-)
+ 13 files changed, 480 insertions(+), 32 deletions(-)
  create mode 100644 Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp
  create mode 100644 Sources/XCTest/Private/Shims.swift
  create mode 100644 Sources/XCTest/Public/CodableObserver.swift
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a386ef0..171fdbb 100644
+index a386ef0..95ede51 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -3,33 +3,55 @@ cmake_minimum_required(VERSION 3.15.1)
+@@ -3,12 +3,20 @@ cmake_minimum_required(VERSION 3.15.1)
  
  list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
  
@@ -54,13 +49,10 @@ index a386ef0..171fdbb 100644
    find_package(dispatch CONFIG REQUIRED)
    find_package(Foundation CONFIG REQUIRED)
  endif()
- 
+@@ -16,20 +24,31 @@ endif()
  include(SwiftSupport)
-+
-+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL wasm32)
  include(GNUInstallDirs)
-+endif()
-+
+ 
 +set(XCTEST_WASI_UNAVAILABLE_SOURCES)
 +if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
 +list(APPEND XCTEST_WASI_UNAVAILABLE_SOURCES
@@ -68,7 +60,7 @@ index a386ef0..171fdbb 100644
 +  Sources/XCTest/Public/Asynchronous/XCTNSPredicateExpectation.swift
 +  Sources/XCTest/Public/Asynchronous/XCTestCase+Asynchronous.swift)
 +endif()
- 
++
  add_library(XCTest
 -  Sources/XCTest/Private/WallClockTimeMetric.swift
    Sources/XCTest/Private/TestListing.swift
@@ -91,7 +83,7 @@ index a386ef0..171fdbb 100644
    Sources/XCTest/Public/XCTestRun.swift
    Sources/XCTest/Public/XCTestMain.swift
    Sources/XCTest/Public/XCTestCase.swift
-@@ -40,20 +62,33 @@ add_library(XCTest
+@@ -40,20 +59,33 @@ add_library(XCTest
    Sources/XCTest/Public/XCTestCaseRun.swift
    Sources/XCTest/Public/XCAbstractTest.swift
    Sources/XCTest/Public/XCTestObservationCenter.swift
@@ -131,7 +123,7 @@ index a386ef0..171fdbb 100644
    target_link_libraries(XCTest PRIVATE
      dispatch
      Foundation)
-@@ -65,6 +100,14 @@ set_target_properties(XCTest PROPERTIES
+@@ -65,6 +97,14 @@ set_target_properties(XCTest PROPERTIES
    Swift_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/swift
    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/swift)
  
@@ -146,24 +138,6 @@ index a386ef0..171fdbb 100644
  
  if(ENABLE_TESTING)
    enable_testing()
-diff --git a/Package.swift b/Package.swift
-index 71075ae..857e846 100644
---- a/Package.swift
-+++ b/Package.swift
-@@ -1,4 +1,4 @@
--// swift-tools-version:4.0
-+// swift-tools-version:4.2
- //
- // To build with auto-linking of the .swiftmodule use:
- // $ swift build -Xswiftc -module-link-name -Xswiftc XCTest
-@@ -11,7 +11,6 @@ let package = Package(
-     products: [
-         .library(
-             name: "XCTest",
--            type: .dynamic,
-             targets: ["XCTest"]
-         )
-     ],
 diff --git a/Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp b/Sources/XCTest/Private/ConcurrencySupport/ConcurrencySupport.cpp
 new file mode 100644
 index 0000000..0dbd785
@@ -192,50 +166,6 @@ index 0000000..0dbd785
 +        swift_task_asyncMainDrainQueue();
 +    }
 +}
-diff --git a/Sources/XCTest/Private/PrintObserver.swift b/Sources/XCTest/Private/PrintObserver.swift
-index fcce3a2..e8fa0e4 100644
---- a/Sources/XCTest/Private/PrintObserver.swift
-+++ b/Sources/XCTest/Private/PrintObserver.swift
-@@ -11,10 +11,16 @@
- //  Prints test progress to stdout.
- //
- 
-+#if canImport(Glibc)
-+import Glibc
-+#endif
-+
- /// Prints textual representations of each XCTestObservation event to stdout.
- /// Mirrors the Apple XCTest output exactly.
- internal class PrintObserver: XCTestObservation {
-+#if !os(WASI)
-     func testBundleWillStart(_ testBundle: Bundle) {}
-+#endif
- 
-     func testSuiteWillStart(_ testSuite: XCTestSuite) {
-         printAndFlush("Test Suite '\(testSuite.name)' started at \(dateFormatter.string(from: testSuite.testRun!.startDate!))")
-@@ -65,17 +71,21 @@ internal class PrintObserver: XCTestObservation {
-         )
-     }
- 
-+#if !os(WASI)
-     func testBundleDidFinish(_ testBundle: Bundle) {}
-+#endif
- 
-     private lazy var dateFormatter: DateFormatter = {
-         let formatter = DateFormatter()
-+#if !os(WASI)
-         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
-+#endif
-         return formatter
-     }()
- 
-     fileprivate func printAndFlush(_ message: String) {
-         print(message)
--        #if !os(Android)
-+        #if !os(Android) && !os(WASI)
-         fflush(stdout)
-         #endif
-     }
 diff --git a/Sources/XCTest/Private/Shims.swift b/Sources/XCTest/Private/Shims.swift
 new file mode 100644
 index 0000000..b42405c
@@ -488,10 +418,10 @@ index f19b344..6f47e00 100644
      public static func == (lhs: XCTWaiter, rhs: XCTWaiter) -> Bool {
 diff --git a/Sources/XCTest/Public/CodableObserver.swift b/Sources/XCTest/Public/CodableObserver.swift
 new file mode 100644
-index 0000000..31498ac
+index 0000000..6f5681f
 --- /dev/null
 +++ b/Sources/XCTest/Public/CodableObserver.swift
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,187 @@
 +// This source file is part of the Swift.org open source project
 +//
 +// Copyright (c) 2020 Apple Inc. and the Swift project authors
@@ -615,9 +545,7 @@ index 0000000..31498ac
 +        self.handler = handler
 +    }
 +
-+    #if !os(WASI)
 +    public func testBundleWillStart(_ testBundle: Bundle) {}
-+    #endif
 +
 +    public func testSuiteWillStart(_ testSuite: XCTestSuite) {
 +        handler(Event.testSuiteStarted(.init(
@@ -679,9 +607,7 @@ index 0000000..31498ac
 +        )))
 +    }
 +
-+    #if !os(WASI)
 +    public func testBundleDidFinish(_ testBundle: Bundle) {}
-+    #endif
 +}
 diff --git a/Sources/XCTest/Public/XCAbstractTest.swift b/Sources/XCTest/Public/XCAbstractTest.swift
 index cf37cba..4992b81 100644
@@ -901,33 +827,6 @@ index 4d734cd..f4b3973 100644
  }
  
  private final class ThrownErrorWrapper: @unchecked Sendable {
-diff --git a/Sources/XCTest/Public/XCTestErrors.swift b/Sources/XCTest/Public/XCTestErrors.swift
-index a18af0a..00fc381 100644
---- a/Sources/XCTest/Public/XCTestErrors.swift
-+++ b/Sources/XCTest/Public/XCTestErrors.swift
-@@ -11,6 +11,14 @@
- //  Constants used in errors produced by the XCTest library.
- //
- 
-+#if os(WASI)
-+public struct XCTestError {
-+    public enum Code : Int {
-+        case timeoutWhileWaiting
-+        case failureWhileWaiting
-+    }
-+}
-+#else
- /// The domain used by errors produced by the XCTest library.
- public let XCTestErrorDomain = "org.swift.XCTestErrorDomain"
- 
-@@ -32,6 +40,7 @@ public struct XCTestError : _BridgedStoredNSError {
-         case failureWhileWaiting
-     }
- }
-+#endif
- 
- public extension XCTestError {
-     /// Indicates that one or more expectations failed to be fulfilled in time
 diff --git a/Sources/XCTest/Public/XCTestMain.swift b/Sources/XCTest/Public/XCTestMain.swift
 index 33572e7..fc4cf01 100644
 --- a/Sources/XCTest/Public/XCTestMain.swift
@@ -996,80 +895,6 @@ index 33572e7..fc4cf01 100644
      }
  }
  
-diff --git a/Sources/XCTest/Public/XCTestObservation.swift b/Sources/XCTest/Public/XCTestObservation.swift
-index 1a53207..7a1849c 100644
---- a/Sources/XCTest/Public/XCTestObservation.swift
-+++ b/Sources/XCTest/Public/XCTestObservation.swift
-@@ -15,11 +15,12 @@
- /// test run.
- /// - seealso: `XCTestObservationCenter`
- public protocol XCTestObservation: AnyObject {
--
-+#if !os(WASI)
-     /// Sent immediately before tests begin as a hook for any pre-testing setup.
-     /// - Parameter testBundle: The bundle containing the tests that were
-     ///   executed.
-     func testBundleWillStart(_ testBundle: Bundle)
-+#endif
- 
-     /// Sent when a test suite starts executing.
-     /// - Parameter testSuite: The test suite that started. Additional
-@@ -51,6 +52,7 @@ public protocol XCTestObservation: AnyObject {
-     ///   information can be retrieved from the associated XCTestRun.
-     func testSuiteDidFinish(_ testSuite: XCTestSuite)
- 
-+#if !os(WASI)
-     /// Sent immediately after all tests have finished as a hook for any
-     /// post-testing activity. The test process will generally exit after this
-     /// method returns, so if there is long running and/or asynchronous work to
-@@ -59,15 +61,18 @@ public protocol XCTestObservation: AnyObject {
-     /// - Parameter testBundle: The bundle containing the tests that were
-     ///   executed.
-     func testBundleDidFinish(_ testBundle: Bundle)
-+#endif
- }
- 
- // All `XCTestObservation` methods are optional, so empty default implementations are provided
- public extension XCTestObservation {
-+    #if !os(WASI)
-     func testBundleWillStart(_ testBundle: Bundle) {}
-+    func testBundleDidFinish(_ testBundle: Bundle) {}
-+    #endif
-     func testSuiteWillStart(_ testSuite: XCTestSuite) {}
-     func testCaseWillStart(_ testCase: XCTestCase) {}
-     func testCase(_ testCase: XCTestCase, didFailWithDescription description: String, inFile filePath: String?, atLine lineNumber: Int) {}
-     func testCaseDidFinish(_ testCase: XCTestCase) {}
-     func testSuiteDidFinish(_ testSuite: XCTestSuite) {}
--    func testBundleDidFinish(_ testBundle: Bundle) {}
- }
-diff --git a/Sources/XCTest/Public/XCTestObservationCenter.swift b/Sources/XCTest/Public/XCTestObservationCenter.swift
-index 540956d..7e86b85 100644
---- a/Sources/XCTest/Public/XCTestObservationCenter.swift
-+++ b/Sources/XCTest/Public/XCTestObservationCenter.swift
-@@ -38,9 +38,11 @@ public class XCTestObservationCenter {
-         observers.remove(testObserver.wrapper)
-     }
- 
-+#if !os(WASI)
-     internal func testBundleWillStart(_ testBundle: Bundle) {
-         forEachObserver { $0.testBundleWillStart(testBundle) }
-     }
-+#endif
- 
-     internal func testSuiteWillStart(_ testSuite: XCTestSuite) {
-         forEachObserver { $0.testSuiteWillStart(testSuite) }
-@@ -66,9 +68,11 @@ public class XCTestObservationCenter {
-         forEachObserver { $0.testSuiteDidFinish(testSuite) }
-     }
- 
-+#if !os(WASI)
-     internal func testBundleDidFinish(_ testBundle: Bundle) {
-         forEachObserver { $0.testBundleDidFinish(testBundle) }
-     }
-+#endif
- 
-     internal func testCase(_ testCase: XCTestCase, didMeasurePerformanceResults results: String, file: StaticString, line: Int) {
-         forEachInternalObserver { $0.testCase(testCase, didMeasurePerformanceResults: results, file: file, line: line) }
 diff --git a/Sources/XCTest/Public/XCTestSuite.swift b/Sources/XCTest/Public/XCTestSuite.swift
 index 177dd1c..870b878 100644
 --- a/Sources/XCTest/Public/XCTestSuite.swift
