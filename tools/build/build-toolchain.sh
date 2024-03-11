@@ -60,5 +60,6 @@ fi
 "$TOOLS_BUILD_PATH/build-target-toolchain.sh" \
   --llvm-bin "$BUILD_DIR/llvm-tools/bin" \
   --clang-bin "$CROSS_COMPILER_DESTDIR/usr/bin" \
-  --swift-bin "$CROSS_COMPILER_DESTDIR/usr/bin"
+  --swift-bin "$CROSS_COMPILER_DESTDIR/usr/bin" \
+  --scheme "$SCHEME"
 

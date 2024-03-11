@@ -14,6 +14,7 @@ print_help() {
   echo "  --swift-bin          Path to Swift bin directory."
 }
 
+SCHEMES_PATH="$(cd "$(dirname "$0")/../.." && pwd)/schemes"
 SOURCE_PATH="$(cd "$(dirname "$0")/../../.." && pwd)"
 TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
 TARGET_BUILD_ROOT=$SOURCE_PATH/build/WebAssembly
@@ -27,6 +28,7 @@ build_target_toolchain() {
   local LLVM_BIN_DIR="$1"
   local CLANG_BIN_DIR="$2"
   local SWIFT_BIN_DIR="$3"
+  local SCHEME="$4"
 
   local COMPILER_RT_BUILD_DIR="$TARGET_BUILD_ROOT/compiler-rt-wasi-wasm32"
   local CLANG_VERSION
@@ -143,7 +145,7 @@ build_target_toolchain() {
     "$WASI_SYSROOT_PATH"
   )
   "$TOOLS_BUILD_PATH/build-foundation.sh" "${CORELIBS_ARGS[@]}"
-  "$TOOLS_BUILD_PATH/build-xctest.sh" "${CORELIBS_ARGS[@]}"
+  "$SCHEMES_PATH/$SCHEME/build/build-xctest.sh" "${CORELIBS_ARGS[@]}"
 }
 
 main() {
@@ -163,6 +165,10 @@ main() {
         ;;
       --swift-bin)
         OPTIONS_SWIFT_BIN="$2"
+        shift 2
+        ;;
+      --scheme)
+        OPTIONS_SCHEME="$2"
         shift 2
         ;;
       --help)
@@ -193,7 +199,7 @@ main() {
     OPTIONS_CLANG_BIN="$OPTIONS_LLVM_BIN"
   fi
 
-  build_target_toolchain "$OPTIONS_LLVM_BIN" "$OPTIONS_CLANG_BIN" "$OPTIONS_SWIFT_BIN"
+  build_target_toolchain "$OPTIONS_LLVM_BIN" "$OPTIONS_CLANG_BIN" "$OPTIONS_SWIFT_BIN" "$OPTIONS_SCHEME"
 }
 
 main "$@"
