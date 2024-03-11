@@ -6,8 +6,8 @@ CLANG_BIN_DIR=$3
 SWIFT_BIN_DIR=$4
 WASI_SYSROOT_PATH=$5
 
-SOURCE_PATH="$(cd "$(dirname $0)/../../.." && pwd)"
-TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
+SOURCE_PATH="$(cd "$(dirname $0)/../../../../" && pwd)"
+TOOLS_BUILD_PATH="$(cd "$(dirname "$0")/../../../tools/build" && pwd)"
 
 BUILD_DIR="$SOURCE_PATH/build/WebAssembly/xctest-wasi-wasm32"
 
