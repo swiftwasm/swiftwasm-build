@@ -14,7 +14,7 @@ $ ./tools/build/install-build-sdk.sh main
 # Checkout the Swift repositories in the parent directory (swiftwasm-source) and apply patches
 $ ./tools/git-swift-workspace --scheme main
 # Build the toolchain (this will take a while)
-$ ./tools/build/build-toolchain.sh
+$ ./tools/build/build-toolchain.sh main
 ```
 
 See [SwiftWasm book](https://book.swiftwasm.org/contribution-guide/how-to-build-toolchain.html) for more details about dependencies you need to install and how to build on Docker.
