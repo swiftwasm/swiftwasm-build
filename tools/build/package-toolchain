@@ -63,7 +63,7 @@ class PackageAction(Action):
         print(f"=====> Copying target toolchain {target_toolchain_path} to {dist_toolchain_path}")
         self.rsync("-a", target_toolchain_path + "/", dist_toolchain_path)
 
-        self.install_extra_llvm_tools(llvm_tools_path, dist_toolchain_path)
+        self.install_extra_llvm_tools(llvm_tools_path, base_toolchain_path, dist_toolchain_path)
 
         # FIXME: We now support only legacy driver because the new swift-driver doesn't have hacks for default
         # -sdk and forcing -use-static-resource-dir (-static-executable).
@@ -95,7 +95,7 @@ class PackageAction(Action):
         else:
             shutil.rmtree(llvm_toolchain_path, ignore_errors=True)
             os.makedirs(llvm_toolchain_path, exist_ok=True)
-            self.install_extra_llvm_tools(llvm_tools_path, llvm_toolchain_path)
+            self.install_extra_llvm_tools(llvm_tools_path, base_toolchain_path, llvm_toolchain_path)
             self.make_swift_sdk(
                 base_toolchain_path,
                 llvm_toolchain_path,
@@ -123,7 +123,7 @@ class PackageAction(Action):
             dest_path = os.path.join(dest_dir, lib)
             shutil.copy(os.path.join(icu_lib_dir, lib), dest_path)
 
-    def install_extra_llvm_tools(self, llvm_tools_path, dist_toolchain_path):
+    def install_extra_llvm_tools(self, llvm_tools_path, base_toolchain_path, dist_toolchain_path):
         import shutil
         print(f"=====> Installing extra LLVM tools")
         llvm_tools_bin_dir = os.path.join(llvm_tools_path, 'bin')
@@ -131,7 +131,7 @@ class PackageAction(Action):
         os.makedirs(install_bin_dir, exist_ok=True)
         for tool_name in WASM_SPECIFIC_TOOLS_TO_INSTALL:
             # Skip installing if the tool already exists
-            if os.path.exists(os.path.join(install_bin_dir, tool_name)):
+            if os.path.exists(os.path.join(base_toolchain_path, 'usr', 'bin', tool_name)):
                 continue
 
             tool_path = os.path.join(llvm_tools_bin_dir, tool_name)
