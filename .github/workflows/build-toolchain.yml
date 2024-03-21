@@ -106,7 +106,7 @@ jobs:
 
   build-toolchain:
     env:
-      DEVELOPER_DIR: /Applications/Xcode_14.2.app/Contents/Developer/
+      DEVELOPER_DIR: /Applications/Xcode_15.2.app/Contents/Developer/
       # https://github.com/actions/cache/blob/main/tips-and-workarounds.md#cache-segment-restore-timeout
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 30
     needs: [build-matrix]
