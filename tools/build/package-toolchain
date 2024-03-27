@@ -58,6 +58,7 @@ class PackageAction(Action):
         self.rsync("-a", base_toolchain_path + "/", dist_toolchain_path)
 
         self.copy_icu_libs(build_sdk_path, target_toolchain_path)
+        self.copy_libxml2_libs(build_sdk_path, target_toolchain_path)
         # Copying target stdlib to dist toolchain, and cross compiler if
         # host compiler is built with patches by ourselves.
         print(f"=====> Copying target toolchain {target_toolchain_path} to {dist_toolchain_path}")
@@ -122,6 +123,16 @@ class PackageAction(Action):
         for lib in icu_libs:
             dest_path = os.path.join(dest_dir, lib)
             shutil.copy(os.path.join(icu_lib_dir, lib), dest_path)
+
+    def copy_libxml2_libs(self, build_sdk_path, dist_toolchain_path):
+        import shutil
+        lib_dir = os.path.join(build_sdk_path, 'libxml2', 'lib')
+        dest_dir = os.path.join(
+            dist_toolchain_path, 'usr', 'lib', 'swift_static', 'wasi')
+        print("=====> Copying libxml2 libraries from {}".format(lib_dir))
+        for lib in ["libxml2.a"]:
+            dest_path = os.path.join(dest_dir, lib)
+            shutil.copy(os.path.join(lib_dir, lib), dest_path)
 
     def install_extra_llvm_tools(self, llvm_tools_path, base_toolchain_path, dist_toolchain_path):
         import shutil
