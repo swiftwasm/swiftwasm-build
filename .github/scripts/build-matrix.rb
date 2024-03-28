@@ -8,8 +8,8 @@ BASE_MATRIX_ENTRIES = [
     "target": "ubuntu18.04_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04",
-      "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04@sha256:d5d555cf48fc02f5003928a064c03b76c012fef8afbe54a1942c6bfc3d773c58",
-      "release/5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04@sha256:d5d555cf48fc02f5003928a064c03b76c012fef8afbe54a1942c6bfc3d773c58"
+      "release-5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04@sha256:d5d555cf48fc02f5003928a064c03b76c012fef8afbe54a1942c6bfc3d773c58",
+      "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04@sha256:d5d555cf48fc02f5003928a064c03b76c012fef8afbe54a1942c6bfc3d773c58"
     },
     "run_stdlib_test": true,
     "run_full_test": false,
@@ -24,9 +24,9 @@ BASE_MATRIX_ENTRIES = [
     "target": "ubuntu20.04_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
-      "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:cc1b99e352ee207da2c75c7bcf81aa8b1d2c08215fd1d05dc0777c40a62f31f1",
-      "release/5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:cc1b99e352ee207da2c75c7bcf81aa8b1d2c08215fd1d05dc0777c40a62f31f1",
-      "release/6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:cc1b99e352ee207da2c75c7bcf81aa8b1d2c08215fd1d05dc0777c40a62f31f1",
+      "release-5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:cc1b99e352ee207da2c75c7bcf81aa8b1d2c08215fd1d05dc0777c40a62f31f1",
+      "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:cc1b99e352ee207da2c75c7bcf81aa8b1d2c08215fd1d05dc0777c40a62f31f1",
+      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:cc1b99e352ee207da2c75c7bcf81aa8b1d2c08215fd1d05dc0777c40a62f31f1",
     },
     "run_stdlib_test": true,
     "run_full_test": false,
@@ -41,9 +41,9 @@ BASE_MATRIX_ENTRIES = [
     "target": "ubuntu22.04_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
-      "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:adfa0a8fbc6e5cc7ce5e38a5a9406d4fa5c557871204a65f0690478022d6b359",
-      "release/5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:adfa0a8fbc6e5cc7ce5e38a5a9406d4fa5c557871204a65f0690478022d6b359",
-      "release/6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:adfa0a8fbc6e5cc7ce5e38a5a9406d4fa5c557871204a65f0690478022d6b359",
+      "release-5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:adfa0a8fbc6e5cc7ce5e38a5a9406d4fa5c557871204a65f0690478022d6b359",
+      "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:adfa0a8fbc6e5cc7ce5e38a5a9406d4fa5c557871204a65f0690478022d6b359",
+      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:adfa0a8fbc6e5cc7ce5e38a5a9406d4fa5c557871204a65f0690478022d6b359",
     },
     "run_stdlib_test": true,
     "run_full_test": false,
@@ -58,9 +58,9 @@ BASE_MATRIX_ENTRIES = [
     "target": "amazonlinux2_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2",
-      "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:d5264ac43e935249b1c8777f6809ebbd2836cb0e8f7dac3bfeeb0b3cdb479b70",
-      "release/5.10": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:d5264ac43e935249b1c8777f6809ebbd2836cb0e8f7dac3bfeeb0b3cdb479b70",
-      "release/6.0": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:d5264ac43e935249b1c8777f6809ebbd2836cb0e8f7dac3bfeeb0b3cdb479b70",
+      "release-5.9": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:d5264ac43e935249b1c8777f6809ebbd2836cb0e8f7dac3bfeeb0b3cdb479b70",
+      "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:d5264ac43e935249b1c8777f6809ebbd2836cb0e8f7dac3bfeeb0b3cdb479b70",
+      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:d5264ac43e935249b1c8777f6809ebbd2836cb0e8f7dac3bfeeb0b3cdb479b70",
     },
     "run_stdlib_test": false,
     "run_full_test": false,
@@ -148,9 +148,9 @@ def main
         "target": "ubuntu20.04_aarch64",
         "containers": {
           "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
-          "release/5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:0e04dd550557d9f4f773bda55a6ac355c7c9696ea6efc3e59318bd49569aa00e",
-          "release/5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:0e04dd550557d9f4f773bda55a6ac355c7c9696ea6efc3e59318bd49569aa00e",
-          "release/6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:0e04dd550557d9f4f773bda55a6ac355c7c9696ea6efc3e59318bd49569aa00e",
+          "release-5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:0e04dd550557d9f4f773bda55a6ac355c7c9696ea6efc3e59318bd49569aa00e",
+          "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:0e04dd550557d9f4f773bda55a6ac355c7c9696ea6efc3e59318bd49569aa00e",
+          "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:0e04dd550557d9f4f773bda55a6ac355c7c9696ea6efc3e59318bd49569aa00e",
         },
         "run_stdlib_test": false,
         "run_full_test": false,
