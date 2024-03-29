@@ -93,13 +93,19 @@ class PackageAction(Action):
                 dist_toolchain_path,
                 target_toolchain_path,
                 wasi_sysroot_path)
-        else:
+        elif self.options.scheme in ['release-6.0']:
             shutil.rmtree(llvm_toolchain_path, ignore_errors=True)
             os.makedirs(llvm_toolchain_path, exist_ok=True)
             self.install_extra_llvm_tools(llvm_tools_path, base_toolchain_path, llvm_toolchain_path)
             self.make_swift_sdk(
                 base_toolchain_path,
                 llvm_toolchain_path,
+                target_toolchain_path,
+                wasi_sysroot_path)
+        else:
+            self.make_swift_sdk(
+                base_toolchain_path,
+                None,
                 target_toolchain_path,
                 wasi_sysroot_path)
 
@@ -193,13 +199,16 @@ class PackageAction(Action):
             "run", "--package-path", sdk_generator_pkg_path,
             "--", "swift-sdk-generator", "make-wasm-sdk",
             "--target-swift-package-path", target_toolchain_path,
-            "--host-swift-package-path", host_toolchain_path,
             "--wasi-sysroot", wasi_sysroot_path,
-            "--host", self.get_default_target_triple(base_toolchain_path),
             "--target", "wasm32-unknown-wasi",
             "--swift-version", self.snapshot_info.swift_version,
             "--sdk-name", self.snapshot_info.swift_sdk_name,
         ]
+        if host_toolchain_path:
+            sdk_generator_args += [
+                "--host-swift-package-path", host_toolchain_path,
+                "--host", self.get_default_target_triple(base_toolchain_path),
+            ]
         print("=====> Building Swift SDK")
         print(" ".join(sdk_generator_args))
         self.system(*sdk_generator_args)
