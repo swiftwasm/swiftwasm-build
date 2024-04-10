@@ -14,9 +14,9 @@ print_help() {
   echo "  --swift-bin          Path to Swift bin directory."
 }
 
-SCHEMES_PATH="$(cd "$(dirname "$0")/../.." && pwd)/schemes"
-SOURCE_PATH="$(cd "$(dirname "$0")/../../.." && pwd)"
-TOOLS_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
+SCHEMES_BUILD_PATH="$(cd "$(dirname "$0")" && pwd)"
+SOURCE_PATH="$(cd "$(dirname "$0")/../../../.." && pwd)"
+TOOLS_BUILD_PATH="$(cd "$(dirname "$0")/../../../tools/build" && pwd)"
 TARGET_BUILD_ROOT=$SOURCE_PATH/build/WebAssembly
 PACKAGING_DIR="$SOURCE_PATH/build/Packaging"
 TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain
@@ -145,7 +145,7 @@ build_target_toolchain() {
     "$WASI_SYSROOT_PATH"
   )
   "$TOOLS_BUILD_PATH/build-foundation.sh" "${CORELIBS_ARGS[@]}"
-  "$SCHEMES_PATH/$SCHEME/build/build-xctest.sh" "${CORELIBS_ARGS[@]}"
+  "$SCHEMES_BUILD_PATH/build-xctest.sh" "${CORELIBS_ARGS[@]}"
 }
 
 main() {
