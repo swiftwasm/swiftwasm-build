@@ -97,6 +97,7 @@ BASE_MATRIX_ENTRIES = [
   },
   # Generic Swift SDK build
   {
+    "job_name": "Swift SDK",
     "build_os": "ubuntu-22.04",
     "agent_query": "ubuntu-22.04",
     "target": "ubuntu22.04_x86_64",
@@ -201,7 +202,15 @@ def main
         next nil unless found # Skip if container for the scheme is not specified
         found
       end
-      entry.merge("scheme": scheme, toolchain_channel: toolchain_channel, container: container)
+      if entry[:job_name]
+        job_name = "#{entry[:job_name]} (#{scheme})"
+      else
+        job_name = "Target #{scheme}/#{entry[:target]}"
+      end
+      entry.merge(
+        "scheme": scheme, toolchain_channel: toolchain_channel, container: container,
+        job_name: job_name,
+      )
     end
   end
 

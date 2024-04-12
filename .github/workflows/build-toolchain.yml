@@ -116,7 +116,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.build-matrix.outputs.entries) }}
 
-    name: Target ${{ matrix.scheme }}/${{ matrix.target }}
+    name: ${{ matrix.job_name }}
     timeout-minutes: 0
     runs-on: ${{ matrix.agent_query }}
     steps:
