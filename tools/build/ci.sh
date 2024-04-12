@@ -35,4 +35,10 @@ install_sccache_if_needed
 export PATH="$SCCACHE_INSTALL_PATH:$PATH"
 
 $TOOLS_BUILD_PATH/build-toolchain.sh "$SCHEME"
-$TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot
+
+if [ -z "$ONLY_SWIFT_SDK" ]; then
+  # Run package-toolchain if not ONLY_SWIFT_SDK is set
+  $TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot
+else
+  $TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot --only-swift-sdk
+fi

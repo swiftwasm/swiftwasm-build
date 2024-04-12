@@ -207,11 +207,16 @@ jobs:
             --security-opt seccomp=unconfined \
             -dit \
             -e CI=$CI \
+            -e ONLY_SWIFT_SDK=${{ matrix.only_swift_sdk }} \
             -w /home/build-user/ \
             -v ${{ github.workspace }}:/source \
             -v oss-swift-package:/home/build-user \
             ${{ matrix.container }}
           docker exec swiftwasm-ci-buildbot /bin/bash -lc 'env; cp -r /source/* /home/build-user/; ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}'
+
+      - name: Extract installable archive from Docker container
+        if: ${{ matrix.container != null && !matrix.only_swift_sdk }}
+        run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip .
 
@@ -242,9 +247,23 @@ jobs:
 
       - name: Upload ${{ matrix.target }} SDK artifact bundle
         uses: actions/upload-artifact@v4
+        if: ${{ !matrix.only_swift_sdk }}
         with:
           name: ${{ matrix.target }}-${{ matrix.scheme }}-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip
+
+      - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasi)
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.only_swift_sdk }}
+        with:
+          name: ${{ matrix.scheme }}-wasm32-unknown-wasi-artifactbundle
+          path: swift-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
+      # - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1-threads)
+      #   uses: actions/upload-artifact@v4
+      #   if: ${{ matrix.only_swift_sdk }}
+      #   with:
+      #     name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-threads-artifactbundle
+      #     path: swift-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip
 
       # Prepare for running tests
       - uses: bytecodealliance/actions/wasmtime/setup@v1
