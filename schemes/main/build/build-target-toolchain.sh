@@ -27,6 +27,8 @@ build_target_toolchain() {
   local CLANG_BIN_DIR="$2"
   local SWIFT_BIN_DIR="$3"
 
+  # NOTE: The llvm-cmake-options is a workaround for the issue on amazonlinux2
+  # See https://github.com/apple/swift/commit/40c7268e8f7d402b27e3ad16a84180e07c37f92c
   "$SOURCE_PATH/swift/utils/build-script" \
     --build-subdir=WebAssembly \
     --install-destdir="$TARGET_TOOLCHAIN_DESTDIR" \
@@ -49,6 +51,9 @@ build_target_toolchain() {
       -DSWIFT_STDLIB_INSTALL_PARENT_MODULE_FOR_SHIMS=NO \
       -DSWIFT_BUILD_DYNAMIC_SDK_OVERLAY=NO \
       -DSWIFT_BUILD_STATIC_SDK_OVERLAY=NO \
+    " \
+    --llvm-cmake-options="\
+      -DCROSS_TOOLCHAIN_FLAGS_LLVM_NATIVE='-DCMAKE_C_COMPILER=clang;-DCMAKE_CXX_COMPILER=clang++' \
     " \
     --sccache
 
