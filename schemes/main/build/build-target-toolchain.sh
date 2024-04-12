@@ -62,7 +62,6 @@ build_target_toolchain() {
 
   env DESTDIR="$TARGET_TOOLCHAIN_DESTDIR" \
     cmake --install "$TARGET_BUILD_ROOT/wasmstdlib-$HOST_SUFFIX" --prefix /usr
-    # cmake --install "$TARGET_BUILD_ROOT/wasmstdlib-linux-x86_64" --prefix /usr
   env DESTDIR="$TARGET_TOOLCHAIN_DESTDIR" \
     cmake --install "$TARGET_BUILD_ROOT/wasmthreadsstdlib-$HOST_SUFFIX" --prefix /usr
   env DESTDIR="$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/clang" \
@@ -76,10 +75,10 @@ build_target_toolchain() {
   # the compiler headers from? If we use the headers beside the base toolchain, clang
   # driver will not be able to find libclang_rt.builtins-wasm32.a because it is not
   # a part of the base toolchain. We need to find a better way to handle this.
-  mkdir -p "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/clang"
   local CLANG_VERSION
   CLANG_VERSION="$(basename "$($CLANG_BIN_DIR/clang -print-resource-dir)")"
-  ln -sf "../swift_static/clang" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/clang/$CLANG_VERSION"
+  mkdir -p "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/clang/$CLANG_VERSION/lib"
+  ln -sf "../../../swift_static/clang/lib/wasi" "$TARGET_TOOLCHAIN_DESTDIR/usr/lib/clang/$CLANG_VERSION/lib/wasi"
 
   local WASI_SYSROOT_PATH="$TARGET_BUILD_ROOT/wasi-sysroot"
 
