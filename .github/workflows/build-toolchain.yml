@@ -220,6 +220,11 @@ jobs:
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip .
 
+      - name: Extract installable archive from Docker container
+        if: ${{ matrix.container != null && matrix.only_swift_sdk }}
+        run: |
+          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT.artifactbundle.zip .
+
       - name: Extract build-cache from Docker container
         if: ${{ matrix.container != null && !cancelled() }}
         run: |
@@ -257,7 +262,8 @@ jobs:
         if: ${{ matrix.only_swift_sdk }}
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasi-artifactbundle
-          path: swift-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
+          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT.artifactbundle.zip
+          # path: swift-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
       # - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1-threads)
       #   uses: actions/upload-artifact@v4
       #   if: ${{ matrix.only_swift_sdk }}
