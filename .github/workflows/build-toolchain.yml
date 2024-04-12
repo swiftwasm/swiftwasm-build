@@ -265,19 +265,10 @@ jobs:
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}
         run: |
           docker exec swiftwasm-ci-buildbot /bin/bash -lc \
-            "ninja -C build/WebAssembly/swift-stdlib-wasi-wasm32 check-swift-wasi-wasm32-custom && rm -rf build"
+            "./swiftwasm-build/schemes/${{ matrix.scheme }}/build/run-test.sh && rm -rf build"
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container == null }}
-        run: |
-          TARGET_STDLIB_BUILD_DIR=${{ github.workspace }}/build/WebAssembly/swift-stdlib-wasi-wasm32
-          ninja check-swift-wasi-wasm32-custom -C "$TARGET_STDLIB_BUILD_DIR"
-
-      - name: Run all tests for wasi-wasm32
-        if: ${{ matrix.run_full_test }}
-        run: |
-          TARGET_STDLIB_BUILD_DIR=${{ github.workspace }}/build/WebAssembly/swift-stdlib-wasi-wasm32
-          # Run all tests but ignore failure temporarily
-          ninja check-swift-wasi-wasm32 -C "$TARGET_STDLIB_BUILD_DIR" || true
+        run: ./swiftwasm-build/schemes/${{ matrix.scheme }}/build/run-test.sh
 
       - name: Pack test results
         if: ${{ matrix.run_full_test }}
