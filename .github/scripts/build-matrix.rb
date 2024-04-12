@@ -85,8 +85,8 @@ BASE_MATRIX_ENTRIES = [
     "only_swift_sdk": false,
   },
   {
-    "build_os": "macos-14",
-    "agent_query": "macos-14",
+    "build_os": "macos-13",
+    "agent_query": ["self-hosted", "macOS", "ARM64"],
     "target": "macos_arm64",
     "run_stdlib_test": true,
     "run_full_test": false,
