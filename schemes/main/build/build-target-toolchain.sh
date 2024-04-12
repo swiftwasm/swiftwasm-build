@@ -52,12 +52,16 @@ build_target_toolchain() {
     " \
     --sccache
 
+  local HOST_SUFFIX
+  HOST_SUFFIX=$(find "$TARGET_BUILD_ROOT" -name "wasmstdlib-*" -exec basename {} \; | sed 's/wasmstdlib-//')
+
   env DESTDIR="$TARGET_TOOLCHAIN_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmstdlib-linux-x86_64" --prefix /usr
+    cmake --install "$TARGET_BUILD_ROOT/wasmstdlib-$HOST_SUFFIX" --prefix /usr
+    # cmake --install "$TARGET_BUILD_ROOT/wasmstdlib-linux-x86_64" --prefix /usr
   env DESTDIR="$TARGET_TOOLCHAIN_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmthreadsstdlib-linux-x86_64" --prefix /usr
+    cmake --install "$TARGET_BUILD_ROOT/wasmthreadsstdlib-$HOST_SUFFIX" --prefix /usr
   env DESTDIR="$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/clang" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmllvmruntimelibs-linux-x86_64" --component clang_rt.builtins-wasm32
+    cmake --install "$TARGET_BUILD_ROOT/wasmllvmruntimelibs-$HOST_SUFFIX" --component clang_rt.builtins-wasm32
 
   # FIXME: Clang resource directory installation is not the best way currently.
   # We currently have two copies of compiler headers copied from the base toolchain in
