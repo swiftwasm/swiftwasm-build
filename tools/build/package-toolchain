@@ -82,7 +82,13 @@ class PackageAction(Action):
                 self.options.scheme == 'release-5.10'):
             os.remove(swift_driver_path)
 
-        wasi_sysroot_path = os.path.join('..', 'build-sdk', 'wasi-sysroot')
+        # Select wasi-sysroot
+        if self.options.download_wasi_sysroot:
+            wasi_sysroot_path = os.path.join('..', 'build-sdk', 'wasi-sysroot')
+        else:
+            wasi_sysroot_path = os.path.join(packaging_dir, 'wasi-sysroot')
+        print("=====> Using wasi-sysroot from {}".format(wasi_sysroot_path))
+
         # Now dist toolchain always has cross compiler regardless of whether
         # host compiler is built by ourselves or just downloaded from swift.org
         if self.options.scheme in ['release-5.9', 'release-5.10']:

@@ -32,7 +32,11 @@ install_icu() {
 install_wasi-sysroot() {
   
   local WASI_SYSROOT_URL
-  WASI_SYSROOT_URL="$(python3 -c 'import sys, json; print(json.load(sys.stdin)["wasi-sysroot"])' < "$SCHEME_DIR/manifest.json")"
+  WASI_SYSROOT_URL="$(python3 -c 'import sys, json; print(json.load(sys.stdin).get("wasi-sysroot", ""))' < "$SCHEME_DIR/manifest.json")"
+  if [ -z "$WASI_SYSROOT_URL" ]; then
+    echo "wasi-sysroot is not specified in the manifest.json. Skip installing wasi-sysroot."
+    return
+  fi
 
   curl -L "$WASI_SYSROOT_URL" | tar xz
 

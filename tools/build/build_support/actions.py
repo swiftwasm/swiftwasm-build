@@ -176,4 +176,5 @@ def derive_options_from_args(argv, parser: argparse.ArgumentParser):
     if 'update-checkout-scheme' in manifest:
         options.update_checkout_scheme = manifest['update-checkout-scheme']
     options.swift_org_download_channel = manifest['swift-org-download-channel']
+    options.download_wasi_sysroot = manifest.get('wasi-sysroot', False)
     return options
