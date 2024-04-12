@@ -16,7 +16,8 @@ BASE_MATRIX_ENTRIES = [
     "run_e2e_test": true,
     "build_hello_wasm": true,
     "clean_build_dir": false,
-    "free_disk_space": true
+    "free_disk_space": true,
+    "only_swift_sdk": false,
   },
   {
     "build_os": "ubuntu-20.04",
@@ -33,7 +34,8 @@ BASE_MATRIX_ENTRIES = [
     "run_e2e_test": true,
     "build_hello_wasm": true,
     "clean_build_dir": false,
-    "free_disk_space": true
+    "free_disk_space": true,
+    "only_swift_sdk": false,
   },
   {
     "build_os": "ubuntu-22.04",
@@ -50,7 +52,8 @@ BASE_MATRIX_ENTRIES = [
     "run_e2e_test": true,
     "build_hello_wasm": true,
     "clean_build_dir": false,
-    "free_disk_space": true
+    "free_disk_space": true,
+    "only_swift_sdk": false,
   },
   {
     "build_os": "amazon-linux-2",
@@ -67,7 +70,8 @@ BASE_MATRIX_ENTRIES = [
     "run_e2e_test": false,
     "build_hello_wasm": true,
     "clean_build_dir": false,
-    "free_disk_space": true
+    "free_disk_space": true,
+    "only_swift_sdk": false,
   },
   {
     "build_os": "macos-13",
@@ -77,7 +81,8 @@ BASE_MATRIX_ENTRIES = [
     "run_full_test": false,
     "run_e2e_test": false,
     "build_hello_wasm": false,
-    "clean_build_dir": false
+    "clean_build_dir": false,
+    "only_swift_sdk": false,
   },
   {
     "build_os": "macos-13",
@@ -87,8 +92,25 @@ BASE_MATRIX_ENTRIES = [
     "run_full_test": false,
     "run_e2e_test": true,
     "build_hello_wasm": true,
-    "clean_build_dir": true
-  }
+    "clean_build_dir": true,
+    "only_swift_sdk": false,
+  },
+  # Generic Swift SDK build
+  {
+    "build_os": "ubuntu-22.04",
+    "agent_query": "ubuntu-22.04",
+    "target": "ubuntu22.04_x86_64",
+    "containers": {
+      "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
+    },
+    "run_stdlib_test": true,
+    "run_full_test": false,
+    "run_e2e_test": true,
+    "build_hello_wasm": true,
+    "clean_build_dir": false,
+    "free_disk_space": true,
+    "only_swift_sdk": true,
+  },
 ]
 
 def affected_schemes(changes, schemes)
@@ -156,7 +178,9 @@ def main
         "run_full_test": false,
         "run_e2e_test": false,
         "build_hello_wasm": true,
-        "clean_build_dir": false
+        "clean_build_dir": false,
+        "free_disk_space": false,
+        "only_swift_sdk": false,
       }
     end
   end
