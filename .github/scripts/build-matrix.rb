@@ -80,8 +80,8 @@ BASE_MATRIX_ENTRIES = [
     "clean_build_dir": false
   },
   {
-    "build_os": "macos-13",
-    "agent_query": ["self-hosted", "macOS", "ARM64"],
+    "build_os": "macos-14",
+    "agent_query": "macos-14",
     "target": "macos_arm64",
     "run_stdlib_test": true,
     "run_full_test": false,
