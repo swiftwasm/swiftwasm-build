@@ -5,11 +5,12 @@ LLVM_BIN_DIR=$2
 CLANG_BIN_DIR=$3
 SWIFT_BIN_DIR=$4
 WASI_SYSROOT_PATH=$5
+TRIPLE="$6"
 
 SOURCE_PATH="$(cd "$(dirname $0)/../../../../" && pwd)"
-TOOLS_BUILD_PATH="$(cd "$(dirname "$0")/../../../tools/build" && pwd)"
+SCHEME_BUILD_PATH="$(cd "$(dirname $0)" && pwd)"
 
-BUILD_DIR="$SOURCE_PATH/build/WebAssembly/xctest-wasi-wasm32"
+BUILD_DIR="$SOURCE_PATH/build/WebAssembly/xctest-$TRIPLE"
 
 mkdir -p $BUILD_DIR
 cd $BUILD_DIR
@@ -19,7 +20,8 @@ cmake -G Ninja \
   -DCMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
   -DCMAKE_STAGING_PREFIX="$DESTINATION_TOOLCHAIN/usr" \
   -DCMAKE_Swift_COMPILER="$SWIFT_BIN_DIR/swiftc" \
-  -DCMAKE_TOOLCHAIN_FILE="$TOOLS_BUILD_PATH/toolchain-wasi.cmake" \
+  -DCMAKE_TOOLCHAIN_FILE="$SCHEME_BUILD_PATH/toolchain-wasi.cmake" \
+  -DTRIPLE="$TRIPLE" \
   -DLLVM_BIN="$LLVM_BIN_DIR" \
   -DCLANG_BIN="$CLANG_BIN_DIR" \
   -DBUILD_SHARED_LIBS=OFF \
