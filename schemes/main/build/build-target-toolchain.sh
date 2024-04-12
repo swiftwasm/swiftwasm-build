@@ -57,9 +57,6 @@ build_target_toolchain() {
   env DESTDIR="$TARGET_TOOLCHAIN_DESTDIR/usr/lib/swift_static/clang" \
     cmake --install "$TARGET_BUILD_ROOT/wasmllvmruntimelibs-linux-x86_64" --component clang_rt.builtins-wasm32
 
-  # Create a symlink to let CI scripts trigger the tests as we did before.
-  ln -sf wasmstdlib-linux-x86_64 "$TARGET_BUILD_ROOT/swift-stdlib-wasi-wasm32"
-
   # FIXME: Clang resource directory installation is not the best way currently.
   # We currently have two copies of compiler headers copied from the base toolchain in
   # lib/swift/clang and lib/swift_static/clang. This is because the Swift CMake build
