@@ -263,14 +263,13 @@ jobs:
         if: ${{ matrix.only_swift_sdk }}
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasi-artifactbundle
-          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT.artifactbundle.zip
-          # path: swift-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
-      # - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1-threads)
-      #   uses: actions/upload-artifact@v4
-      #   if: ${{ matrix.only_swift_sdk }}
-      #   with:
-      #     name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-threads-artifactbundle
-      #     path: swift-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip
+          path: swift-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
+      - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1-threads)
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.only_swift_sdk }}
+        with:
+          name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-threads-artifactbundle
+          path: swift-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip
 
       # Prepare for running tests
       - uses: bytecodealliance/actions/wasmtime/setup@v1
