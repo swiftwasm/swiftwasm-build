@@ -218,7 +218,7 @@ jobs:
         if: ${{ matrix.container != null && !matrix.only_swift_sdk }}
         run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
-          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip .
+          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip . || true
 
       - name: Extract installable archive from Docker container
         if: ${{ matrix.container != null && matrix.only_swift_sdk }}
@@ -256,6 +256,7 @@ jobs:
         with:
           name: ${{ matrix.target }}-${{ matrix.scheme }}-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip
+          if-no-files-found: ignore
 
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasi)
         uses: actions/upload-artifact@v4
@@ -315,13 +316,14 @@ jobs:
 
       # Run e2e test
       - name: Prepare E2E test
+        if: ${{ !matrix.only_swift_sdk }}
         run: |
           INSTALL_DIR=$(mktemp -d)
           tar xf swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz -C "$INSTALL_DIR"
           echo "TOOLCHAIN=$(find "$INSTALL_DIR" -name "swift-wasm-${{ matrix.toolchain_channel }}-*" -type d | head -n1)" >> $GITHUB_ENV
       - name: Build hello.wasm
         shell: bash
-        if: ${{ matrix.build_hello_wasm }}
+        if: ${{ matrix.build_hello_wasm && !matrix.only_swift_sdk }}
         run: |
           echo 'print("Hello, world!")' > hello.swift
           $TOOLCHAIN/usr/bin/swiftc \
@@ -331,12 +333,12 @@ jobs:
                 hello.swift -o hello.wasm && \
                 echo "Successfully linked hello.wasm"
       - name: Upload hello.wasm
-        if: ${{ matrix.build_hello_wasm && matrix.scheme == 'main' }}
+        if: ${{ matrix.build_hello_wasm && !matrix.only_swift_sdk && matrix.scheme == 'main' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}-hello.wasm
           path: hello.wasm
 
       - name: Run integration tests
-        if: ${{ matrix.run_e2e_test }}
+        if: ${{ matrix.run_e2e_test && !matrix.only_swift_sdk }}
         run: ${{ github.workspace }}/llvm-project/llvm/utils/lit/lit.py --param package-path=$TOOLCHAIN --param scheme=${{ matrix.scheme }} ${{ github.workspace }}/swiftwasm-build/test -vv
