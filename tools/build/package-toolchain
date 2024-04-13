@@ -48,13 +48,15 @@ class PackageAction(Action):
     def __init__(self, options, snapshot_info: SnapshotInfo):
         super().__init__(options)
         self.snapshot_info = snapshot_info
+        self.target_triple = "wasm32-unknown-wasi"
 
     def run(self):
         import shutil
         print('=====> Packaging toolchain {}'.format(self.snapshot_info.toolchain_name))
         packaging_dir = os.path.join('..', 'build', 'Packaging')
         base_toolchain_path = os.path.join(packaging_dir, 'base-snapshot')
-        target_toolchain_path = os.path.join(packaging_dir, 'target-toolchain')
+        target_toolchain_path = os.path.join(
+            packaging_dir, 'target-toolchain', self.target_triple)
         dist_toolchain_path = os.path.join(packaging_dir, 'dist-toolchain', self.snapshot_info.toolchain_name)
         llvm_toolchain_path = os.path.join(packaging_dir, 'llvm-toolchain')
         llvm_tools_path = os.path.join('..', 'build', 'llvm-tools')
@@ -186,12 +188,11 @@ class PackageAction(Action):
         target_toolchain_path: str,
         wasi_sysroot_path: str,
         swift_sdk_name: str,
-        target_triple: str = "wasm32-unknown-wasi",
     ):
         underlying = PackageSwiftSDKAction(
             self.options, self.snapshot_info, base_toolchain_path,
             host_toolchain_path, target_toolchain_path, wasi_sysroot_path,
-            swift_sdk_name, target_triple)
+            swift_sdk_name, self.target_triple)
         underlying.run()
 
 
