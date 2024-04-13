@@ -4,6 +4,7 @@ import sys
 import os
 import argparse
 import json
+import datetime
 from typing import Optional
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 from build_support.platform import PlatformInfo
@@ -11,9 +12,13 @@ from build_support.llvm_tools import WASM_SPECIFIC_TOOLS_TO_INSTALL
 
 
 class SnapshotInfo:
-    def __init__(self, swift_version: str, artifact_name: str):
+    def __init__(self, year: int, month: int, day: int, swift_version: str, artifact_name: str, daily_snapshot: bool):
+        self.year = year
+        self.month = month
+        self.day = day
         self.swift_version = swift_version
         self.artifact_name = artifact_name
+        self.daily_snapshot = daily_snapshot
 
     @property
     def toolchain_name(self):
@@ -32,7 +37,7 @@ class SnapshotInfo:
         return f"{self.artifact_name}.artifactbundle.zip"
 
 
-def derive_wasi_sysroot(options) -> str:
+def derive_wasi_sysroot(options, packaging_dir: str) -> str:
     if options.download_wasi_sysroot:
         return os.path.join('..', 'build-sdk', 'wasi-sysroot')
     else:
@@ -86,7 +91,7 @@ class PackageAction(Action):
             os.remove(swift_driver_path)
 
         # Select wasi-sysroot
-        wasi_sysroot_path = derive_wasi_sysroot(self.options)
+        wasi_sysroot_path = derive_wasi_sysroot(self.options, packaging_dir)
         print("=====> Using wasi-sysroot from {}".format(wasi_sysroot_path))
 
         # Now dist toolchain always has cross compiler regardless of whether
@@ -376,22 +381,20 @@ def derive_toolchain_channel(scheme: str) -> str:
         raise Exception(f"Unknown scheme {scheme} to derive toolchain_channel")
 
 
-def derive_swift_version(daily_snapshot: bool, toolchain_channel: str) -> str:
-    import datetime
-    now = datetime.datetime.utcnow()
+def derive_swift_version(daily_snapshot: bool, toolchain_channel: str, now: datetime.datetime) -> str:
     if daily_snapshot:
         return f"{toolchain_channel}-SNAPSHOT-{now.year:04d}-{now.month:02d}-{now.day:02d}-a"
     else:
         return f"{toolchain_channel}-SNAPSHOT"
 
 
-def derive_snapshot_info(daily_snapshot: bool, scheme: str) -> SnapshotInfo:
+def derive_snapshot_info(daily_snapshot: bool, scheme: str, now: datetime.datetime) -> SnapshotInfo:
     toolchain_channel = derive_toolchain_channel(scheme)
     swift_version = derive_swift_version(daily_snapshot, toolchain_channel)
     platform_info = PlatformInfo.derive()
     os_suffix = "macos" if platform_info.full_name == "osx" else platform_info.full_name
     artifact_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}"
-    return SnapshotInfo(swift_version, artifact_name)
+    return SnapshotInfo(now.year, now.month, now.day, swift_version, artifact_name, daily_snapshot)
 
 
 def main():
@@ -399,6 +402,7 @@ def main():
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
     parser.add_argument("--only-swift-sdk", action="store_true", help="Create only Swift SDK")
     options = derive_options_from_args(sys.argv[1:], parser)
+    now = datetime.datetime.utcnow()
     actions = []
     if options.optimize_disk_footprint:
         actions.append(CleanBuildArtifactAction(options))
@@ -406,7 +410,7 @@ def main():
     actions.append(DownloadBaseSnapshotAction(options))
 
     if not options.only_swift_sdk:
-        snapshot_info = derive_snapshot_info(options.daily_snapshot, options.scheme)
+        snapshot_info = derive_snapshot_info(options.daily_snapshot, options.scheme, now)
         actions.append(PackageAction(options, snapshot_info))
 
         if os.uname().sysname == "Darwin":
@@ -418,16 +422,18 @@ def main():
 
         toolchain_channel = derive_toolchain_channel(options.scheme)
         snapshot_info = SnapshotInfo(
+            now.year, now.month, now.day,
             swift_version=derive_swift_version(
                 options.daily_snapshot, toolchain_channel),
             artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT",
+            daily_snapshot=options.daily_snapshot
         )
         actions.append(PackageSwiftSDKAction(
             options, snapshot_info,
             base_toolchain_path=os.path.join(packaging_dir, 'base-snapshot'),
             host_toolchain_path=None,
             target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain'),
-            wasi_sysroot_path=derive_wasi_sysroot(options)
+            wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir)
         ))
 
     ActionRunner(actions).run()
