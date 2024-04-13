@@ -103,7 +103,8 @@ class PackageAction(Action):
                 base_toolchain_path,
                 dist_toolchain_path,
                 target_toolchain_path,
-                wasi_sysroot_path)
+                wasi_sysroot_path,
+                self.snapshot_info.swift_sdk_name)
         elif self.options.scheme in ['release-6.0']:
             shutil.rmtree(llvm_toolchain_path, ignore_errors=True)
             os.makedirs(llvm_toolchain_path, exist_ok=True)
@@ -112,7 +113,8 @@ class PackageAction(Action):
                 base_toolchain_path,
                 llvm_toolchain_path,
                 target_toolchain_path,
-                wasi_sysroot_path)
+                wasi_sysroot_path,
+                self.snapshot_info.swift_sdk_name)
 
         shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
 
@@ -182,11 +184,14 @@ class PackageAction(Action):
         base_toolchain_path: str,
         host_toolchain_path: Optional[str],
         target_toolchain_path: str,
-        wasi_sysroot_path: str
+        wasi_sysroot_path: str,
+        swift_sdk_name: str,
+        target_triple: str = "wasm32-unknown-wasi",
     ):
         underlying = PackageSwiftSDKAction(
             self.options, self.snapshot_info, base_toolchain_path,
-            host_toolchain_path, target_toolchain_path, wasi_sysroot_path)
+            host_toolchain_path, target_toolchain_path, wasi_sysroot_path,
+            swift_sdk_name, target_triple)
         underlying.run()
 
 
@@ -196,7 +201,9 @@ class PackageSwiftSDKAction(Action):
         base_toolchain_path: str,
         host_toolchain_path: Optional[str],
         target_toolchain_path: str,
-        wasi_sysroot_path: str
+        wasi_sysroot_path: str,
+        swift_sdk_name: str,
+        target_triple: str,
     ):
         super().__init__(options)
         self.snapshot_info = snapshot_info
@@ -204,6 +211,8 @@ class PackageSwiftSDKAction(Action):
         self.host_toolchain_path = host_toolchain_path
         self.target_toolchain_path = target_toolchain_path
         self.wasi_sysroot_path = wasi_sysroot_path
+        self.swift_sdk_name = swift_sdk_name
+        self.target_triple = target_triple
 
     def run(self):
         self.make_swift_sdk(
@@ -211,6 +220,8 @@ class PackageSwiftSDKAction(Action):
             self.host_toolchain_path,
             self.target_toolchain_path,
             self.wasi_sysroot_path,
+            self.swift_sdk_name,
+            self.target_triple,
         )
 
     def make_swift_sdk(
@@ -218,7 +229,9 @@ class PackageSwiftSDKAction(Action):
         base_toolchain_path: str,
         host_toolchain_path: Optional[str],
         target_toolchain_path: str,
-        wasi_sysroot_path: str
+        wasi_sysroot_path: str,
+        swift_sdk_name: str,
+        target_triple: str,
     ):
         """
         Build the Swift SDK for WebAssembly.
@@ -241,9 +254,9 @@ class PackageSwiftSDKAction(Action):
             "--", "swift-sdk-generator", "make-wasm-sdk",
             "--target-swift-package-path", target_toolchain_path,
             "--wasi-sysroot", wasi_sysroot_path,
-            "--target", "wasm32-unknown-wasi",
+            "--target", target_triple,
             "--swift-version", self.snapshot_info.swift_version,
-            "--sdk-name", self.snapshot_info.swift_sdk_name,
+            "--sdk-name", swift_sdk_name,
         ]
         if host_toolchain_path:
             sdk_generator_args += [
@@ -255,8 +268,7 @@ class PackageSwiftSDKAction(Action):
         self.system(*sdk_generator_args)
 
         artifactbundle_path = os.path.join(
-            sdk_generator_pkg_path, "Bundles",
-            self.snapshot_info.swift_sdk_name + ".artifactbundle")
+            sdk_generator_pkg_path, "Bundles", swift_sdk_name + ".artifactbundle")
         zip_path = os.path.join(
             os.getcwd(), "..", self.snapshot_info.artifactbundle_zip_name)
 
@@ -421,20 +433,25 @@ def main():
             os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
 
         toolchain_channel = derive_toolchain_channel(options.scheme)
-        snapshot_info = SnapshotInfo(
-            now.year, now.month, now.day,
-            swift_version=derive_swift_version(
-                options.daily_snapshot, toolchain_channel, now),
-            artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT",
-            daily_snapshot=options.daily_snapshot
-        )
-        actions.append(PackageSwiftSDKAction(
-            options, snapshot_info,
-            base_toolchain_path=os.path.join(packaging_dir, 'base-snapshot'),
-            host_toolchain_path=None,
-            target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain'),
-            wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir)
-        ))
+        for target_triple in [
+            "wasm32-unknown-wasi", "wasm32-unknown-wasip1-threads"
+        ]:
+            snapshot_info = SnapshotInfo(
+                now.year, now.month, now.day,
+                swift_version=derive_swift_version(
+                    options.daily_snapshot, toolchain_channel, now),
+                artifact_name=f"swift-{toolchain_channel}-SNAPSHOT-{target_triple}",
+                daily_snapshot=options.daily_snapshot
+            )
+            actions.append(PackageSwiftSDKAction(
+                options, snapshot_info,
+                base_toolchain_path=os.path.join(packaging_dir, 'base-snapshot'),
+                host_toolchain_path=None,
+                target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain', target_triple),
+                wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir),
+                swift_sdk_name=f"{snapshot_info.swift_version}-{target_triple}",
+                target_triple=target_triple,
+            ))
 
     ActionRunner(actions).run()
 
