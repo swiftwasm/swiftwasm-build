@@ -390,7 +390,7 @@ def derive_swift_version(daily_snapshot: bool, toolchain_channel: str, now: date
 
 def derive_snapshot_info(daily_snapshot: bool, scheme: str, now: datetime.datetime) -> SnapshotInfo:
     toolchain_channel = derive_toolchain_channel(scheme)
-    swift_version = derive_swift_version(daily_snapshot, toolchain_channel)
+    swift_version = derive_swift_version(daily_snapshot, toolchain_channel, now)
     platform_info = PlatformInfo.derive()
     os_suffix = "macos" if platform_info.full_name == "osx" else platform_info.full_name
     artifact_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}"
@@ -424,7 +424,7 @@ def main():
         snapshot_info = SnapshotInfo(
             now.year, now.month, now.day,
             swift_version=derive_swift_version(
-                options.daily_snapshot, toolchain_channel),
+                options.daily_snapshot, toolchain_channel, now),
             artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT",
             daily_snapshot=options.daily_snapshot
         )
