@@ -19,7 +19,7 @@ SOURCE_PATH="$(cd "$(dirname "$0")/../../../.." && pwd)"
 TOOLS_BUILD_PATH="$(cd "$(dirname "$0")/../../../tools/build" && pwd)"
 TARGET_BUILD_ROOT=$SOURCE_PATH/build/WebAssembly
 PACKAGING_DIR="$SOURCE_PATH/build/Packaging"
-TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain
+TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain/wasm32-unknown-wasi
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
 WASI_SYSROOT_PATH="$BUILD_SDK_PATH/wasi-sysroot"
 
