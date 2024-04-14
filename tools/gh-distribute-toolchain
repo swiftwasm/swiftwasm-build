@@ -12,7 +12,7 @@ import tarfile
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 from build.build_support.actions import derive_options_from_args, REPO_ROOT
 
 
@@ -286,6 +286,36 @@ class GitHub:
         return resp
 
 
+class SDKArtifactFormat:
+    def swift_sdk_artifact_id(self, tag_name: str):
+        raise NotImplementedError()
+
+    def swift_sdk_artifact_filename(self, tag_name: str):
+        raise NotImplementedError()
+
+
+class SDKArtifactFormatV2(SDKArtifactFormat):
+    def __init__(self, platform_suffix: str):
+        self.platform_suffix = platform_suffix
+
+    def swift_sdk_artifact_id(self, tag_name: str):
+        return tag_name.removeprefix("swift-wasm") + "-wasm"
+
+    def swift_sdk_artifact_filename(self, tag_name: str):
+        return f"{tag_name}-{self.platform_suffix}.artifactbundle"
+
+
+class SDKArtifactFormatV3(SDKArtifactFormat):
+    def __init__(self, target_triple: str):
+        self.target_triple = target_triple
+
+    def swift_sdk_artifact_id(self, tag_name: str):
+        return tag_name.removeprefix("swift-wasm") + "-" + self.target_triple
+
+    def swift_sdk_artifact_filename(self, tag_name: str):
+        return f"{tag_name}-{self.target_triple}.artifactbundle"
+
+
 class Distribution:
     def __init__(self, github: GitHub, swift_github: GitHub,
                  run_id: str, secrets: Secrets, dry_run: bool = False, verbose: bool = False):
@@ -305,21 +335,26 @@ class Distribution:
     async def run(self, options):
         downloads = []
         for artifact in self.toolchain_artifacts(options):
-            platform_suffix, scheme = derive_platform_suffix_and_scheme(
-                artifact["name"])
+            if options.only_swift_sdk:
+                if not artifact["name"].endswith("-artifactbundle"):
+                    print(f"Skipping {artifact['name']} because it's not an"
+                          " artifactbundle for --only-swift-sdk")
+                    continue
+            _, scheme, _ = derive_platform_suffix_and_scheme(
+                artifact["name"], options.scheme)
             if options.scheme != scheme:
                 print(f"Skipping {artifact['name']} because it's not scheme {options.scheme}")
                 # Skip unrelated artifact
                 continue
 
-            async def download_work(artifact, platform_suffix):
+            async def download_work(artifact):
                 downloaded_path = await self.download_artifact(artifact)
-                return [artifact, downloaded_path, platform_suffix]
+                return [artifact, downloaded_path]
 
             print((f"Downloading {artifact['name']} from "
                    f"{artifact['archive_download_url']}..."))
             downloads.append(
-                asyncio.create_task(download_work(artifact, platform_suffix)))
+                asyncio.create_task(download_work(artifact)))
 
         try:
             downloaded_paths = await asyncio.gather(*downloads)
@@ -331,22 +366,36 @@ class Distribution:
 
         if options.verbose:
             print("Downloaded paths:")
-            for artifact, artifact_path, platform_suffix in downloaded_paths:
+            for artifact, artifact_path in downloaded_paths:
                 print(f"  {artifact['name']} -> {artifact_path}")
 
         release = None
         tag_name = options.override_name
 
         # Create tag and release on GitHub
-        for artifact, artifact_path, platform_suffix in downloaded_paths:
-            if not artifact["name"].endswith("-installable"):
-                continue
+        for artifact, artifact_path in downloaded_paths:
+            if artifact["name"].endswith("-installable"):
+                artifact_path = self.unpack_toolchain(artifact_path)
+                if not tag_name:
+                    tag_name = self.guess_tag_name(artifact_path)
+                break
+            elif artifact["name"].endswith("-artifactbundle"):
+                platform_suffix, _, target_triple = derive_platform_suffix_and_scheme(
+                    artifact["name"], options.scheme)
+                bundle_path = await self.unpack_artifactbundle(artifact_path)
+                dirents = os.listdir(bundle_path)
+                dirents.remove("info.json")
+                sdk_artifact_id = dirents[0]
+                if not platform_suffix:
+                    tag_name = "swift-wasm-" + sdk_artifact_id.removesuffix("-" + target_triple)
+                else:
+                    tag_name = "swift-wasm-" + sdk_artifact_id.removesuffix("-wasm")
+                break
 
-            artifact_path = self.unpack_toolchain(artifact_path)
-            if not tag_name:
-                tag_name = self.guess_tag_name(artifact_path)
-            release = self.create_tag_and_prerelease(tag_name, options)
-            break
+        if not tag_name:
+            raise Exception("Could not determine tag name")
+
+        release = self.create_tag_and_prerelease(tag_name, options)
 
         # Move to artifacts directory because "zip" does not have
         # --chdir option unlike "tar"
@@ -355,15 +404,21 @@ class Distribution:
         packaging_tasks = []
         # Package and upload Swift SDK artifactbundles
         for downloaded in downloaded_paths:
-            artifact, _, _ = downloaded
+            artifact, _ = downloaded
             if not artifact["name"].endswith("-artifactbundle"):
                 continue
 
             async def package_sdk_work(downloaded):
-                artifact, artifact_path, platform_suffix = downloaded
+                artifact, artifact_path = downloaded
+                platform_suffix, scheme, target_triple = derive_platform_suffix_and_scheme(
+                    artifact["name"], options.scheme)
+                if not platform_suffix:
+                    artifact_format = SDKArtifactFormatV3(target_triple)
+                else:
+                    artifact_format = SDKArtifactFormatV2(platform_suffix)
                 bundle_path = await self.unpack_artifactbundle(artifact_path)
                 package = await self.package_artifactbundle(
-                    bundle_path, tag_name, platform_suffix)
+                    bundle_path, tag_name, artifact_format)
                 if options.dry_run:
                     print(f"Skip uploading actual artifact \"{package}\"")
                     return
@@ -442,8 +497,10 @@ class Distribution:
             self.subprocess_run(tar_args, check=True)
             return tarball_path
 
-    async def package_artifactbundle(self, artifact_path: str, tag_name: str,
-                                     platform_suffix: str):
+    async def package_artifactbundle(
+        self, artifact_path: str, tag_name: str,
+        artifact_format: SDKArtifactFormat
+    ):
         import shutil
         print(f"Packaging {artifact_path}")
         dirents = os.listdir(artifact_path)
@@ -456,7 +513,7 @@ class Distribution:
         sdk_artifact_id = dirents[0]
         sdk_path = os.path.join(artifact_path, sdk_artifact_id)
 
-        expected_artifact_id = tag_name.lstrip("swift-wasm") + "-wasm"
+        expected_artifact_id = artifact_format.swift_sdk_artifact_id(tag_name)
         if sdk_artifact_id != expected_artifact_id:
             print((f"Re-packaging artifactbundle: "
                   f"{sdk_artifact_id} -> {expected_artifact_id}"))
@@ -470,9 +527,9 @@ class Distribution:
             sdk_artifact_id = expected_artifact_id
 
         # Rename .artifactbundle file name
+        artifact_filename = artifact_format.swift_sdk_artifact_filename(tag_name)
         tagged_artifact_path = os.path.join(
-            os.path.dirname(artifact_path),
-            f"{tag_name}-{platform_suffix}.artifactbundle")
+            os.path.dirname(artifact_path), artifact_filename)
         bundlezip_path = tagged_artifact_path + ".zip"
 
         if not os.path.exists(tagged_artifact_path):
@@ -702,14 +759,24 @@ class Distribution:
             raise Exception(f"Failed to execute: {' '.join(args)}")
 
 
-def derive_platform_suffix_and_scheme(artifact_name: str):
+def derive_platform_suffix_and_scheme(
+    artifact_name: str, target_scheme: str
+) -> Tuple[Optional[str], str, str]:
     """
-    Returns platform suffix derived from the artifact name.
-    e.g. macos_x86_64
+    Returns platform suffix, scheme, and target triple derived from the
+    artifact name.
+    e.g.
+        "main-wasm32-unknown-wasi-artifactbundle", scheme="main"
+          -> [None, "main", "wasm32-unknown-wasi"]
+        "macos_x86_64-main-artifactbundle", scheme="main"
+          -> ["macos_x86_64", "main", "wasm32-unknown-wasi"]
+        "ubuntu22.04_x86_64-installable", scheme="main"
+          -> ["ubuntu22.04_x86_64", "main", "wasm32-unknown-wasi"]
     """
 
-    # latest artifact name: <platform-suffix>-<scheme>-installable
-    # legacy artifact name: <platform-suffix>-installable
+    # v3 artifact name: <scheme>-<target-triple>-artifactbundle
+    # v2 artifact name: <platform-suffix>-<scheme>-(installable|artifactbundle)
+    # v1 artifact name: <platform-suffix>-installable
     # Note that <scheme> can contain '-'.
     name: str = artifact_name
     artifact_suffixes = ("-installable", "-artifactbundle")
@@ -717,13 +784,24 @@ def derive_platform_suffix_and_scheme(artifact_name: str):
         raise Exception((f"Unexpected artifact name {name}"
                          f", expected to have one of \"{artifact_suffixes}\""
                          " suffix"))
+
+    if name.startswith(target_scheme):
+        # v3 artifact name
+        rest = name[len(target_scheme) + 1:]
+        if not rest.endswith("-artifactbundle"):
+            raise Exception(
+                f"Unexpected artifact name {name} with format v3 should"
+                " end with -artifactbundle")
+        target_triple = rest[:-len("-artifactbundle")]
+        return [None, target_scheme, target_triple]
+
     components = name.split("-")
     if len(components) >= 3:
         scheme = "-".join(components[1:-1])
-        return [components[0], scheme]
+        return [components[0], scheme, "wasm32-unknown-wasi"]
     else:
         # Assume legacy representation only used for the main scheme
-        return [components[0], "main"]
+        return [components[0], "main", "wasm32-unknown-wasi"]
 
 
 def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: str):
@@ -741,7 +819,7 @@ def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: s
             artifact_name = artifact["name"]
             if not artifact_name.endswith("-installable"):
                 continue
-            _, artifact_scheme = derive_platform_suffix_and_scheme(artifact_name)
+            _, artifact_scheme, _ = derive_platform_suffix_and_scheme(artifact_name, scheme)
             if artifact_scheme == scheme:
                 return run["id"]
     raise Exception(f"Could not find a successful run for {workflow_name} on {branch} branch with scheme {scheme}")
