@@ -441,7 +441,7 @@ def main():
                 now.year, now.month, now.day,
                 swift_version=derive_swift_version(
                     options.daily_snapshot, toolchain_channel, now),
-                artifact_name=f"swift-{toolchain_channel}-SNAPSHOT-{target_triple}",
+                artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT-{target_triple}",
                 daily_snapshot=options.daily_snapshot
             )
             actions.append(PackageSwiftSDKAction(
