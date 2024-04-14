@@ -299,7 +299,7 @@ class SDKArtifactFormatV2(SDKArtifactFormat):
         self.platform_suffix = platform_suffix
 
     def swift_sdk_artifact_id(self, tag_name: str):
-        return tag_name.removeprefix("swift-wasm") + "-wasm"
+        return tag_name.removeprefix("swift-wasm-") + "-wasm"
 
     def swift_sdk_artifact_filename(self, tag_name: str):
         return f"{tag_name}-{self.platform_suffix}.artifactbundle"
@@ -310,7 +310,7 @@ class SDKArtifactFormatV3(SDKArtifactFormat):
         self.target_triple = target_triple
 
     def swift_sdk_artifact_id(self, tag_name: str):
-        return tag_name.removeprefix("swift-wasm") + "-" + self.target_triple
+        return tag_name.removeprefix("swift-wasm-") + "-" + self.target_triple
 
     def swift_sdk_artifact_filename(self, tag_name: str):
         return f"{tag_name}-{self.target_triple}.artifactbundle"
@@ -373,24 +373,24 @@ class Distribution:
         tag_name = options.override_name
 
         # Create tag and release on GitHub
-        for artifact, artifact_path in downloaded_paths:
-            if artifact["name"].endswith("-installable"):
-                artifact_path = self.unpack_toolchain(artifact_path)
-                if not tag_name:
+        if not tag_name:
+            for artifact, artifact_path in downloaded_paths:
+                if artifact["name"].endswith("-installable"):
+                    artifact_path = self.unpack_toolchain(artifact_path)
                     tag_name = self.guess_tag_name(artifact_path)
-                break
-            elif artifact["name"].endswith("-artifactbundle"):
-                platform_suffix, _, target_triple = derive_platform_suffix_and_scheme(
-                    artifact["name"], options.scheme)
-                bundle_path = await self.unpack_artifactbundle(artifact_path)
-                dirents = os.listdir(bundle_path)
-                dirents.remove("info.json")
-                sdk_artifact_id = dirents[0]
-                if not platform_suffix:
-                    tag_name = "swift-wasm-" + sdk_artifact_id.removesuffix("-" + target_triple)
-                else:
-                    tag_name = "swift-wasm-" + sdk_artifact_id.removesuffix("-wasm")
-                break
+                    break
+                elif artifact["name"].endswith("-artifactbundle"):
+                    platform_suffix, _, target_triple = derive_platform_suffix_and_scheme(
+                        artifact["name"], options.scheme)
+                    bundle_path = await self.unpack_artifactbundle(artifact_path)
+                    dirents = os.listdir(bundle_path)
+                    dirents.remove("info.json")
+                    sdk_artifact_id = dirents[0]
+                    if not platform_suffix:
+                        tag_name = "swift-wasm-" + sdk_artifact_id.removesuffix("-" + target_triple)
+                    else:
+                        tag_name = "swift-wasm-" + sdk_artifact_id.removesuffix("-wasm")
+                    break
 
         if not tag_name:
             raise Exception("Could not determine tag name")
