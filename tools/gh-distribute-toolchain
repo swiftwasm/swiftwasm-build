@@ -440,10 +440,12 @@ class Distribution:
             return
 
         # Package and upload toolchains
-        for artifact, artifact_path, platform_suffix in downloaded_paths:
+        for artifact, artifact_path in downloaded_paths:
             if not artifact["name"].endswith("-installable"):
                 continue
 
+            platform_suffix, _, _ = derive_platform_suffix_and_scheme(
+                artifact["name"], options.scheme)
             artifact_path = self.unpack_toolchain(artifact_path)
             package = await self.package_toolchain(
                 artifact_path, tag_name, platform_suffix)
