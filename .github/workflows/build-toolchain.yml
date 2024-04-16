@@ -191,7 +191,7 @@ jobs:
       # LLVM implicitly depends on libzstd if it's found in the system
       - name: Uninstall libzstd on macOS
         if: ${{ startsWith(matrix.build_os, 'macos-') }}
-        run: rm -f /usr/local/lib/pkgconfig/libzstd.pc
+        run: rm -f /usr/local/lib/pkgconfig/libzstd.pc /usr/local/include/zstd.h
 
       # release-5.9 requires 3.11 or lower Python
       - uses: actions/setup-python@v5
