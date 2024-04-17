@@ -768,12 +768,12 @@ def derive_platform_suffix_and_scheme(
     Returns platform suffix, scheme, and target triple derived from the
     artifact name.
     e.g.
-        "main-wasm32-unknown-wasi-artifactbundle", scheme="main"
-          -> [None, "main", "wasm32-unknown-wasi"]
+        "main-wasm32-wasi-artifactbundle", scheme="main"
+          -> [None, "main", "wasm32-wasi"]
         "macos_x86_64-main-artifactbundle", scheme="main"
-          -> ["macos_x86_64", "main", "wasm32-unknown-wasi"]
+          -> ["macos_x86_64", "main", "wasm32-wasi"]
         "ubuntu22.04_x86_64-installable", scheme="main"
-          -> ["ubuntu22.04_x86_64", "main", "wasm32-unknown-wasi"]
+          -> ["ubuntu22.04_x86_64", "main", "wasm32-wasi"]
     """
 
     # v3 artifact name: <scheme>-<target-triple>-artifactbundle
@@ -800,10 +800,10 @@ def derive_platform_suffix_and_scheme(
     components = name.split("-")
     if len(components) >= 3:
         scheme = "-".join(components[1:-1])
-        return [components[0], scheme, "wasm32-unknown-wasi"]
+        return [components[0], scheme, "wasm32-wasi"]
     else:
         # Assume legacy representation only used for the main scheme
-        return [components[0], "main", "wasm32-unknown-wasi"]
+        return [components[0], "main", "wasm32-wasi"]
 
 
 def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: str):

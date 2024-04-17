@@ -71,7 +71,7 @@ class PackageAction(Action):
     def __init__(self, options, snapshot_info: SnapshotInfo):
         super().__init__(options)
         self.snapshot_info = snapshot_info
-        self.target_triple = "wasm32-unknown-wasi"
+        self.target_triple = "wasm32-wasi"
 
     def run(self):
         import shutil
@@ -104,10 +104,10 @@ class PackageAction(Action):
         # e.g.
         # The canonical way to build a static executable is to use -static-executable and specify -sdk because
         # we don't have good concensus for the wasi-sysroot layout and the driver should not assume the SDK path.
-        # $ echo | ./usr/bin/swiftc -target wasm32-unknown-wasi -o /dev/null - -static-executable -sdk ./usr/share/wasi-sysroot
+        # $ echo | ./usr/bin/swiftc -target wasm32-wasi -o /dev/null - -static-executable -sdk ./usr/share/wasi-sysroot
         # But we don't want to force users to specify -sdk, so we have a hack in the legacy driver to assume
         # the SDK path and pass -static-executable (effectively -use-static-resource-dir).
-        # $ echo | ./usr/bin/swiftc -target wasm32-unknown-wasi -o /dev/null -
+        # $ echo | ./usr/bin/swiftc -target wasm32-wasi -o /dev/null -
         # The new swift-driver doesn't have this hack, so we remove swift-driver from the toolchain for now.
         swift_driver_path = os.path.join(dist_toolchain_path, 'usr', 'bin', 'swift-driver')
         if os.path.exists(swift_driver_path) and \
@@ -440,7 +440,7 @@ def main():
 
         toolchain_channel = derive_toolchain_channel(options.scheme)
         for target_triple in [
-            "wasm32-unknown-wasi", "wasm32-unknown-wasip1-threads"
+            "wasm32-wasi", "wasm32-wasip1-threads"
         ]:
             snapshot_info = SnapshotInfo(
                 now.year, now.month, now.day,
