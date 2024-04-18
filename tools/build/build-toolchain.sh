@@ -40,7 +40,7 @@ if need_build_cross_compiler; then
   # compilers in the base toolchain with the just built ones
   # in the host toolchain. So we copy the host toolchain to
   # target toolchain first.
-  TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain/wasm32-wasi
+  TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain/wasm32-unknown-wasi
   rm -rf "$TARGET_TOOLCHAIN_DESTDIR"
   mkdir -p "$TARGET_TOOLCHAIN_DESTDIR"
   rsync -a "$CROSS_COMPILER_DESTDIR/" "$TARGET_TOOLCHAIN_DESTDIR"

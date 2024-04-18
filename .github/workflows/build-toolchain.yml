@@ -228,8 +228,8 @@ jobs:
       - name: Extract installable archive from Docker container
         if: ${{ matrix.container != null && matrix.only_swift_sdk }}
         run: |
-          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-wasi.artifactbundle.zip .
-          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-wasip1-threads.artifactbundle.zip .
+          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip .
+          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip .
 
       - name: Extract build-cache from Docker container
         if: ${{ matrix.container != null && !cancelled() }}
@@ -264,18 +264,18 @@ jobs:
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip
           if-no-files-found: ignore
 
-      - name: Upload Swift SDK artifact bundle (wasm32-wasi)
+      - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasi)
         uses: actions/upload-artifact@v4
         if: ${{ matrix.only_swift_sdk }}
         with:
-          name: ${{ matrix.scheme }}-wasm32-wasi-artifactbundle
-          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-wasi.artifactbundle.zip
-      - name: Upload Swift SDK artifact bundle (wasm32-wasip1-threads)
+          name: ${{ matrix.scheme }}-wasm32-unknown-wasi-artifactbundle
+          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
+      - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1-threads)
         uses: actions/upload-artifact@v4
         if: ${{ matrix.only_swift_sdk }}
         with:
-          name: ${{ matrix.scheme }}-wasm32-wasip1-threads-artifactbundle
-          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-wasip1-threads.artifactbundle.zip
+          name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-threads-artifactbundle
+          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip
 
       # Prepare for running tests
       - uses: bytecodealliance/actions/wasmtime/setup@v1
@@ -332,7 +332,7 @@ jobs:
         run: |
           echo 'print("Hello, world!")' > hello.swift
           $TOOLCHAIN/usr/bin/swiftc \
-                -target wasm32-wasi \
+                -target wasm32-unknown-wasi \
                 -sdk $TOOLCHAIN/usr/share/wasi-sysroot \
                 -resource-dir $TOOLCHAIN/usr/lib/swift_static \
                 hello.swift -o hello.wasm && \
