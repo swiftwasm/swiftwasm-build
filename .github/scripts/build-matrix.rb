@@ -7,7 +7,7 @@ BASE_MATRIX_ENTRIES = [
     "agent_query": "ubuntu-20.04",
     "target": "ubuntu18.04_x86_64",
     "containers": {
-      "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04",
+      # "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04",
       # "release-5.9": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04@sha256:d5d555cf48fc02f5003928a064c03b76c012fef8afbe54a1942c6bfc3d773c58",
       "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04@sha256:d5d555cf48fc02f5003928a064c03b76c012fef8afbe54a1942c6bfc3d773c58"
     },
