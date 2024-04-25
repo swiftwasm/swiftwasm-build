@@ -37,11 +37,11 @@ class SnapshotInfo:
         return f"{self.artifact_name}.artifactbundle.zip"
 
 
-def derive_wasi_sysroot(options, packaging_dir: str) -> str:
+def derive_wasi_sysroot(options, packaging_dir: str, target_triple: str) -> str:
     if options.download_wasi_sysroot:
         return os.path.join('..', 'build-sdk', 'wasi-sysroot')
     else:
-        return os.path.join(packaging_dir, 'wasi-sysroot')
+        return os.path.join(packaging_dir, 'wasi-sysroot', target_triple)
 
 
 def copy_icu_libs(build_sdk_path, dist_toolchain_path):
@@ -116,7 +116,7 @@ class PackageAction(Action):
             os.remove(swift_driver_path)
 
         # Select wasi-sysroot
-        wasi_sysroot_path = derive_wasi_sysroot(self.options, packaging_dir)
+        wasi_sysroot_path = derive_wasi_sysroot(self.options, packaging_dir, 'wasm32-wasi')
         print("=====> Using wasi-sysroot from {}".format(wasi_sysroot_path))
 
         # Now dist toolchain always has cross compiler regardless of whether
@@ -439,8 +439,9 @@ def main():
             os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
 
         toolchain_channel = derive_toolchain_channel(options.scheme)
-        for target_triple in [
-            "wasm32-unknown-wasi", "wasm32-unknown-wasip1-threads"
+        for target_triple, short_triple in [
+            ["wasm32-unknown-wasi", "wasm32-wasi"],
+            ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]
         ]:
             snapshot_info = SnapshotInfo(
                 now.year, now.month, now.day,
@@ -454,7 +455,7 @@ def main():
                 base_toolchain_path=os.path.join(packaging_dir, 'base-snapshot'),
                 host_toolchain_path=None,
                 target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain', target_triple),
-                wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir),
+                wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir, short_triple),
                 swift_sdk_name=f"{snapshot_info.swift_version}-{target_triple}",
                 target_triple=target_triple,
             ))
