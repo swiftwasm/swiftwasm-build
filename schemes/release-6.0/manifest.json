@@ -1,6 +1,6 @@
 {
   "update-checkout-scheme": "release/6.0",
-  "base-tag": "swift-6.0-DEVELOPMENT-SNAPSHOT-2024-04-26-a",
+  "base-tag": "swift-6.0-DEVELOPMENT-SNAPSHOT-2024-04-27-a",
   "build-compiler": false,
   "icu4c": "https://github.com/swiftwasm/icu4c-wasi/releases/download/0.8.0/icu4c-wasi.tar.xz",
   "wasi-sysroot": "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-21/wasi-sysroot-21.0.tar.gz",
