@@ -183,6 +183,9 @@ jobs:
 
       - run: ./swiftwasm-build/tools/build/install-build-sdk.sh ${{ matrix.scheme }}
       - run: ./swiftwasm-build/tools/git-swift-workspace --skip-history --verbose --scheme ${{ matrix.scheme }}
+        env:
+          # icu uses git-lfs and it fails to checkout due to https://github.com/git-lfs/git-lfs/issues/5749
+          GIT_CLONE_PROTECTION_ACTIVE: false
 
       - name: Install Homebrew dependencies
         if: ${{ startsWith(matrix.build_os, 'macos-') }}
