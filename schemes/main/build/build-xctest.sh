@@ -15,6 +15,11 @@ BUILD_DIR="$SOURCE_PATH/build/WebAssembly/xctest-$TRIPLE"
 mkdir -p $BUILD_DIR
 cd $BUILD_DIR
 
+swift_extra_flags=""
+if [[ "$TRIPLE" == "wasm32-unknown-wasip1-threads" ]]; then
+  swift_extra_flags="-Xcc -matomics -Xcc -mbulk-memory -Xcc -mthread-model -Xcc posix -Xcc -pthread -Xcc -ftls-model=local-exec"
+fi
+
 cmake -G Ninja \
   -DCMAKE_BUILD_TYPE="Release" \
   -DCMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
@@ -26,7 +31,7 @@ cmake -G Ninja \
   -DCLANG_BIN="$CLANG_BIN_DIR" \
   -DBUILD_SHARED_LIBS=OFF \
   -DCMAKE_Swift_COMPILER_FORCED=ON \
-  -DCMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static" \
+  -DCMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static $swift_extra_flags" \
   -DSWIFT_FOUNDATION_PATH=$DESTINATION_TOOLCHAIN/usr/lib/swift_static/wasi/wasm32 \
   "${SOURCE_PATH}/swift-corelibs-xctest"
   

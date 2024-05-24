@@ -17,6 +17,13 @@ FOUNDATION_BUILD="$SOURCE_PATH/build/WebAssembly/foundation-$TRIPLE"
 mkdir -p $FOUNDATION_BUILD
 cd $FOUNDATION_BUILD
 
+swift_extra_flags=""
+c_extra_flags=""
+if [[ "$TRIPLE" == "wasm32-unknown-wasip1-threads" ]]; then
+  swift_extra_flags="-Xcc -matomics -Xcc -mbulk-memory -Xcc -mthread-model -Xcc posix -Xcc -pthread -Xcc -ftls-model=local-exec"
+  c_extra_flags="-mthread-model posix -pthread -ftls-model=local-exec"
+fi
+
 cmake -G Ninja \
   -DCMAKE_BUILD_TYPE="Release" \
   -DCMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
@@ -36,8 +43,8 @@ cmake -G Ninja \
   -DFOUNDATION_BUILD_TOOLS=OFF \
   -DHAS_LIBDISPATCH_API=OFF \
   -DCMAKE_Swift_COMPILER_FORCED=ON \
-  -DCMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static" \
-  -DCMAKE_C_FLAGS="-resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static/clang -B $LLVM_BIN_DIR" \
+  -DCMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static $swift_extra_flags" \
+  -DCMAKE_C_FLAGS="-resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static/clang -B $LLVM_BIN_DIR $c_extra_flags" \
   "${SOURCE_PATH}/swift-corelibs-foundation"
   
 ninja
