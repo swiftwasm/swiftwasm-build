@@ -1,6 +1,13 @@
 {
   "base-tag": "swift-DEVELOPMENT-SNAPSHOT-2024-05-01-a",
   "build-compiler": false,
-  "icu4c": "https://github.com/swiftwasm/icu4c-wasi/releases/download/0.8.0/icu4c-wasi.tar.xz",
+  "icu4c": [
+    "https://github.com/swiftwasm/icu4c-wasi/releases/download/0.10.0/icu4c-wasm32-unknown-wasi.tar.xz",
+    "https://github.com/swiftwasm/icu4c-wasi/releases/download/0.10.0/icu4c-wasm32-unknown-wasip1-threads.tar.xz"
+  ],
+  "libxml2": [
+    "https://github.com/swiftwasm/libxml2-wasm/releases/download/2.0.0/libxml2-wasm32-unknown-wasi.tar.gz",
+    "https://github.com/swiftwasm/libxml2-wasm/releases/download/2.0.0/libxml2-wasm32-unknown-wasip1-threads.tar.gz"
+  ],
   "swift-org-download-channel": "development"
 }
