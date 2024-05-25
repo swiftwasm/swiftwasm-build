@@ -187,6 +187,7 @@ def main
   end
 
   schemes = derive_schemes(options)
+  schemes = schemes - ["release-5.9"] # Skip 5.9 for now
 
   matrix_entries = schemes.flat_map do |scheme|
     if scheme == "main"
