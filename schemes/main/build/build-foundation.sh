@@ -10,7 +10,7 @@ TRIPLE="$6"
 SOURCE_PATH="$(cd "$(dirname $0)/../../../.." && pwd)"
 SCHEME_BUILD_PATH="$(cd "$(dirname $0)" && pwd)"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
-LIBXML2_PATH="$BUILD_SDK_PATH/libxml2"
+LIBXML2_PATH="$BUILD_SDK_PATH/libxml2-$TRIPLE"
 
 FOUNDATION_BUILD="$SOURCE_PATH/build/WebAssembly/foundation-$TRIPLE"
 
@@ -33,7 +33,7 @@ cmake -G Ninja \
   -DTRIPLE="$TRIPLE" \
   -DLLVM_BIN="$LLVM_BIN_DIR" \
   -DCLANG_BIN="$CLANG_BIN_DIR" \
-  -DICU_ROOT="$BUILD_SDK_PATH/icu" \
+  -DICU_ROOT="$BUILD_SDK_PATH/icu-$TRIPLE" \
   -DLIBXML2_INCLUDE_DIR="$LIBXML2_PATH/include/libxml2" \
   -DLIBXML2_LIBRARY="$LIBXML2_PATH/lib" \
   -DBUILD_SHARED_LIBS=OFF \

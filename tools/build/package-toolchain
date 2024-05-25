@@ -44,9 +44,12 @@ def derive_wasi_sysroot(options, packaging_dir: str, target_triple: str) -> str:
         return os.path.join(packaging_dir, 'wasi-sysroot', target_triple)
 
 
-def copy_icu_libs(build_sdk_path, dist_toolchain_path):
+def copy_icu_libs(build_sdk_path, dist_toolchain_path, target_triple):
     import shutil
-    icu_lib_dir = os.path.join(build_sdk_path, 'icu', 'lib')
+    icu_lib_dir = os.path.join(build_sdk_path, f"icu-{target_triple}", 'lib')
+    if not os.path.exists(icu_lib_dir):
+        icu_lib_dir = os.path.join(build_sdk_path, 'icu', 'lib')
+
     dest_dir = os.path.join(
         dist_toolchain_path, 'usr', 'lib', 'swift_static', 'wasi')
     print("=====> Copying ICU libraries from {}".format(icu_lib_dir))
@@ -56,9 +59,12 @@ def copy_icu_libs(build_sdk_path, dist_toolchain_path):
         shutil.copy(os.path.join(icu_lib_dir, lib), dest_path)
 
 
-def copy_libxml2_libs(build_sdk_path, dist_toolchain_path):
+def copy_libxml2_libs(build_sdk_path, dist_toolchain_path, target_triple):
     import shutil
-    lib_dir = os.path.join(build_sdk_path, 'libxml2', 'lib')
+    lib_dir = os.path.join(build_sdk_path, f"libxml2-{target_triple}", 'lib')
+    if not os.path.exists(lib_dir):
+        lib_dir = os.path.join(build_sdk_path, 'libxml2', 'lib')
+
     dest_dir = os.path.join(
         dist_toolchain_path, 'usr', 'lib', 'swift_static', 'wasi')
     print("=====> Copying libxml2 libraries from {}".format(lib_dir))
@@ -90,8 +96,8 @@ class PackageAction(Action):
         print(f"=====> Copying base snapshot {base_toolchain_path} to {dist_toolchain_path}")
         self.rsync("-a", base_toolchain_path + "/", dist_toolchain_path)
 
-        copy_icu_libs(build_sdk_path, target_toolchain_path)
-        copy_libxml2_libs(build_sdk_path, target_toolchain_path)
+        copy_icu_libs(build_sdk_path, target_toolchain_path, self.target_triple)
+        copy_libxml2_libs(build_sdk_path, target_toolchain_path, self.target_triple)
         # Copying target stdlib to dist toolchain, and cross compiler if
         # host compiler is built with patches by ourselves.
         print(f"=====> Copying target toolchain {target_toolchain_path} to {dist_toolchain_path}")
@@ -219,8 +225,8 @@ class PackageSwiftSDKAction(Action):
 
     def run(self):
         build_sdk_path = os.path.join('..', 'build-sdk')
-        copy_icu_libs(build_sdk_path, self.target_toolchain_path)
-        copy_libxml2_libs(build_sdk_path, self.target_toolchain_path)
+        copy_icu_libs(build_sdk_path, self.target_toolchain_path, self.target_triple)
+        copy_libxml2_libs(build_sdk_path, self.target_toolchain_path, self.target_triple)
         self.make_swift_sdk(
             self.base_toolchain_path,
             self.host_toolchain_path,
