@@ -1,5 +1,4 @@
 # Skipping, see https://github.com/swiftwasm/swift/issues/5551
-XFAIL: scheme=release-5.10
 REQUIRES: FileCheck
 
 RUN: rm -rf %t.dir
