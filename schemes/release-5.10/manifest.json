@@ -1,6 +1,6 @@
 {
   "update-checkout-scheme": "release/5.10",
-  "base-tag": "swift-5.10-DEVELOPMENT-SNAPSHOT-2024-05-28-a",
+  "base-tag": "swift-5.10-DEVELOPMENT-SNAPSHOT-2024-05-29-a",
   "repos": {
     "swift-corelibs-foundation": "197278295ffeae13f91d6299c2bb43bf4ca93e83",
     "swift-corelibs-xctest": "77bc9f5386ee8a2a4e8da5ac30e846b451d101b6"
