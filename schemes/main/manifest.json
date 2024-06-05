@@ -1,5 +1,5 @@
 {
-  "base-tag": "swift-DEVELOPMENT-SNAPSHOT-2024-06-03-a",
+  "base-tag": "swift-DEVELOPMENT-SNAPSHOT-2024-06-04-a",
   "build-compiler": false,
   "icu4c": [
     "https://github.com/swiftwasm/icu4c-wasi/releases/download/0.10.0/icu4c-wasm32-unknown-wasi.tar.xz",
