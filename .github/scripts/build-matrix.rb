@@ -85,8 +85,21 @@ BASE_MATRIX_ENTRIES = [
     "only_swift_sdk": false,
   },
   {
+    "build_os": "macos-14",
+    "agent_query": ["macos-14"],
+    "schemes": ["main"],
+    "target": "macos_arm64",
+    "run_stdlib_test": true,
+    "run_full_test": false,
+    "run_e2e_test": true,
+    "build_hello_wasm": true,
+    "clean_build_dir": true,
+    "only_swift_sdk": false,
+  },
+  {
     "build_os": "macos-13",
     "agent_query": ["self-hosted", "macOS", "ARM64"],
+    "schemes": ["release-5.9", "release-5.10", "release-6.0"],
     "target": "macos_arm64",
     "run_stdlib_test": true,
     "run_full_test": false,
@@ -198,6 +211,9 @@ def main
       raise "Unknown scheme: #{scheme}"
     end
     matrix_entries.filter_map do |entry|
+      if entry[:schemes]
+        next nil unless entry[:schemes].include?(scheme)
+      end
       container = if containers = entry[:containers]
         found = containers[scheme.to_sym]
         next nil unless found # Skip if container for the scheme is not specified
