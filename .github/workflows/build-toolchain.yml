@@ -228,10 +228,14 @@ jobs:
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip . || true
 
-      - name: Extract installable archive from Docker container
+      - name: Extract installable archive from Docker container (wasm32-unknown-wasi)
         if: ${{ matrix.container != null && matrix.only_swift_sdk }}
         run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip .
+      # release-6.0 doesn't have wasm32-unknown-wasip1-threads SDK support yet
+      - name: Extract installable archive from Docker container (wasm32-unknown-wasip1-threads)
+        if: ${{ matrix.container != null && matrix.only_swift_sdk && matrix.scheme != 'release-6.0' }}
+        run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip .
 
       - name: Extract build-cache from Docker container
