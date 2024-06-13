@@ -136,16 +136,6 @@ class PackageAction(Action):
                 target_toolchain_path,
                 wasi_sysroot_path,
                 self.snapshot_info.swift_sdk_name)
-        elif self.options.scheme in ['release-6.0']:
-            shutil.rmtree(llvm_toolchain_path, ignore_errors=True)
-            os.makedirs(llvm_toolchain_path, exist_ok=True)
-            self.install_extra_llvm_tools(llvm_tools_path, base_toolchain_path, llvm_toolchain_path)
-            self.make_swift_sdk(
-                base_toolchain_path,
-                llvm_toolchain_path,
-                target_toolchain_path,
-                wasi_sysroot_path,
-                self.snapshot_info.swift_sdk_name)
 
         shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
 
@@ -445,10 +435,14 @@ def main():
             os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
 
         toolchain_channel = derive_toolchain_channel(options.scheme)
-        for target_triple, short_triple in [
+        triples = [
             ["wasm32-unknown-wasi", "wasm32-wasi"],
-            ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]
-        ]:
+        ]
+        if options.scheme not in ["release-6.0"]:
+            triples += [
+                ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]
+            ]
+        for target_triple, short_triple in triples:
             snapshot_info = SnapshotInfo(
                 now.year, now.month, now.day,
                 swift_version=derive_swift_version(
