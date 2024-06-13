@@ -116,6 +116,7 @@ BASE_MATRIX_ENTRIES = [
     "target": "ubuntu22.04_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
+      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:adfa0a8fbc6e5cc7ce5e38a5a9406d4fa5c557871204a65f0690478022d6b359",
     },
     "run_stdlib_test": true,
     "run_full_test": false,
