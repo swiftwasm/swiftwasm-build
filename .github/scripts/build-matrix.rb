@@ -87,7 +87,7 @@ BASE_MATRIX_ENTRIES = [
   {
     "build_os": "macos-14",
     "agent_query": ["macos-14"],
-    "schemes": ["main"],
+    "schemes": ["release-5.10", "release-6.0", "main"],
     "target": "macos_arm64",
     "run_stdlib_test": true,
     "run_full_test": false,
@@ -99,7 +99,7 @@ BASE_MATRIX_ENTRIES = [
   {
     "build_os": "macos-13",
     "agent_query": ["self-hosted", "macOS", "ARM64"],
-    "schemes": ["release-5.9", "release-5.10", "release-6.0"],
+    "schemes": ["release-5.9"],
     "target": "macos_arm64",
     "run_stdlib_test": true,
     "run_full_test": false,
