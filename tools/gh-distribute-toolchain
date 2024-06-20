@@ -441,6 +441,7 @@ class Distribution:
 
         # Package and upload toolchains
         for artifact, artifact_path in downloaded_paths:
+            import shutil
             if not artifact["name"].endswith("-installable"):
                 continue
 
@@ -453,6 +454,9 @@ class Distribution:
                 print(f"Skip uploading actual artifact \"{package}\"")
                 continue
             self.upload_to_release(package, release)
+            if options.optimize_disk_footprint:
+                print(f"Removing {artifact_path} to optimize disk footprint")
+                shutil.rmtree(artifact_path)
 
     def guess_tag_name(self, path):
         return os.path.basename(path)
@@ -836,6 +840,10 @@ async def main():
         default=os.environ.get("GH_DISTRIBUTE_TOOLCHAIN_OVERRIDE_NAME"))
     parser.add_argument(
         '--only-swift-sdk', action='store_true')
+    parser.add_argument(
+        '--optimize-disk-footprint',
+        help='Minimize disk footprint',
+        action='store_true', default=os.environ.get('CI', None) is not None)
     options = derive_options_from_args(sys.argv[1:], parser)
 
     secrets = Secrets.derive()
