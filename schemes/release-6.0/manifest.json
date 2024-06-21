@@ -1,6 +1,6 @@
 {
   "update-checkout-scheme": "release/6.0",
-  "base-tag": "swift-6.0-DEVELOPMENT-SNAPSHOT-2024-06-19-a",
+  "base-tag": "swift-6.0-DEVELOPMENT-SNAPSHOT-2024-06-20-a",
   "build-compiler": false,
   "icu4c": ["https://github.com/swiftwasm/icu4c-wasi/releases/download/0.8.0/icu4c-wasi.tar.xz"],
   "libxml2": ["https://github.com/swiftwasm/libxml2-wasm/releases/download/2.0.0/libxml2-wasm32-unknown-wasi.tar.gz"],
