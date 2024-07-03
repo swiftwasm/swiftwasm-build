@@ -86,7 +86,7 @@ BASE_MATRIX_ENTRIES = [
   },
   {
     "build_os": "macos-14",
-    "agent_query": ["macos-14"],
+    "agent_query": "macos-14",
     "schemes": ["release-5.10", "release-6.0", "main"],
     "target": "macos_arm64",
     "run_stdlib_test": true,
