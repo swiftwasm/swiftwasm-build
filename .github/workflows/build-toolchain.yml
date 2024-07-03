@@ -198,7 +198,7 @@ jobs:
 
       # release-5.9 requires 3.11 or lower Python
       - uses: actions/setup-python@v5
-        if: ${{ startsWith(matrix.build_os, 'macos-') && matrix.scheme == 'release-5.9' && matrix.agent_query == 'macos-13' }}
+        if: ${{ startsWith(matrix.build_os, 'macos-') && (matrix.scheme == 'release-5.9' || matrix.scheme == 'release-5.10') && (matrix.agent_query == 'macos-13' || matrix.agent_query == 'macos-14') }}
         with:
           python-version: '3.11'
 
