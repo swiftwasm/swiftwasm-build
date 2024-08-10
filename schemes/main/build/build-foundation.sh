@@ -14,9 +14,6 @@ LIBXML2_PATH="$BUILD_SDK_PATH/libxml2-$TRIPLE"
 
 FOUNDATION_BUILD="$SOURCE_PATH/build/WebAssembly/foundation-$TRIPLE"
 
-mkdir -p $FOUNDATION_BUILD
-cd $FOUNDATION_BUILD
-
 swift_extra_flags=""
 c_extra_flags=""
 if [[ "$TRIPLE" == "wasm32-unknown-wasip1-threads" ]]; then
@@ -25,27 +22,31 @@ if [[ "$TRIPLE" == "wasm32-unknown-wasip1-threads" ]]; then
 fi
 
 cmake -G Ninja \
-  -DCMAKE_BUILD_TYPE="Release" \
-  -DCMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
-  -DCMAKE_Swift_COMPILER="$SWIFT_BIN_DIR/swiftc" \
-  -DCMAKE_STAGING_PREFIX="$DESTINATION_TOOLCHAIN/usr" \
-  -DCMAKE_TOOLCHAIN_FILE="$SCHEME_BUILD_PATH/toolchain-wasi.cmake" \
-  -DTRIPLE="$TRIPLE" \
-  -DLLVM_BIN="$LLVM_BIN_DIR" \
-  -DCLANG_BIN="$CLANG_BIN_DIR" \
-  -DICU_ROOT="$BUILD_SDK_PATH/icu-$TRIPLE" \
-  -DLIBXML2_INCLUDE_DIR="$LIBXML2_PATH/include/libxml2" \
-  -DLIBXML2_LIBRARY="$LIBXML2_PATH/lib" \
-  -DBUILD_SHARED_LIBS=OFF \
-  -DBUILD_NETWORKING=OFF \
-  -DBUILD_TOOLS=OFF \
-  -DFOUNDATION_ENABLE_FOUNDATION_NETWORKING=OFF \
-  -DFOUNDATION_BUILD_TOOLS=OFF \
-  -DHAS_LIBDISPATCH_API=OFF \
-  -DCMAKE_Swift_COMPILER_FORCED=ON \
-  -DCMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static $swift_extra_flags" \
-  -DCMAKE_C_FLAGS="-resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static/clang -B $LLVM_BIN_DIR $c_extra_flags" \
+  -D CMAKE_BUILD_TYPE="Release" \
+  -D CMAKE_SYSROOT="$WASI_SYSROOT_PATH" \
+  -D CMAKE_Swift_COMPILER="$SWIFT_BIN_DIR/swiftc" \
+  -D CMAKE_STAGING_PREFIX="$DESTINATION_TOOLCHAIN/usr" \
+  -D CMAKE_SYSTEM_NAME=WASI \
+  -D CMAKE_SYSTEM_PROCESSOR=wasm32 \
+  -D CMAKE_C_COMPILER_TARGET="$TRIPLE" \
+  -D CMAKE_CXX_COMPILER_TARGET="$TRIPLE" \
+  -D CMAKE_Swift_COMPILER_TARGET="$TRIPLE" \
+  -D CMAKE_C_COMPILER="$CLANG_BIN_DIR/clang" \
+  -D CMAKE_CXX_COMPILER="$CLANG_BIN_DIR/clang++" \
+  -D CMAKE_AR="$LLVM_BIN_DIR/llvm-ar" \
+  -D CMAKE_RANLIB="$LLVM_BIN_DIR/llvm-ranlib" \
+  -D LIBXML2_INCLUDE_DIR="$LIBXML2_PATH/include/libxml2" \
+  -D LIBXML2_LIBRARY="$LIBXML2_PATH/lib" \
+  -D BUILD_SHARED_LIBS=OFF \
+  -D FOUNDATION_BUILD_TOOLS=OFF \
+  -D CMAKE_Swift_COMPILER_FORCED=ON \
+  -D CMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static $swift_extra_flags" \
+  -D CMAKE_C_FLAGS="-resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static/clang -B $LLVM_BIN_DIR $c_extra_flags" \
+  -D _SwiftCollections_SourceDIR="$SOURCE_PATH/swift-collections" \
+  -D _SwiftFoundation_SourceDIR="$SOURCE_PATH/swift-foundation" \
+  -D _SwiftFoundationICU_SourceDIR="$SOURCE_PATH/swift-foundation-icu" \
+  -B "$FOUNDATION_BUILD" \
   "${SOURCE_PATH}/swift-corelibs-foundation"
   
-ninja
-ninja install
+cmake --build "$FOUNDATION_BUILD"
+cmake --install "$FOUNDATION_BUILD"
