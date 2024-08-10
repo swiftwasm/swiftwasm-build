@@ -40,6 +40,8 @@ cmake -G Ninja \
   -D BUILD_SHARED_LIBS=OFF \
   -D FOUNDATION_BUILD_TOOLS=OFF \
   -D CMAKE_Swift_COMPILER_FORCED=ON \
+  -D CMAKE_C_COMPILER_FORCED=ON \
+  -D CMAKE_CXX_COMPILER_FORCED=ON \
   -D CMAKE_Swift_FLAGS="-sdk $WASI_SYSROOT_PATH -resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static $swift_extra_flags" \
   -D CMAKE_C_FLAGS="-resource-dir $DESTINATION_TOOLCHAIN/usr/lib/swift_static/clang -B $LLVM_BIN_DIR $c_extra_flags" \
   -D _SwiftCollections_SourceDIR="$SOURCE_PATH/swift-collections" \
