@@ -14,8 +14,8 @@ print("chdir: \(chdirResult)")
 // CHECK: cwd: /tmp
 print("cwd: \(FileManager.default.currentDirectoryPath)")
 
-// CHECK: homeDirectory: nil
-print("homeDirectory: \(String(describing: FileManager.default.homeDirectory(forUser: "nobody")))")
+// CHECK: homeDirectory: file:///var/empty/
+print("homeDirectory: \(FileManager.default.homeDirectory(forUser: "nobody")?.absoluteString ?? "nil")")
 
 // CHECK: temporaryDirectory: file:///tmp/
 print("temporaryDirectory: \(FileManager.default.temporaryDirectory)")

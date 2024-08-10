@@ -1,0 +1,55 @@
+From 965246eebdb263f1ac0d8f42723821a82570b31c Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 7 Aug 2024 16:40:22 +0000
+Subject: [PATCH] [CMake] Build BlocksRuntime as object library
+
+To avoid shippig BlocksRuntime as a separate library, build it as an
+object library and include it in CoreFoundation static archive.
+---
+ Sources/CoreFoundation/BlockRuntime/CMakeLists.txt | 13 ++++---------
+ Sources/CoreFoundation/CMakeLists.txt              |  1 +
+ 2 files changed, 5 insertions(+), 9 deletions(-)
+
+diff --git a/Sources/CoreFoundation/BlockRuntime/CMakeLists.txt b/Sources/CoreFoundation/BlockRuntime/CMakeLists.txt
+index afcd826a..fe5e13bb 100644
+--- a/Sources/CoreFoundation/BlockRuntime/CMakeLists.txt
++++ b/Sources/CoreFoundation/BlockRuntime/CMakeLists.txt
+@@ -15,7 +15,9 @@
+ # Build the vendored version of the BlocksRuntime library, which is used by
+ # platforms that don't support libdispatch.
+ 
+-add_library(BlocksRuntime
++# Build the BlocksRuntime as an object library, shipped as a part
++# of libCoreFoundation.
++add_library(BlocksRuntime OBJECT
+     data.c
+     runtime.c)
+ 
+@@ -27,11 +29,4 @@ target_include_directories(BlocksRuntime PUBLIC
+ set_target_properties(BlocksRuntime PROPERTIES
+     POSITION_INDEPENDENT_CODE FALSE)
+ 
+-add_library(BlocksRuntime::BlocksRuntime ALIAS BlocksRuntime)
+-
+-if(NOT BUILD_SHARED_LIBS)
+-    set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS BlocksRuntime)
+-    install(TARGETS BlocksRuntime
+-        ARCHIVE DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/${SWIFT_SYSTEM_NAME}
+-        LIBRARY DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/${SWIFT_SYSTEM_NAME})
+-endif()
++set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS BlocksRuntime)
+diff --git a/Sources/CoreFoundation/CMakeLists.txt b/Sources/CoreFoundation/CMakeLists.txt
+index c73891b2..71e7c2f0 100644
+--- a/Sources/CoreFoundation/CMakeLists.txt
++++ b/Sources/CoreFoundation/CMakeLists.txt
+@@ -121,6 +121,7 @@ target_link_libraries(CoreFoundation
+ if(CMAKE_SYSTEM_NAME STREQUAL WASI)
+     # On WASI, we use vendored BlocksRuntime instead of the one from libdispatch
+     add_subdirectory(BlockRuntime)
++    # Add BlocksRuntime object library to CoreFoundation static archive
+     target_link_libraries(CoreFoundation PRIVATE BlocksRuntime)
+ endif()
+ 
+-- 
+2.43.2
+

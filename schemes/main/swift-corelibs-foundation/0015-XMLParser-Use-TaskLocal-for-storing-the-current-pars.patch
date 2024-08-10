@@ -1,0 +1,209 @@
+From 28d349560dbaca095bbe37efbf4e47a37004aa91 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 8 Aug 2024 23:33:15 +0000
+Subject: [PATCH] [XMLParser] Use `TaskLocal` for storing the current parser
+
+Instead of thread-local storage, use `TaskLocal` to store the current
+parser. This solves three issues:
+
+1. If someone calls `XMLParser.parse()` with a new parser instance in
+   a delegate method call, it overwrote the current parser and wrote
+   it back after the call as `nil`, not the previous current parser.
+   This reentrancy issue can be a problem especially when someone uses
+   external entity resolving since the feature depends on the current
+   parser tracking. Using `TaskLocal` solves this issue since it tracks
+   values as a stack and restores the previous value at the end of the
+   `withValue` call.
+2. Since jobs of different tasks can be scheduled on the same thread,
+   different tasks can refer to the same thread-local storage. This
+   wouldn't be a problem for now since the `parse()` method doesn't
+   have any suspention points and different tasks can't run on the same
+   thread during the parsing. However, it's better to use `TaskLocal`
+   to leverage the concurrency model of Swift.
+3. The global variable `_currentParser` existed in the WASI platform
+   path but it's unsafe in the Swift concurrency model. It wouldn't be a
+   problem on WASI since it's always single-threaded, we should avoid
+   platform-specific assumption as much as possible.
+---
+ Sources/FoundationXML/XMLParser.swift | 85 ++++++++++-----------------
+ Tests/Foundation/TestXMLParser.swift  | 40 ++++++++++++-
+ 2 files changed, 71 insertions(+), 54 deletions(-)
+
+diff --git a/Sources/FoundationXML/XMLParser.swift b/Sources/FoundationXML/XMLParser.swift
+index d89d0ee1..e3d718a8 100644
+--- a/Sources/FoundationXML/XMLParser.swift
++++ b/Sources/FoundationXML/XMLParser.swift
+@@ -398,9 +398,7 @@ extension XMLParser : @unchecked Sendable { }
+ 
+ open class XMLParser : NSObject {
+     private var _handler: _CFXMLInterfaceSAXHandler
+-#if !os(WASI)
+     internal var _stream: InputStream?
+-#endif
+     internal var _data: Data?
+ 
+     internal var _chunkSize = Int(4096 * 32) // a suitably large number for a decent chunk size
+@@ -469,33 +467,35 @@ open class XMLParser : NSObject {
+     open var externalEntityResolvingPolicy: ExternalEntityResolvingPolicy = .never
+     
+     open var allowedExternalEntityURLs: Set<URL>?
+-    
+-#if os(WASI)
+-    private static var _currentParser: XMLParser?
+-#endif
+ 
+-    internal static func currentParser() -> XMLParser? {
+-#if os(WASI)
+-        return _currentParser
+-#else
+-        if let current = Thread.current.threadDictionary["__CurrentNSXMLParser"] {
+-            return current as? XMLParser
+-        } else {
+-            return nil
++    /// The current parser is stored in a task local variable to allow for
++    /// concurrent parsing in different tasks with different parsers.
++    ///
++    /// Rationale for `@unchecked Sendable`:
++    /// While the ``XMLParser`` class itself is not `Sendable`, `TaskLocal`
++    /// requires the value type to be `Sendable`. The sendability requirement
++    /// of `TaskLocal` is only for the "default" value and values set with
++    /// `withValue` will not be shared between tasks.
++    /// So as long as 1. the default value is safe to be shared between tasks
++    /// and 2. the `Sendable` conformance of `_CurrentParser` is not used
++    /// outside of `TaskLocal`, it is safe to mark it as `@unchecked Sendable`.
++    private struct _CurrentParser: @unchecked Sendable {
++        let parser: XMLParser?
++
++        static var `default`: _CurrentParser {
++            return _CurrentParser(parser: nil)
+         }
+-#endif
++    }
++
++    @TaskLocal
++    private static var _currentParser: _CurrentParser = .default
++
++    internal static func currentParser() -> XMLParser? {
++        return _currentParser.parser
+     }
+     
+-    internal static func setCurrentParser(_ parser: XMLParser?) {
+-#if os(WASI)
+-        _currentParser = parser
+-#else
+-        if let p = parser {
+-            Thread.current.threadDictionary["__CurrentNSXMLParser"] = p
+-        } else {
+-            Thread.current.threadDictionary.removeObject(forKey: "__CurrentNSXMLParser")
+-        }
+-#endif
++    internal static func withCurrentParser<R>(_ parser: XMLParser, _ body: () -> R) -> R {
++        return self.$_currentParser.withValue(_CurrentParser(parser: parser), operation: body)
+     }
+     
+     internal func _handleParseResult(_ parseResult: Int32) -> Bool {
+@@ -569,7 +569,6 @@ open class XMLParser : NSObject {
+         return result
+     }
+ 
+-#if !os(WASI)
+     internal func parseFrom(_ stream : InputStream) -> Bool {
+         var result = true
+ 
+@@ -598,37 +597,17 @@ open class XMLParser : NSObject {
+ 
+         return result
+     }
+-#else
+-    internal func parse(from data: Data) -> Bool {
+-        var result = true
+-        var chunkStart = 0
+-        var chunkEnd = min(_chunkSize, data.count)
+-        while result && chunkStart < chunkEnd {
+-            let chunk = data[chunkStart..<chunkEnd]
+-            result = parseData(chunk)
+-            chunkStart = chunkEnd
+-            chunkEnd = min(chunkEnd + _chunkSize, data.count)
+-        }
+-        return result
+-    }
+-#endif
+ 
+     // called to start the event-driven parse. Returns YES in the event of a successful parse, and NO in case of error.
+     open func parse() -> Bool {
+-#if os(WASI)
+-        return _data.map { parse(from: $0) } ?? false
+-#else
+-        XMLParser.setCurrentParser(self)
+-        defer { XMLParser.setCurrentParser(nil) }
+-
+-        if _stream != nil {
+-            return parseFrom(_stream!)
+-        } else if _data != nil {
+-            return parseData(_data!, lastChunkOfData: true)
++        return Self.withCurrentParser(self) {
++            if _stream != nil {
++                return parseFrom(_stream!)
++            } else if _data != nil {
++                return parseData(_data!, lastChunkOfData: true)
++            }
++            return false
+         }
+-
+-        return false
+-#endif
+     }
+     
+     // called by the delegate to stop the parse. The delegate will get an error message sent to it.
+diff --git a/Tests/Foundation/TestXMLParser.swift b/Tests/Foundation/TestXMLParser.swift
+index c98741eb..e5e2df4b 100644
+--- a/Tests/Foundation/TestXMLParser.swift
++++ b/Tests/Foundation/TestXMLParser.swift
+@@ -198,5 +198,43 @@ class TestXMLParser : XCTestCase {
+         ElementNameChecker("noPrefix").check()
+         ElementNameChecker("myPrefix:myLocalName").check()
+     }
+-    
++
++    func testExternalEntity() throws {
++        class Delegate: XMLParserDelegateEventStream {
++            override func parserDidStartDocument(_ parser: XMLParser) {
++                // Start a child parser, updating `currentParser` to the child parser
++                // to ensure that `currentParser` won't be reset to `nil`, which would
++                // ignore any external entity related configuration.
++                let childParser = XMLParser(data: "<child />".data(using: .utf8)!)
++                XCTAssertTrue(childParser.parse())
++                super.parserDidStartDocument(childParser)
++            }
++        }
++        try withTemporaryDirectory { dir, _ in
++            let greetingPath = dir.appendingPathComponent("greeting.xml")
++            try Data("<hello />".utf8).write(to: greetingPath)
++            let xml = """
++            <?xml version="1.0" standalone="no"?>
++            <!DOCTYPE doc [
++              <!ENTITY greeting SYSTEM "\(greetingPath.absoluteString)">
++            ]>
++            <doc>&greeting;</doc>
++            """
++
++            let parser = XMLParser(data: xml.data(using: .utf8)!)
++            // Explicitly disable external entity resolving
++            parser.externalEntityResolvingPolicy = .never
++            let delegate = Delegate()
++            parser.delegate = delegate
++            XCTAssertTrue(parser.parse())
++            XCTAssertNil(parser.parserError)
++            XCTAssertEqual(delegate.events, [
++                .startDocument,
++                .didStartElement("doc", nil, nil, [:]),
++                // Should not have parsed the external entity
++                .didEndElement("doc", nil, nil),
++                .endDocument,
++            ])
++        }
++    }
+ }
+-- 
+2.43.2
+
