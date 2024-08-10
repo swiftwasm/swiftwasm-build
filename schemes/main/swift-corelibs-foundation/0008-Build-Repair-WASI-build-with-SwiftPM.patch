@@ -1,0 +1,77 @@
+From 8176d11c41fc96500692f3bc59f8a0609b08cfa6 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 7 Aug 2024 06:06:22 +0000
+Subject: [PATCH] [Build] Repair WASI build with SwiftPM
+
+---
+ Package.swift | 21 +++++++++++++++------
+ 1 file changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/Package.swift b/Package.swift
+index 1477aefd..dc86631a 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -39,14 +39,12 @@ let coreFoundationBuildSettings: [CSetting] = [
+     .headerSearchPath("internalInclude"),
+     .define("DEBUG", .when(configuration: .debug)),
+     .define("CF_BUILDING_CF"),
+-    .define("DEPLOYMENT_ENABLE_LIBDISPATCH"),
++    .define("DEPLOYMENT_ENABLE_LIBDISPATCH", .when(platforms: platformsWithThreads)),
+     .define("DEPLOYMENT_RUNTIME_SWIFT"),
+     .define("HAVE_STRUCT_TIMESPEC"),
+     .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads)),
+     .define("_GNU_SOURCE", .when(platforms: [.linux, .android])),
+     .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
+-    .define("HAVE_STRLCPY", .when(platforms: [.wasi])),
+-    .define("HAVE_STRLCAT", .when(platforms: [.wasi])),
+     .unsafeFlags([
+         "-Wno-shorten-64-to-32",
+         "-Wno-deprecated-declarations",
+@@ -78,8 +76,6 @@ let interfaceBuildSettings: [CSetting] = [
+     .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads)),
+     .define("_GNU_SOURCE", .when(platforms: [.linux, .android])),
+     .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
+-    .define("HAVE_STRLCPY", .when(platforms: [.wasi])),
+-    .define("HAVE_STRLCAT", .when(platforms: [.wasi])),
+     .unsafeFlags([
+         "-Wno-shorten-64-to-32",
+         "-Wno-deprecated-declarations",
+@@ -161,7 +157,8 @@ let package = Package(
+                 .product(name: "FoundationEssentials", package: "swift-foundation"),
+                 "Foundation",
+                 "CoreFoundation",
+-                "_CFXMLInterface"
++                "_CFXMLInterface",
++                .target(name: "BlocksRuntime", condition: .when(platforms: [.wasi])),
+             ],
+             path: "Sources/FoundationXML",
+             exclude: [
+@@ -187,6 +184,7 @@ let package = Package(
+             name: "CoreFoundation",
+             dependencies: [
+                 .product(name: "_FoundationICU", package: "swift-foundation-icu"),
++                .target(name: "BlocksRuntime", condition: .when(platforms: [.wasi])),
+             ],
+             path: "Sources/CoreFoundation",
+             exclude: [
+@@ -195,6 +193,17 @@ let package = Package(
+             ],
+             cSettings: coreFoundationBuildSettings
+         ),
++        .target(
++            name: "BlocksRuntime",
++            path: "Sources/CoreFoundation/BlockRuntime",
++            exclude: [
++                "CMakeLists.txt"
++            ],
++            cSettings: [
++                // For CFTargetConditionals.h
++                .headerSearchPath("../include"),
++            ]
++        ),
+         .target(
+             name: "_CFXMLInterface",
+             dependencies: [
+-- 
+2.43.2
+

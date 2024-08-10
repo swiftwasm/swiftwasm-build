@@ -1,0 +1,50 @@
+From a1b9c39eb44478cdbabfcbb889752445c63031b9 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 7 Aug 2024 15:48:14 +0000
+Subject: [PATCH] [CMake] Not even try to find libdispatch on WASI
+
+---
+ CMakeLists.txt | 26 +++++++++++++++-----------
+ 1 file changed, 15 insertions(+), 11 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2bce7426..058fb311 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -93,18 +93,22 @@ if(NOT SwiftFoundation_MODULE_TRIPLE)
+ endif()
+ 
+ # System dependencies
+-find_package(dispatch CONFIG)
+-if(NOT dispatch_FOUND AND NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
+-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
+-        set(DEFAULT_DISPATCH_INCLUDE_PATH "/usr/lib/swift")
+-    elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+-        set(DEFAULT_DISPATCH_INCLUDE_PATH "$ENV{SDKROOT}usr/include")
++
++# We know libdispatch is always unavailable on WASI
++if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
++    find_package(dispatch CONFIG)
++    if(NOT dispatch_FOUND)
++        if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
++            set(DEFAULT_DISPATCH_INCLUDE_PATH "/usr/lib/swift")
++        elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
++            set(DEFAULT_DISPATCH_INCLUDE_PATH "$ENV{SDKROOT}usr/include")
++        endif()
++        set(DISPATCH_INCLUDE_PATH "${DEFAULT_DISPATCH_INCLUDE_PATH}" CACHE STRING "A path to where you can find libdispatch headers")
++        message("-- dispatch_DIR not found, using dispatch from SDK at ${DISPATCH_INCLUDE_PATH}")
++        list(APPEND _Foundation_common_build_flags
++            "-I${DISPATCH_INCLUDE_PATH}"
++            "-I${DISPATCH_INCLUDE_PATH}/Block")
+     endif()
+-    set(DISPATCH_INCLUDE_PATH "${DEFAULT_DISPATCH_INCLUDE_PATH}" CACHE STRING "A path to where you can find libdispatch headers")
+-    message("-- dispatch_DIR not found, using dispatch from SDK at ${DISPATCH_INCLUDE_PATH}")
+-    list(APPEND _Foundation_common_build_flags
+-        "-I${DISPATCH_INCLUDE_PATH}"
+-        "-I${DISPATCH_INCLUDE_PATH}/Block")
+ endif()
+ find_package(LibXml2 REQUIRED)
+ find_package(CURL REQUIRED)
+-- 
+2.43.2
+

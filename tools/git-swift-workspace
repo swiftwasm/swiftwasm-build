@@ -25,6 +25,8 @@ def main():
         ApplyPatchesAction(options, 'swift'),
         CheckoutCorelibsAction(options),
         ApplyPatchesAction(options, 'swift-corelibs-foundation'),
+        ApplyPatchesAction(options, 'swift-foundation'),
+        ApplyPatchesAction(options, 'swift-collections'),
         ApplyPatchesAction(options, 'swift-corelibs-xctest'),
     ]
 
