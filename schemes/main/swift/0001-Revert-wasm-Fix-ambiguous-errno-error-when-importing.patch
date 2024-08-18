@@ -1,0 +1,38 @@
+From 90799cfdf73e69147baab6f92f934c3a74235c5e Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sat, 10 Aug 2024 13:29:48 +0000
+Subject: [PATCH] Revert "[wasm] Fix ambiguous `errno` error when importing
+ WASILibc module"
+
+This reverts commit 164ec0adaa80e7a29d2a10fb31ee72baddeda6b2.
+---
+ stdlib/public/Platform/Platform.swift | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/stdlib/public/Platform/Platform.swift b/stdlib/public/Platform/Platform.swift
+index ca7417c5357..0c2d63a0cff 100644
+--- a/stdlib/public/Platform/Platform.swift
++++ b/stdlib/public/Platform/Platform.swift
+@@ -84,11 +84,6 @@ func _convertDarwinBooleanToBool(_ x: DarwinBoolean) -> Bool {
+ 
+ #endif
+ 
+-// wasi-libc defines `errno` in a way ClangImporter can understand, so we don't
+-// need to define shims for it. On the contrary, if we define the shim, we will
+-// get an ambiguity error when importing WASILibc module and SwiftWASILibc Clang
+-// module (or a Clang module that re-exports SwiftWASILibc).
+-#if !os(WASI)
+ //===----------------------------------------------------------------------===//
+ // sys/errno.h
+ //===----------------------------------------------------------------------===//
+@@ -101,7 +96,6 @@ public var errno : Int32 {
+     return _swift_stdlib_setErrno(val)
+   }
+ }
+-#endif
+ 
+ 
+ //===----------------------------------------------------------------------===//
+-- 
+2.43.2
+
