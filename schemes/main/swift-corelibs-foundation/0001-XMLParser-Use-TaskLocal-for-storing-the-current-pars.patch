@@ -1,4 +1,4 @@
-From 28d349560dbaca095bbe37efbf4e47a37004aa91 Mon Sep 17 00:00:00 2001
+From 9df174b737801ba7787ab59c5f34c3dc53b755ec Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Thu, 8 Aug 2024 23:33:15 +0000
 Subject: [PATCH] [XMLParser] Use `TaskLocal` for storing the current parser

@@ -1,4 +1,4 @@
-From cc82da1439974bb84abdd300d2e17db343f2fab0 Mon Sep 17 00:00:00 2001
+From a9b92ab9462c6ababbbc197d84272d65af751d53 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 9 Aug 2024 01:51:50 +0000
 Subject: [PATCH] Remove unnecessary `#if os(WASI)` condition in
