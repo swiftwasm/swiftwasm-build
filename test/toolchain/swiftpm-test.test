@@ -1,5 +1,6 @@
-# Skipping, see https://github.com/swiftwasm/swift/issues/5551
 REQUIRES: FileCheck
+# Skipping this test on main until we include swift-testing in the SDK
+XFAIL: scheme=main
 
 RUN: rm -rf %t.dir
 RUN: mkdir -p %t.dir
