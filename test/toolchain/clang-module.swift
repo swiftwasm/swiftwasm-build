@@ -3,4 +3,4 @@
 // RUN: %{swift} build --package-path %S/Inputs/clang-module-example --scratch-path %t.dir --triple wasm32-unknown-wasi --static-swift-stdlib
 
 // Skipping this test on main until we include swift-testing in the SDK
-// XFAIL: scheme=main
+// REQUIRES: GH-5587

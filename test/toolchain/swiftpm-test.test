@@ -1,6 +1,6 @@
 REQUIRES: FileCheck
 # Skipping this test on main until we include swift-testing in the SDK
-XFAIL: scheme=main
+REQUIRES: GH-5587
 
 RUN: rm -rf %t.dir
 RUN: mkdir -p %t.dir
