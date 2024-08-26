@@ -828,7 +828,8 @@ def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: s
             _, artifact_scheme, _ = derive_platform_suffix_and_scheme(artifact_name, scheme)
             if artifact_scheme == scheme:
                 return run["id"]
-    raise Exception(f"Could not find a successful run for {workflow_name} on {branch} branch with scheme {scheme}")
+    print(f"Could not find a successful run for {workflow_name} on {branch} branch with scheme {scheme}")
+    return None
 
 
 async def main():
@@ -851,6 +852,9 @@ async def main():
     if run_id == "latest":
         run_id = latest_success_run_id(
             gh, workflow_name="build-toolchain.yml", branch="main", scheme=options.scheme)
+        if run_id is None:
+            # No successful run found. This scheme might not be built recently.
+            return
         run_id = str(run_id)
         print(f"Automatically determined run_id: {run_id}")
     await Distribution(gh, swift_gh, run_id, secrets,
