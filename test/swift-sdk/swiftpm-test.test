@@ -1,0 +1,12 @@
+REQUIRES: FileCheck
+# Skipping this test on main until we include swift-testing in the SDK
+REQUIRES: GH-5587
+
+RUN: rm -rf %t.dir
+RUN: mkdir -p %t.dir
+RUN: %{swift} package init --package-path %t.dir --name Example
+RUN: %{target_swift_build} --package-path %t.dir --build-tests
+RUN: %{wasm_run} --dir . %t.dir/.build/debug/ExamplePackageTests.wasm | %{FileCheck} %s
+
+CHECK: Test Suite 'All tests' passed at
+CHECK:          Executed 1 test, with 0 failures (0 unexpected) in
