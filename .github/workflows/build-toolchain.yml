@@ -332,7 +332,7 @@ jobs:
             "./llvm-project/llvm/utils/lit/lit.py \
               --param swift-sdk=wasm32-unknown-wasi \
               --param swift-sdks-path=./swiftwasm-build/tools/swift-sdk-generator/Bundles \
-              --param scheme=main ./swiftwasm-build/test -vv"
+              --param scheme=${{ matrix.scheme }} ./swiftwasm-build/test -vv"
 
       - name: Cleanup docker volume
         if: ${{ matrix.container != null }}
