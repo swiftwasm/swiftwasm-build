@@ -303,7 +303,13 @@ jobs:
         if: ${{ matrix.run_stdlib_test && matrix.container != null }}
         run: |
           docker exec swiftwasm-ci-buildbot /bin/bash -lc \
-            "./swiftwasm-build/schemes/${{ matrix.scheme }}/build/run-test.sh && rm -rf build"
+            "./swiftwasm-build/schemes/${{ matrix.scheme }}/build/run-test.sh"
+
+      # We need this step to save disk space for the next steps when building toolchain
+      - name: Cleanup build directory
+        if: ${{ matrix.run_stdlib_test && matrix.container != null && !matrix.only_swift_sdk }}
+        run: docker exec swiftwasm-ci-buildbot /bin/bash -lc "rm -rf build"
+
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container == null }}
         run: ./swiftwasm-build/schemes/${{ matrix.scheme }}/build/run-test.sh
