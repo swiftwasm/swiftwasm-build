@@ -319,6 +319,15 @@ jobs:
           name: ${{ matrix.target }}-test-results
           path: ./swift-test-results.tar.gz
 
+      - name: Run integration tests (Swift SDK)
+        if: ${{ matrix.run_e2e_test && matrix.only_swift_sdk }}
+        run: |
+          docker exec swiftwasm-ci-buildbot /bin/bash -lc \
+            "./llvm-project/llvm/utils/lit/lit.py \
+              --param swift-sdk=wasm32-unknown-wasi \
+              --param swift-sdks-path=./swiftwasm-build/tools/swift-sdk-generator/Bundles \
+              --param scheme=main ./swiftwasm-build/test -vv"
+
       - name: Cleanup docker volume
         if: ${{ matrix.container != null }}
         run: |
