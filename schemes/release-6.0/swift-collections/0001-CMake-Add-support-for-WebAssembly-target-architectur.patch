@@ -1,0 +1,29 @@
+From effb33569a926c12dc8e7bae979ac2075c219189 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 26 Jul 2024 03:59:24 +0000
+Subject: [PATCH] [CMake] Add support for WebAssembly target architectures
+
+To repair the swift-corelibs-foundation build on WebAssembly, we need to
+add support for Wasm targets to swift-collections' CMake build system.
+---
+ cmake/modules/SwiftSupport.cmake | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/cmake/modules/SwiftSupport.cmake b/cmake/modules/SwiftSupport.cmake
+index 0ce99fb8..21b9d693 100644
+--- a/cmake/modules/SwiftSupport.cmake
++++ b/cmake/modules/SwiftSupport.cmake
+@@ -45,6 +45,10 @@ function(get_swift_host_arch result_var_name)
+     set("${result_var_name}" "i686" PARENT_SCOPE)
+   elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "i686")
+     set("${result_var_name}" "i686" PARENT_SCOPE)
++  elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "wasm32")
++    set("${result_var_name}" "wasm32" PARENT_SCOPE)
++  elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "wasm64")
++    set("${result_var_name}" "wasm64" PARENT_SCOPE)
+   else()
+     message(FATAL_ERROR "Unrecognized architecture on host system: ${CMAKE_SYSTEM_PROCESSOR}")
+   endif()
+-- 
+2.43.2
+
