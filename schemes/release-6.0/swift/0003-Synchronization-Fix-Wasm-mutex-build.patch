@@ -1,0 +1,29 @@
+From 261c0c6bf343aee915e5969e417c13e7bdd86912 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 5 Jun 2024 17:15:43 +0000
+Subject: [PATCH] [Synchronization] Fix Wasm mutex build
+
+This change fixes the following build error happening on Wasm:
+```
+error: referencing instance method '_wait(expected:)' on 'Atomic' requires the types '_MutexHandle.State' and 'UInt32' be equivalent
+```
+---
+ stdlib/public/Synchronization/Mutex/WasmImpl.swift | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/stdlib/public/Synchronization/Mutex/WasmImpl.swift b/stdlib/public/Synchronization/Mutex/WasmImpl.swift
+index 807eb3d8c64..8fa84b0ff48 100644
+--- a/stdlib/public/Synchronization/Mutex/WasmImpl.swift
++++ b/stdlib/public/Synchronization/Mutex/WasmImpl.swift
+@@ -23,7 +23,7 @@ internal func _swift_stdlib_wait(
+ @_extern(c, "llvm.wasm32.memory.atomic.notify")
+ internal func _swift_stdlib_wake(on: UnsafePointer<UInt32>, count: UInt32)
+ 
+-extension Atomic where Value == UInt32 {
++extension Atomic where Value == _MutexHandle.State {
+   internal borrowing func _wait(expected: _MutexHandle.State) {
+     _swift_stdlib_wait(
+       on: .init(_rawAddress),
+-- 
+2.43.2
+
