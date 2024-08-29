@@ -94,6 +94,7 @@ BASE_MATRIX_ENTRIES = [
     "run_e2e_test": true,
     "build_hello_wasm": true,
     "clean_build_dir": true,
+    "free_disk_space": true,
     "only_swift_sdk": false,
   },
   {

@@ -121,7 +121,7 @@ jobs:
     runs-on: ${{ matrix.agent_query }}
     steps:
       - name: Free disk space
-        if: ${{ matrix.free_disk_space }}
+        if: ${{ matrix.free_disk_space && !startsWith(matrix.build_os, 'macos-') }}
         run: |
           df -h
           sudo rm -rf /opt/hostedtoolcache
@@ -132,6 +132,18 @@ jobs:
             docker rmi $(docker image ls -aq)
           fi
           df -h
+
+      - name: Free disk space by removing unused Xcode
+        if: ${{ matrix.free_disk_space && startsWith(matrix.build_os, 'macos-') }}
+        run: |
+          IN_USE_XCODE=$(xcode-select -p)
+          echo "Removing all Xcode installations except $IN_USE_XCODE"
+          for xcode in /Applications/Xcode*.app; do
+            if [[ $IN_USE_XCODE != "$xcode"* ]]; then
+              echo "Removing $xcode"
+              rm -rf $xcode
+            fi
+          done
 
       - uses: actions/checkout@v4
         with:
