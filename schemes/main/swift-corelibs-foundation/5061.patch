@@ -1,7 +1,8 @@
-From 9df174b737801ba7787ab59c5f34c3dc53b755ec Mon Sep 17 00:00:00 2001
+From 6a78203fc24702ed81a2b2bb2a9949168e694161 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Thu, 8 Aug 2024 23:33:15 +0000
-Subject: [PATCH] [XMLParser] Use `TaskLocal` for storing the current parser
+Subject: [PATCH 1/3] [XMLParser] Use `TaskLocal` for storing the current
+ parser
 
 Instead of thread-local storage, use `TaskLocal` to store the current
 parser. This solves three issues:
@@ -26,11 +27,11 @@ parser. This solves three issues:
    platform-specific assumption as much as possible.
 ---
  Sources/FoundationXML/XMLParser.swift | 85 ++++++++++-----------------
- Tests/Foundation/TestXMLParser.swift  | 40 ++++++++++++-
- 2 files changed, 71 insertions(+), 54 deletions(-)
+ Tests/Foundation/TestXMLParser.swift  | 43 +++++++++++++-
+ 2 files changed, 74 insertions(+), 54 deletions(-)
 
 diff --git a/Sources/FoundationXML/XMLParser.swift b/Sources/FoundationXML/XMLParser.swift
-index d89d0ee1..e3d718a8 100644
+index d89d0ee1f4..e3d718a86f 100644
 --- a/Sources/FoundationXML/XMLParser.swift
 +++ b/Sources/FoundationXML/XMLParser.swift
 @@ -398,9 +398,7 @@ extension XMLParser : @unchecked Sendable { }
@@ -156,10 +157,10 @@ index d89d0ee1..e3d718a8 100644
      
      // called by the delegate to stop the parse. The delegate will get an error message sent to it.
 diff --git a/Tests/Foundation/TestXMLParser.swift b/Tests/Foundation/TestXMLParser.swift
-index c98741eb..e5e2df4b 100644
+index c98741eb38..df3685a82e 100644
 --- a/Tests/Foundation/TestXMLParser.swift
 +++ b/Tests/Foundation/TestXMLParser.swift
-@@ -198,5 +198,43 @@ class TestXMLParser : XCTestCase {
+@@ -198,5 +198,46 @@ class TestXMLParser : XCTestCase {
          ElementNameChecker("noPrefix").check()
          ElementNameChecker("myPrefix:myLocalName").check()
      }
@@ -173,7 +174,7 @@ index c98741eb..e5e2df4b 100644
 +                // ignore any external entity related configuration.
 +                let childParser = XMLParser(data: "<child />".data(using: .utf8)!)
 +                XCTAssertTrue(childParser.parse())
-+                super.parserDidStartDocument(childParser)
++                super.parserDidStartDocument(parser)
 +            }
 +        }
 +        try withTemporaryDirectory { dir, _ in
@@ -192,8 +193,11 @@ index c98741eb..e5e2df4b 100644
 +            parser.externalEntityResolvingPolicy = .never
 +            let delegate = Delegate()
 +            parser.delegate = delegate
-+            XCTAssertTrue(parser.parse())
-+            XCTAssertNil(parser.parserError)
++            // The parse result changes depending on the libxml2 version
++            // because of the following libxml2 commit (shipped in libxml2 2.9.10):
++            // https://gitlab.gnome.org/GNOME/libxml2/-/commit/eddfbc38fa7e84ccd480eab3738e40d1b2c83979
++            // So we don't check the parse result here.
++            _ = parser.parse()
 +            XCTAssertEqual(delegate.events, [
 +                .startDocument,
 +                .didStartElement("doc", nil, nil, [:]),
@@ -204,6 +208,150 @@ index c98741eb..e5e2df4b 100644
 +        }
 +    }
  }
--- 
-2.43.2
 
+From 7a6125f16e07bb9cdd15e8bee5e7e2c283da4205 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 9 Aug 2024 01:51:50 +0000
+Subject: [PATCH 2/3] Remove unnecessary `#if os(WASI)` condition in
+ XMLParser.swift
+
+---
+ Sources/FoundationXML/XMLParser.swift | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/Sources/FoundationXML/XMLParser.swift b/Sources/FoundationXML/XMLParser.swift
+index e3d718a86f..39eea6c3d8 100644
+--- a/Sources/FoundationXML/XMLParser.swift
++++ b/Sources/FoundationXML/XMLParser.swift
+@@ -412,9 +412,6 @@ open class XMLParser : NSObject {
+     
+     // initializes the parser with the specified URL.
+     public convenience init?(contentsOf url: URL) {
+-#if os(WASI)
+-        return nil
+-#else
+         setupXMLParsing()
+         if url.isFileURL {
+             if let stream = InputStream(url: url) {
+@@ -432,7 +429,6 @@ open class XMLParser : NSObject {
+                 return nil
+             }
+         }
+-#endif
+     }
+     
+     // create the parser from data
+@@ -448,7 +444,6 @@ open class XMLParser : NSObject {
+         _CFXMLInterfaceDestroyContext(_parserContext)
+     }
+     
+-#if !os(WASI)
+     //create a parser that incrementally pulls data from the specified stream and parses it.
+     public init(stream: InputStream) {
+         setupXMLParsing()
+@@ -456,7 +451,6 @@ open class XMLParser : NSObject {
+         _handler = _CFXMLInterfaceCreateSAXHandler()
+         _parserContext = nil
+     }
+-#endif
+     
+     open weak var delegate: XMLParserDelegate?
+     
+
+From a4a80e1c2f6721b7e92e137d10dbf37dacb65be9 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 23 Aug 2024 06:20:59 +0000
+Subject: [PATCH 3/3] Keep the current parser in TLS instead of TaskLocal
+
+TaskLocal storage is inherited by non-detached child tasks, which can
+lead to the parser being shared between tasks. This is not our intention
+and can lead to inconsistent state. Instead, we should keep the current
+parser in thread-local storage. This should be safe as long as we don't
+have any structured suspension points in `withCurrentParser` block.
+---
+ Sources/FoundationXML/XMLParser.swift | 65 ++++++++++++++++++---------
+ 1 file changed, 44 insertions(+), 21 deletions(-)
+
+diff --git a/Sources/FoundationXML/XMLParser.swift b/Sources/FoundationXML/XMLParser.swift
+index 39eea6c3d8..952c25cd58 100644
+--- a/Sources/FoundationXML/XMLParser.swift
++++ b/Sources/FoundationXML/XMLParser.swift
+@@ -462,34 +462,57 @@ open class XMLParser : NSObject {
+     
+     open var allowedExternalEntityURLs: Set<URL>?
+ 
+-    /// The current parser is stored in a task local variable to allow for
+-    /// concurrent parsing in different tasks with different parsers.
+-    ///
+-    /// Rationale for `@unchecked Sendable`:
+-    /// While the ``XMLParser`` class itself is not `Sendable`, `TaskLocal`
+-    /// requires the value type to be `Sendable`. The sendability requirement
+-    /// of `TaskLocal` is only for the "default" value and values set with
+-    /// `withValue` will not be shared between tasks.
+-    /// So as long as 1. the default value is safe to be shared between tasks
+-    /// and 2. the `Sendable` conformance of `_CurrentParser` is not used
+-    /// outside of `TaskLocal`, it is safe to mark it as `@unchecked Sendable`.
+-    private struct _CurrentParser: @unchecked Sendable {
+-        let parser: XMLParser?
+-
+-        static var `default`: _CurrentParser {
+-            return _CurrentParser(parser: nil)
++    /// The current parser context for the current thread.
++    private class _CurrentParserContext {
++        var _stack: [XMLParser] = []
++        var _current: XMLParser? {
++            return _stack.last
+         }
+     }
+ 
+-    @TaskLocal
+-    private static var _currentParser: _CurrentParser = .default
++    #if os(WASI)
++    /// The current parser associated with the current thread. (assuming no multi-threading)
++    /// FIXME: Unify the implementation with the other platforms once we unlock `threadDictionary`
++    ///        or migrate to `FoundationEssentials._ThreadLocal`.
++    private static nonisolated(unsafe) var _currentParserContext: _CurrentParserContext?
++    #else
++    /// The current parser associated with the current thread.
++    private static var _currentParserContext: _CurrentParserContext? {
++        get {
++            return Thread.current.threadDictionary["__CurrentNSXMLParser"] as? _CurrentParserContext
++        }
++        set {
++            Thread.current.threadDictionary["__CurrentNSXMLParser"] = newValue
++        }
++    }
++    #endif
+ 
++    /// The current parser associated with the current thread.
+     internal static func currentParser() -> XMLParser? {
+-        return _currentParser.parser
++        if let ctx = _currentParserContext {
++            return ctx._current
++        }
++        return nil
+     }
+-    
++
++    /// Execute the given closure with the current parser set to the given parser.
+     internal static func withCurrentParser<R>(_ parser: XMLParser, _ body: () -> R) -> R {
+-        return self.$_currentParser.withValue(_CurrentParser(parser: parser), operation: body)
++        var ctx: _CurrentParserContext
++        if let current = _currentParserContext {
++            // Use the existing context if it exists
++            ctx = current
++        } else {
++            // Create a new context in TLS
++            ctx = _CurrentParserContext()
++            _currentParserContext = ctx
++        }
++        // Push the parser onto the stack
++        ctx._stack.append(parser)
++        defer {
++            // Pop the parser off the stack
++            ctx._stack.removeLast()
++        }
++        return body()
+     }
+     
+     internal func _handleParseResult(_ parseResult: Int32) -> Bool {
