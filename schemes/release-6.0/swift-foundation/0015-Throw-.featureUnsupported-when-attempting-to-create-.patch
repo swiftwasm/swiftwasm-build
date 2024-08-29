@@ -1,0 +1,39 @@
+From f8a181d7ffd5de758c0c57f00aa69016f3fecf0e Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 2 Aug 2024 01:12:39 +0900
+Subject: [PATCH] Throw `.featureUnsupported` when attempting to create temp
+ files on WASI (#779)
+
+WASI does not have temp directory concept, and does not provide mktemp
+family of functions, so attempting to create a temporary file should be
+considered a feature unsupported.
+---
+ Sources/FoundationEssentials/Data/Data+Writing.swift | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/Sources/FoundationEssentials/Data/Data+Writing.swift b/Sources/FoundationEssentials/Data/Data+Writing.swift
+index 1acd412..0256e51 100644
+--- a/Sources/FoundationEssentials/Data/Data+Writing.swift
++++ b/Sources/FoundationEssentials/Data/Data+Writing.swift
+@@ -131,6 +131,10 @@ private func cleanupTemporaryDirectory(at inPath: String?) {
+ 
+ /// Caller is responsible for calling `close` on the `Int32` file descriptor.
+ private func createTemporaryFile(at destinationPath: String, inPath: PathOrURL, prefix: String, options: Data.WritingOptions) throws -> (Int32, String) {
++#if os(WASI)
++    // WASI does not have temp directories
++    throw CocoaError(.featureUnsupported)
++#else
+     var directoryPath = destinationPath
+     if !directoryPath.isEmpty && directoryPath.last! != "/" {
+         directoryPath.append("/")
+@@ -185,6 +189,7 @@ private func createTemporaryFile(at destinationPath: String, inPath: PathOrURL,
+             }
+         }
+     } while true
++#endif // os(WASI)
+ }
+ 
+ /// Returns `(file descriptor, temporary file path, temporary directory path)`
+-- 
+2.43.2
+

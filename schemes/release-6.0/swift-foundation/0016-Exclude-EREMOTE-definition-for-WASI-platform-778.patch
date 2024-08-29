@@ -1,0 +1,31 @@
+From 5d333819a3ffb36996b4332750d5bd25c1ecea00 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 2 Aug 2024 01:06:57 +0900
+Subject: [PATCH] Exclude EREMOTE definition for WASI platform (#778)
+
+WASI does not define the EREMOTE error code.
+---
+ Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift b/Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift
+index c940a30..e1bfffa 100644
+--- a/Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift
++++ b/Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift
+@@ -469,11 +469,13 @@ extension POSIXError {
+         return .ESTALE
+     }
+ 
++    #if !os(WASI)
+     /// Too many levels of remote in path.
+     public static var EREMOTE: POSIXErrorCode {
+         return .EREMOTE
+     }
+     #endif
++    #endif
+ 
+     #if canImport(Darwin)
+     /// RPC struct is bad.
+-- 
+2.43.2
+
