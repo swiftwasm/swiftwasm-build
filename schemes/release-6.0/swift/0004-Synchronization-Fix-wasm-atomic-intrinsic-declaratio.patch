@@ -1,0 +1,51 @@
+From bcbf0f86c459cb9b8ffefc7bea47cd4bea04fbeb Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 6 Jun 2024 04:13:08 +0000
+Subject: [PATCH] [Synchronization] Fix wasm atomic intrinsic declarations
+
+Otherwise, isel will not be able to select the desired atomic
+instructions.
+---
+ stdlib/public/Synchronization/Mutex/WasmImpl.swift | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/stdlib/public/Synchronization/Mutex/WasmImpl.swift b/stdlib/public/Synchronization/Mutex/WasmImpl.swift
+index 8fa84b0ff48..d2729f4d54c 100644
+--- a/stdlib/public/Synchronization/Mutex/WasmImpl.swift
++++ b/stdlib/public/Synchronization/Mutex/WasmImpl.swift
+@@ -13,19 +13,19 @@
+ // Note: All atomic accesses on WASM are sequentially consistent regardless of
+ // what ordering we tell LLVM to use.
+ 
+-@_extern(c, "llvm.wasm32.memory.atomic.wait32")
++@_extern(c, "llvm.wasm.memory.atomic.wait32")
+ internal func _swift_stdlib_wait(
+   on: UnsafePointer<UInt32>,
+   expected: UInt32,
+   timeout: Int64
+ ) -> UInt32
+ 
+-@_extern(c, "llvm.wasm32.memory.atomic.notify")
+-internal func _swift_stdlib_wake(on: UnsafePointer<UInt32>, count: UInt32)
++@_extern(c, "llvm.wasm.memory.atomic.notify")
++internal func _swift_stdlib_wake(on: UnsafePointer<UInt32>, count: UInt32) -> UInt32
+ 
+ extension Atomic where Value == _MutexHandle.State {
+   internal borrowing func _wait(expected: _MutexHandle.State) {
+-    _swift_stdlib_wait(
++    _ = _swift_stdlib_wait(
+       on: .init(_rawAddress),
+       expected: expected.rawValue,
+ 
+@@ -36,7 +36,7 @@ extension Atomic where Value == _MutexHandle.State {
+ 
+   internal borrowing func _wake() {
+     // Only wake up 1 thread
+-    _swift_stdlib_wake(on: .init(_rawAddress), count: 1)
++    _ = _swift_stdlib_wake(on: .init(_rawAddress), count: 1)
+   }
+ }
+ 
+-- 
+2.43.2
+

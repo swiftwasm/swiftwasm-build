@@ -1,0 +1,43 @@
+From def82827e4bb3274e0ac3a86e761cb46b2a28a6d Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 6 Jun 2024 04:14:46 +0000
+Subject: [PATCH] [Synchronization] Skip atomic operations in single-threaded
+ mode on WebAssembly
+
+Use of atomics instructions requires the support of threads proposal and
+it's not widely supported yet. So we should enable actual atomic
+operations only when targeting wasm32-uknown-wasip1-threads.
+---
+ stdlib/public/Synchronization/Mutex/WasmImpl.swift | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/stdlib/public/Synchronization/Mutex/WasmImpl.swift b/stdlib/public/Synchronization/Mutex/WasmImpl.swift
+index d2729f4d54c..6c58628c40e 100644
+--- a/stdlib/public/Synchronization/Mutex/WasmImpl.swift
++++ b/stdlib/public/Synchronization/Mutex/WasmImpl.swift
+@@ -25,6 +25,7 @@ internal func _swift_stdlib_wake(on: UnsafePointer<UInt32>, count: UInt32) -> UI
+ 
+ extension Atomic where Value == _MutexHandle.State {
+   internal borrowing func _wait(expected: _MutexHandle.State) {
++    #if _runtime(_multithreaded)
+     _ = _swift_stdlib_wait(
+       on: .init(_rawAddress),
+       expected: expected.rawValue,
+@@ -32,11 +33,14 @@ extension Atomic where Value == _MutexHandle.State {
+       // A timeout of < 0 means indefinitely.
+       timeout: -1
+     )
++    #endif
+   }
+ 
+   internal borrowing func _wake() {
++    #if _runtime(_multithreaded)
+     // Only wake up 1 thread
+     _ = _swift_stdlib_wake(on: .init(_rawAddress), count: 1)
++    #endif
+   }
+ }
+ 
+-- 
+2.43.2
+
