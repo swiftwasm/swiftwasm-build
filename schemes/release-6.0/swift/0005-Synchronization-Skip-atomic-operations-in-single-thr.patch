@@ -19,7 +19,7 @@ index d2729f4d54c..6c58628c40e 100644
  
  extension Atomic where Value == _MutexHandle.State {
    internal borrowing func _wait(expected: _MutexHandle.State) {
-+    #if _runtime(_multithreaded)
++    #if false
      _ = _swift_stdlib_wait(
        on: .init(_rawAddress),
        expected: expected.rawValue,
@@ -31,7 +31,7 @@ index d2729f4d54c..6c58628c40e 100644
    }
  
    internal borrowing func _wake() {
-+    #if _runtime(_multithreaded)
++    #if false
      // Only wake up 1 thread
      _ = _swift_stdlib_wake(on: .init(_rawAddress), count: 1)
 +    #endif
