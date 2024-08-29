@@ -144,7 +144,7 @@ build_target_toolchain() {
     "$SWIFT_BIN_DIR"
     "$WASI_SYSROOT_PATH"
   )
-  "$TOOLS_BUILD_PATH/build-foundation.sh" "${CORELIBS_ARGS[@]}"
+  "$SCHEMES_BUILD_PATH/build-foundation.sh" "${CORELIBS_ARGS[@]}"
   "$SCHEMES_BUILD_PATH/build-xctest.sh" "${CORELIBS_ARGS[@]}"
 }
 
