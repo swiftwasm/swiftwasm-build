@@ -1,0 +1,51 @@
+From d7c300fa5bb26c061aaf41553e06c814cf8e5d8f Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 7 Aug 2024 05:34:51 +0000
+Subject: [PATCH] [wasm] Include CFPreferences.h, CFRunLoop.h, and CFStream.h
+ in WASI builds
+
+Those headers has been imported by Swift side through
+`CoreFoundation/Base.subproj/SwiftRuntime/CoreFoundation.h` since
+44031b5a0e96ad91eada2261db2d3890818fe1d0 but we switched to
+use CoreFoundation.h directly after the recore, and the header was not
+updated in 44031b5a0e96ad91eada2261db2d3890818fe1d0
+---
+ Sources/CoreFoundation/include/CoreFoundation.h | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/Sources/CoreFoundation/include/CoreFoundation.h b/Sources/CoreFoundation/include/CoreFoundation.h
+index a66e7e61..64313f0b 100644
+--- a/Sources/CoreFoundation/include/CoreFoundation.h
++++ b/Sources/CoreFoundation/include/CoreFoundation.h
+@@ -58,9 +58,7 @@
+ #include "CFLocale.h"
+ #include "CFNumber.h"
+ #include "CFNumberFormatter.h"
+-#if !TARGET_OS_WASI
+ #include "CFPreferences.h"
+-#endif
+ #include "CFPropertyList.h"
+ #include "CFSet.h"
+ #include "CFString.h"
+@@ -76,13 +74,17 @@
+ 
+ #include "ForSwiftFoundationOnly.h"
+ 
+-#if TARGET_OS_OSX || TARGET_OS_IPHONE || TARGET_OS_WIN32 || TARGET_OS_LINUX
++#if TARGET_OS_OSX || TARGET_OS_IPHONE || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI
++#  if !TARGET_OS_WASI
+ #include "CFMessagePort.h"
+ #include "CFPlugIn.h"
++#  endif
+ #include "CFRunLoop.h"
+ #include "CFStream.h"
++#  if !TARGET_OS_WASI
+ #include "CFSocket.h"
+ #include "CFMachPort.h"
++#  endif
+ 
+ #include "CFAttributedString.h"
+ #include "CFNotificationCenter.h"
+-- 
+2.43.2
+

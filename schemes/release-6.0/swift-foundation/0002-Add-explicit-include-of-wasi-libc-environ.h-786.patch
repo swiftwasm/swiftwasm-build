@@ -1,0 +1,31 @@
+From 32526a30ecfb17d64f60dcf4658e2c5f8b745628 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Fri, 2 Aug 2024 00:50:27 +0900
+Subject: [PATCH] Add explicit include of `wasi/libc-environ.h` (#786)
+
+This is necessary to get the `__wasilibc_get_environ` function
+declaration.
+
+(cherry picked from commit 243066f12d0b6f1ab8ad9fefd8526b2383641892)
+---
+ Sources/_FoundationCShims/platform_shims.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/Sources/_FoundationCShims/platform_shims.c b/Sources/_FoundationCShims/platform_shims.c
+index 5a400a4..6f79224 100644
+--- a/Sources/_FoundationCShims/platform_shims.c
++++ b/Sources/_FoundationCShims/platform_shims.c
+@@ -21,6 +21,10 @@
+ extern char **environ;
+ #endif
+ 
++#if __wasi__
++#include <wasi/libc-environ.h> // for __wasilibc_get_environ
++#endif
++
+ #if __has_include(<libc_private.h>)
+ #import <libc_private.h>
+ void _platform_shims_lock_environ() {
+-- 
+2.43.2
+

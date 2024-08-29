@@ -1,4 +1,4 @@
-From abd2b40e2553a3ce05a1ab4db4ee96bd29d26ecc Mon Sep 17 00:00:00 2001
+From 40f92f2c616d48cc11f561c3250baa9ef34555ad Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Thu, 8 Aug 2024 18:31:56 +0000
 Subject: [PATCH] [wasm] Fall back to a default chunk size when `st_blksize` is
@@ -11,10 +11,10 @@ fall back to a default chunk size 4KB, which is a common page size.
  1 file changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/Sources/FoundationEssentials/FileManager/FileOperations.swift b/Sources/FoundationEssentials/FileManager/FileOperations.swift
-index d3fc7b2d5..d93468554 100644
+index 03adcc6..71ef113 100644
 --- a/Sources/FoundationEssentials/FileManager/FileOperations.swift
 +++ b/Sources/FoundationEssentials/FileManager/FileOperations.swift
-@@ -872,7 +872,16 @@ enum _FileOperations {
+@@ -879,7 +879,16 @@ enum _FileOperations {
          }
          
          let total: Int = Int(fileInfo.st_size)
@@ -31,4 +31,7 @@ index d3fc7b2d5..d93468554 100644
 +        }
          var current: off_t = 0
          
-         #if os(WASI)
+         while current < total {
+-- 
+2.43.2
+

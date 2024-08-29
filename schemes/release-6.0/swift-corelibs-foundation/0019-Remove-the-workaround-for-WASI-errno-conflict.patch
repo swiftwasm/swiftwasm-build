@@ -1,4 +1,4 @@
-From be0e853408a6278fa62f43864d90bf2f53170734 Mon Sep 17 00:00:00 2001
+From 73d12a30cdd15e0a3eebd4be36eed1a0dab7ad2d Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 10 Aug 2024 12:26:08 +0000
 Subject: [PATCH] Remove the workaround for WASI errno conflict
@@ -11,7 +11,7 @@ corelibs-foundation too.
  1 file changed, 7 deletions(-)
 
 diff --git a/Sources/Foundation/NSPathUtilities.swift b/Sources/Foundation/NSPathUtilities.swift
-index f6cda6abf9..408b18bebf 100644
+index f6cda6ab..408b18be 100644
 --- a/Sources/Foundation/NSPathUtilities.swift
 +++ b/Sources/Foundation/NSPathUtilities.swift
 @@ -12,13 +12,6 @@
@@ -28,3 +28,6 @@ index f6cda6abf9..408b18bebf 100644
  #endif
  
  #if os(Windows)
+-- 
+2.43.2
+

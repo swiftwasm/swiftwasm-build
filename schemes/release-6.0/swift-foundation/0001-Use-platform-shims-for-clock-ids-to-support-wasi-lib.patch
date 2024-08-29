@@ -1,4 +1,4 @@
-From 4e06bcd6ff381c271fab535449dcd0d1291c83e7 Mon Sep 17 00:00:00 2001
+From 6295398c69d07cf03a49a8505b57f331f64368c0 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 26 Jul 2024 07:03:21 +0000
 Subject: [PATCH] Use platform shims for clock ids to support wasi-libc
@@ -19,7 +19,7 @@ cast them to `UInt64` before doing arithmetic operations on them.
  create mode 100644 Sources/FoundationEssentials/WASILibc+Extensions.swift
 
 diff --git a/Sources/FoundationEssentials/CMakeLists.txt b/Sources/FoundationEssentials/CMakeLists.txt
-index d9ebc2ebb..836d849ae 100644
+index 6dc5929..617ef2f 100644
 --- a/Sources/FoundationEssentials/CMakeLists.txt
 +++ b/Sources/FoundationEssentials/CMakeLists.txt
 @@ -30,6 +30,7 @@ add_library(FoundationEssentials
@@ -31,10 +31,10 @@ index d9ebc2ebb..836d849ae 100644
  
  add_subdirectory(AttributedString)
 diff --git a/Sources/FoundationEssentials/ProcessInfo/ProcessInfo.swift b/Sources/FoundationEssentials/ProcessInfo/ProcessInfo.swift
-index 302d3c62d..78b86c266 100644
+index 2e809fa..30591b5 100644
 --- a/Sources/FoundationEssentials/ProcessInfo/ProcessInfo.swift
 +++ b/Sources/FoundationEssentials/ProcessInfo/ProcessInfo.swift
-@@ -129,7 +129,7 @@ final class _ProcessInfo: Sendable {
+@@ -131,7 +131,7 @@ final class _ProcessInfo: Sendable {
  #else
          var ts: timespec = timespec()
          clock_gettime(CLOCK_MONOTONIC_RAW, &ts)
@@ -45,7 +45,7 @@ index 302d3c62d..78b86c266 100644
          let padding = String(repeating: "0", count: 16 - timeString.count)
 diff --git a/Sources/FoundationEssentials/WASILibc+Extensions.swift b/Sources/FoundationEssentials/WASILibc+Extensions.swift
 new file mode 100644
-index 000000000..1c05f9958
+index 0000000..1c05f99
 --- /dev/null
 +++ b/Sources/FoundationEssentials/WASILibc+Extensions.swift
 @@ -0,0 +1,32 @@
@@ -82,7 +82,7 @@ index 000000000..1c05f9958
 +
 +#endif // os(WASI)
 diff --git a/Sources/_FoundationCShims/include/platform_shims.h b/Sources/_FoundationCShims/include/platform_shims.h
-index 911fc9e7a..9c7e95925 100644
+index 911fc9e..9c7e959 100644
 --- a/Sources/_FoundationCShims/include/platform_shims.h
 +++ b/Sources/_FoundationCShims/include/platform_shims.h
 @@ -68,4 +68,17 @@ typedef enum {
@@ -103,3 +103,6 @@ index 911fc9e7a..9c7e95925 100644
 +#endif
 +
  #endif /* CSHIMS_PLATFORM_SHIMS */
+-- 
+2.43.2
+

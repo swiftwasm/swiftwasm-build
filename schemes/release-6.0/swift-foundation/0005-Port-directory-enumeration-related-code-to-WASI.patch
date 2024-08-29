@@ -1,7 +1,7 @@
-From 08af69e0991f1ae8b3a68c8144fab987987d8e63 Mon Sep 17 00:00:00 2001
+From 036e01c531fc050b44da00253201eef5bfd55d16 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Fri, 26 Jul 2024 07:41:19 +0000
-Subject: [PATCH 1/2] Port directory enumeration related code to WASI
+Subject: [PATCH] Port directory enumeration related code to WASI
 
 For now wasi-libc does not include fts(3) implementation, so mark
 features depending on it as unsupported on WASI. Once wasi-libc includes
@@ -23,7 +23,7 @@ function call form.
  5 files changed, 113 insertions(+), 3 deletions(-)
 
 diff --git a/Sources/FoundationEssentials/FileManager/FileManager+Directories.swift b/Sources/FoundationEssentials/FileManager/FileManager+Directories.swift
-index a29b31195..bcbb5e998 100644
+index 0941e51..ed1b445 100644
 --- a/Sources/FoundationEssentials/FileManager/FileManager+Directories.swift
 +++ b/Sources/FoundationEssentials/FileManager/FileManager+Directories.swift
 @@ -193,6 +193,9 @@ extension _FileManagerImpl {
@@ -37,12 +37,12 @@ index a29b31195..bcbb5e998 100644
          return try path.withFileSystemRepresentation { fileSystemRep in
              guard let fileSystemRep else {
 diff --git a/Sources/FoundationEssentials/FileManager/FileOperations+Enumeration.swift b/Sources/FoundationEssentials/FileManager/FileOperations+Enumeration.swift
-index 22111f52c..904f5fb75 100644
+index 2c9a02f..aae9824 100644
 --- a/Sources/FoundationEssentials/FileManager/FileOperations+Enumeration.swift
 +++ b/Sources/FoundationEssentials/FileManager/FileOperations+Enumeration.swift
-@@ -115,10 +115,16 @@ import posix_filesystem.dirent
- #elseif canImport(Glibc)
- import Glibc
+@@ -118,10 +118,16 @@ internal import _FoundationCShims
+ #elseif canImport(Musl)
+ import Musl
  internal import _FoundationCShims
 +#elseif os(WASI)
 +import WASILibc
@@ -57,7 +57,7 @@ index 22111f52c..904f5fb75 100644
  struct _FTSSequence: Sequence {
      enum Element {
          struct SwiftFTSENT {
-@@ -315,10 +321,12 @@ extension Sequence<_FTSSequence.Element> {
+@@ -318,10 +324,12 @@ extension Sequence<_FTSSequence.Element> {
      }
  }
  
@@ -66,12 +66,12 @@ index 22111f52c..904f5fb75 100644
  struct _POSIXDirectoryContentsSequence: Sequence {
      #if canImport(Darwin)
      typealias DirectoryEntryPtr = UnsafeMutablePointer<DIR>
--    #elseif os(Android) || canImport(Glibc)
-+    #elseif os(Android) || canImport(Glibc) || os(WASI)
+-    #elseif os(Android) || canImport(Glibc) || canImport(Musl)
++    #elseif os(Android) || canImport(Glibc) || canImport(Musl) || os(WASI)
      typealias DirectoryEntryPtr = OpaquePointer
      #endif
      
-@@ -343,10 +351,18 @@ struct _POSIXDirectoryContentsSequence: Sequence {
+@@ -346,10 +354,18 @@ struct _POSIXDirectoryContentsSequence: Sequence {
                      continue
                  }
                  // Use name
@@ -92,7 +92,7 @@ index 22111f52c..904f5fb75 100644
                  if fileName == "." || fileName == ".." || fileName == "._" {
                      continue
 diff --git a/Sources/FoundationEssentials/FileManager/FileOperations.swift b/Sources/FoundationEssentials/FileManager/FileOperations.swift
-index d3fc7b2d5..dc51ba55b 100644
+index 71ef113..528a7c9 100644
 --- a/Sources/FoundationEssentials/FileManager/FileOperations.swift
 +++ b/Sources/FoundationEssentials/FileManager/FileOperations.swift
 @@ -512,7 +512,14 @@ enum _FileOperations {
@@ -119,7 +119,7 @@ index d3fc7b2d5..dc51ba55b 100644
          
      }
      #endif
-@@ -903,6 +911,44 @@ enum _FileOperations {
+@@ -900,6 +908,44 @@ enum _FileOperations {
      }
      #endif
  
@@ -164,7 +164,7 @@ index d3fc7b2d5..dc51ba55b 100644
      private static func _linkOrCopyFile(_ srcPtr: UnsafePointer<CChar>, _ dstPtr: UnsafePointer<CChar>, with fileManager: FileManager, delegate: some LinkOrCopyDelegate) throws {
          try withUnsafeTemporaryAllocation(of: CChar.self, capacity: FileManager.MAX_PATH_SIZE) { buffer in
              let dstLen = Platform.copyCString(dst: buffer.baseAddress!, src: dstPtr, size: FileManager.MAX_PATH_SIZE)
-@@ -1015,6 +1061,7 @@ enum _FileOperations {
+@@ -1012,6 +1058,7 @@ enum _FileOperations {
              }
          }
      }
@@ -173,7 +173,7 @@ index d3fc7b2d5..dc51ba55b 100644
      private static func linkOrCopyFile(_ src: String, dst: String, with fileManager: FileManager, delegate: some LinkOrCopyDelegate) throws {
          try src.withFileSystemRepresentation { srcPtr in
 diff --git a/Sources/FoundationEssentials/WASILibc+Extensions.swift b/Sources/FoundationEssentials/WASILibc+Extensions.swift
-index 1c05f9958..351fe19f2 100644
+index 1c05f99..351fe19 100644
 --- a/Sources/FoundationEssentials/WASILibc+Extensions.swift
 +++ b/Sources/FoundationEssentials/WASILibc+Extensions.swift
 @@ -29,4 +29,25 @@ internal var CLOCK_MONOTONIC_RAW: clockid_t {
@@ -203,7 +203,7 @@ index 1c05f9958..351fe19f2 100644
 +
  #endif // os(WASI)
 diff --git a/Sources/_FoundationCShims/include/platform_shims.h b/Sources/_FoundationCShims/include/platform_shims.h
-index f45f5fd55..6bc0a0e15 100644
+index f45f5fd..6bc0a0e 100644
 --- a/Sources/_FoundationCShims/include/platform_shims.h
 +++ b/Sources/_FoundationCShims/include/platform_shims.h
 @@ -79,6 +79,29 @@ static inline _Nonnull clockid_t _platform_shims_clock_monotonic(void) {
@@ -236,36 +236,6 @@ index f45f5fd55..6bc0a0e15 100644
  #endif
  
  #endif /* CSHIMS_PLATFORM_SHIMS */
+-- 
+2.43.2
 
-From 36fed41f7b5b91e4733b9120c144309aba121c2d Mon Sep 17 00:00:00 2001
-From: Yuta Saito <kateinoigakukun@gmail.com>
-Date: Mon, 12 Aug 2024 17:32:17 +0000
-Subject: [PATCH 2/2] Delegate error throwing decisions to the delegate
-
----
- .../FileManager/FileOperations.swift                   | 10 ++++++++--
- 1 file changed, 8 insertions(+), 2 deletions(-)
-
-diff --git a/Sources/FoundationEssentials/FileManager/FileOperations.swift b/Sources/FoundationEssentials/FileManager/FileOperations.swift
-index dc51ba55b..3da9c5022 100644
---- a/Sources/FoundationEssentials/FileManager/FileOperations.swift
-+++ b/Sources/FoundationEssentials/FileManager/FileOperations.swift
-@@ -918,10 +918,16 @@ enum _FileOperations {
-         guard delegate.shouldPerformOnItemAtPath(src, to: dst) else { return }
- 
-         var stat = stat()
--        guard lstat(srcPtr, &stat) == 0, !stat.isDirectory else {
-+        guard lstat(srcPtr, &stat) == 0 else {
-+            try delegate.throwIfNecessary(errno, src, dst)
-+            return
-+        }
-+        guard !stat.isDirectory else {
-             // wasi-libc does not support FTS for now, so we don't support copying/linking
-             // directories on WASI for now.
--            throw CocoaError.errorWithFilePath(.featureUnsupported, String(cString: srcPtr))
-+            let error = CocoaError.fileOperationError(.featureUnsupported, src, dst)
-+            try delegate.throwIfNecessary(error, src, dst)
-+            return
-         }
- 
-         // For now, we support only copying regular files and symlinks.

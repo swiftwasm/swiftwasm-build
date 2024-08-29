@@ -1,0 +1,29 @@
+From 5dd43901d12cd263200ee52d4344bcfb5cc45856 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 7 Aug 2024 06:12:47 +0000
+Subject: [PATCH] Use `__builtin_return_address` instead of
+ `__builtin_frame_address`
+
+We accidentally changed it to `__builtin_frame_address` in
+7f382649f9052da61b6c1054a5e06fa6f345ddc8 but we should keep it as
+`__builtin_return_address` as it was before.
+---
+ Sources/CoreFoundation/CFBundle.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Sources/CoreFoundation/CFBundle.c b/Sources/CoreFoundation/CFBundle.c
+index 05afe988..607c7bd9 100644
+--- a/Sources/CoreFoundation/CFBundle.c
++++ b/Sources/CoreFoundation/CFBundle.c
+@@ -600,7 +600,7 @@ CFBundleRef CFBundleGetBundleWithIdentifier(CFStringRef bundleID) {
+ #if TARGET_OS_WASI
+     hint = NULL;
+ #else
+-    hint = __builtin_frame_address(0);
++    hint = __builtin_return_address(0);
+ #endif
+     return _CFBundleGetBundleWithIdentifier(bundleID, hint);
+ }
+-- 
+2.43.2
+
