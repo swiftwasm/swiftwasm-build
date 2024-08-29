@@ -1,0 +1,354 @@
+From 8e83fc7f48dc5410b7b3fabaf5b0deb121488cea Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sat, 3 Aug 2024 01:55:56 +0900
+Subject: [PATCH] Add WASI platform conditions for libc imports and word size
+ (#776)
+
+* Add `import WASILibc` statements to libc import chains
+
+* Declare wasm32 arch as 32-bit environment
+
+* Switch to _pointerBitWidth for architecture checks
+
+This change switches the architecture checks in Data.swift to use the
+_pointerBitWidth instead of the arch() checks for consistency with newer
+platforms.
+---
+ .../FoundationEssentials/Calendar/Calendar.swift   |  2 ++
+ .../Calendar/Calendar_Gregorian.swift              |  2 ++
+ .../FoundationEssentials/Data/Data+Reading.swift   |  2 ++
+ .../FoundationEssentials/Data/Data+Writing.swift   |  2 ++
+ Sources/FoundationEssentials/Data/Data.swift       | 14 ++++++++------
+ Sources/FoundationEssentials/Date.swift            |  2 ++
+ .../Decimal/Decimal+Math.swift                     |  2 ++
+ .../Error/CocoaError+FilePath.swift                |  2 ++
+ .../Error/ErrorCodes+POSIX.swift                   |  2 ++
+ .../FileManager/FileManager+Basics.swift           |  2 ++
+ .../FileManager/FileManager+Directories.swift      |  2 ++
+ .../FileManager/FileManager+Files.swift            |  3 +++
+ .../FileManager/FileManager+SymbolicLinks.swift    |  2 ++
+ .../FileManager/FileManager+Utilities.swift        |  2 ++
+ .../FileManager/FileOperations.swift               |  2 ++
+ ...BinaryInteger+NumericStringRepresentation.swift |  2 ++
+ .../ProcessInfo/ProcessInfo.swift                  |  2 ++
+ .../PropertyList/OpenStepPlist.swift               |  2 ++
+ .../FoundationEssentials/String/String+Path.swift  |  2 ++
+ .../Calendar/Calendar_ICU.swift                    |  2 ++
+ .../Formatting/Duration+Formatting.swift           |  2 ++
+ 21 files changed, 49 insertions(+), 6 deletions(-)
+
+diff --git a/Sources/FoundationEssentials/Calendar/Calendar.swift b/Sources/FoundationEssentials/Calendar/Calendar.swift
+index 9de55b3..257b742 100644
+--- a/Sources/FoundationEssentials/Calendar/Calendar.swift
++++ b/Sources/FoundationEssentials/Calendar/Calendar.swift
+@@ -20,6 +20,8 @@ import Glibc
+ import Musl
+ #elseif canImport(CRT)
+ import CRT
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if FOUNDATION_FRAMEWORK
+diff --git a/Sources/FoundationEssentials/Calendar/Calendar_Gregorian.swift b/Sources/FoundationEssentials/Calendar/Calendar_Gregorian.swift
+index 797a8e8..8c25c77 100644
+--- a/Sources/FoundationEssentials/Calendar/Calendar_Gregorian.swift
++++ b/Sources/FoundationEssentials/Calendar/Calendar_Gregorian.swift
+@@ -20,6 +20,8 @@ import Glibc
+ import Musl
+ #elseif canImport(CRT)
+ import CRT
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ 
+diff --git a/Sources/FoundationEssentials/Data/Data+Reading.swift b/Sources/FoundationEssentials/Data/Data+Reading.swift
+index 2540b14..48b9521 100644
+--- a/Sources/FoundationEssentials/Data/Data+Reading.swift
++++ b/Sources/FoundationEssentials/Data/Data+Reading.swift
+@@ -27,6 +27,8 @@ import Musl
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ func _fgetxattr(_ fd: Int32, _ name: UnsafePointer<CChar>!, _ value: UnsafeMutableRawPointer!, _ size: Int, _ position: UInt32, _ options: Int32) -> Int {
+diff --git a/Sources/FoundationEssentials/Data/Data+Writing.swift b/Sources/FoundationEssentials/Data/Data+Writing.swift
+index 78a9a98..1acd412 100644
+--- a/Sources/FoundationEssentials/Data/Data+Writing.swift
++++ b/Sources/FoundationEssentials/Data/Data+Writing.swift
+@@ -29,6 +29,8 @@ import Musl
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if !NO_FILESYSTEM
+diff --git a/Sources/FoundationEssentials/Data/Data.swift b/Sources/FoundationEssentials/Data/Data.swift
+index 8bded85..ad3ac42 100644
+--- a/Sources/FoundationEssentials/Data/Data.swift
++++ b/Sources/FoundationEssentials/Data/Data.swift
+@@ -76,6 +76,8 @@ import Glibc
+ import Musl
+ #elseif canImport(ucrt)
+ import ucrt
++#elseif canImport(WASILibc)
++import WASILibc
+ #endif
+ 
+ #if os(Windows)
+@@ -580,11 +582,11 @@ public struct Data : Equatable, Hashable, RandomAccessCollection, MutableCollect
+     @usableFromInline
+     @frozen
+     internal struct InlineData : Sendable {
+-#if arch(x86_64) || arch(arm64) || arch(s390x) || arch(powerpc64) || arch(powerpc64le)
++#if _pointerBitWidth(_64)
+         @usableFromInline typealias Buffer = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+                                               UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) //len  //enum
+         @usableFromInline var bytes: Buffer
+-#elseif arch(i386) || arch(arm) || arch(arm64_32)
++#elseif _pointerBitWidth(_32)
+         @usableFromInline typealias Buffer = (UInt8, UInt8, UInt8, UInt8,
+                                               UInt8, UInt8) //len  //enum
+         @usableFromInline var bytes: Buffer
+@@ -615,9 +617,9 @@ public struct Data : Equatable, Hashable, RandomAccessCollection, MutableCollect
+         @inlinable // This is @inlinable as a trivial initializer.
+         init(count: Int = 0) {
+             assert(count <= MemoryLayout<Buffer>.size)
+-#if arch(x86_64) || arch(arm64) || arch(s390x) || arch(powerpc64) || arch(powerpc64le)
++#if _pointerBitWidth(_64)
+             bytes = (UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0))
+-#elseif arch(i386) || arch(arm) || arch(arm64_32)
++#elseif _pointerBitWidth(_32)
+             bytes = (UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0))
+ #else
+     #error ("Unsupported architecture: initialization for Buffer is required for this architecture")
+@@ -802,9 +804,9 @@ public struct Data : Equatable, Hashable, RandomAccessCollection, MutableCollect
+         }
+     }
+ 
+-#if arch(x86_64) || arch(arm64) || arch(s390x) || arch(powerpc64) || arch(powerpc64le)
++#if _pointerBitWidth(_64)
+     @usableFromInline internal typealias HalfInt = Int32
+-#elseif arch(i386) || arch(arm) || arch(arm64_32)
++#elseif _pointerBitWidth(_32)
+     @usableFromInline internal typealias HalfInt = Int16
+ #else
+     #error ("Unsupported architecture: a definition of half of the pointer sized Int needs to be defined for this architecture")
+diff --git a/Sources/FoundationEssentials/Date.swift b/Sources/FoundationEssentials/Date.swift
+index b65066f..37548e4 100644
+--- a/Sources/FoundationEssentials/Date.swift
++++ b/Sources/FoundationEssentials/Date.swift
+@@ -20,6 +20,8 @@ import Glibc
+ import Musl
+ #elseif canImport(WinSDK)
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if !FOUNDATION_FRAMEWORK
+diff --git a/Sources/FoundationEssentials/Decimal/Decimal+Math.swift b/Sources/FoundationEssentials/Decimal/Decimal+Math.swift
+index 7b35f11..eb344b2 100644
+--- a/Sources/FoundationEssentials/Decimal/Decimal+Math.swift
++++ b/Sources/FoundationEssentials/Decimal/Decimal+Math.swift
+@@ -20,6 +20,8 @@ import Glibc
+ import Musl
+ #elseif canImport(CRT)
+ import CRT
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ private let powerOfTen: [Decimal.VariableLengthInteger] = [
+diff --git a/Sources/FoundationEssentials/Error/CocoaError+FilePath.swift b/Sources/FoundationEssentials/Error/CocoaError+FilePath.swift
+index d9b2497..586c781 100644
+--- a/Sources/FoundationEssentials/Error/CocoaError+FilePath.swift
++++ b/Sources/FoundationEssentials/Error/CocoaError+FilePath.swift
+@@ -24,6 +24,8 @@ import Musl
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ extension CocoaError.Code {
+diff --git a/Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift b/Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift
+index 048cd29..c940a30 100644
+--- a/Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift
++++ b/Sources/FoundationEssentials/Error/ErrorCodes+POSIX.swift
+@@ -21,6 +21,8 @@
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if FOUNDATION_FRAMEWORK
+diff --git a/Sources/FoundationEssentials/FileManager/FileManager+Basics.swift b/Sources/FoundationEssentials/FileManager/FileManager+Basics.swift
+index 991c5e8..9896b35 100644
+--- a/Sources/FoundationEssentials/FileManager/FileManager+Basics.swift
++++ b/Sources/FoundationEssentials/FileManager/FileManager+Basics.swift
+@@ -21,6 +21,8 @@ import Musl
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if os(Windows)
+diff --git a/Sources/FoundationEssentials/FileManager/FileManager+Directories.swift b/Sources/FoundationEssentials/FileManager/FileManager+Directories.swift
+index ed1b445..b987ee8 100644
+--- a/Sources/FoundationEssentials/FileManager/FileManager+Directories.swift
++++ b/Sources/FoundationEssentials/FileManager/FileManager+Directories.swift
+@@ -28,6 +28,8 @@ import Musl
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ internal import _FoundationCShims
+diff --git a/Sources/FoundationEssentials/FileManager/FileManager+Files.swift b/Sources/FoundationEssentials/FileManager/FileManager+Files.swift
+index 943ac9e..1999b6a 100644
+--- a/Sources/FoundationEssentials/FileManager/FileManager+Files.swift
++++ b/Sources/FoundationEssentials/FileManager/FileManager+Files.swift
+@@ -29,6 +29,9 @@ internal import _FoundationCShims
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++internal import _FoundationCShims
++import WASILibc
+ #endif
+ 
+ extension Date {
+diff --git a/Sources/FoundationEssentials/FileManager/FileManager+SymbolicLinks.swift b/Sources/FoundationEssentials/FileManager/FileManager+SymbolicLinks.swift
+index a1355e7..12d32e5 100644
+--- a/Sources/FoundationEssentials/FileManager/FileManager+SymbolicLinks.swift
++++ b/Sources/FoundationEssentials/FileManager/FileManager+SymbolicLinks.swift
+@@ -23,6 +23,8 @@ import Musl
+ import CRT
+ import WinSDK
+ internal import _FoundationCShims
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ extension _FileManagerImpl {
+diff --git a/Sources/FoundationEssentials/FileManager/FileManager+Utilities.swift b/Sources/FoundationEssentials/FileManager/FileManager+Utilities.swift
+index 4f42f19..4d487b5 100644
+--- a/Sources/FoundationEssentials/FileManager/FileManager+Utilities.swift
++++ b/Sources/FoundationEssentials/FileManager/FileManager+Utilities.swift
+@@ -34,6 +34,8 @@ internal import _FoundationCShims
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if os(Windows)
+diff --git a/Sources/FoundationEssentials/FileManager/FileOperations.swift b/Sources/FoundationEssentials/FileManager/FileOperations.swift
+index 8734fc0..6ba5bb7 100644
+--- a/Sources/FoundationEssentials/FileManager/FileOperations.swift
++++ b/Sources/FoundationEssentials/FileManager/FileOperations.swift
+@@ -21,6 +21,8 @@ import Musl
+ #elseif os(Windows)
+ import CRT
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if FOUNDATION_FRAMEWORK
+diff --git a/Sources/FoundationEssentials/Formatting/BinaryInteger+NumericStringRepresentation.swift b/Sources/FoundationEssentials/Formatting/BinaryInteger+NumericStringRepresentation.swift
+index 43e9fcd..663509d 100644
+--- a/Sources/FoundationEssentials/Formatting/BinaryInteger+NumericStringRepresentation.swift
++++ b/Sources/FoundationEssentials/Formatting/BinaryInteger+NumericStringRepresentation.swift
+@@ -20,6 +20,8 @@ import Glibc
+ import Musl
+ #elseif os(Windows)
+ import CRT
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ // MARK: - BinaryInteger + Numeric string representation
+diff --git a/Sources/FoundationEssentials/ProcessInfo/ProcessInfo.swift b/Sources/FoundationEssentials/ProcessInfo/ProcessInfo.swift
+index 30591b5..93eabb9 100644
+--- a/Sources/FoundationEssentials/ProcessInfo/ProcessInfo.swift
++++ b/Sources/FoundationEssentials/ProcessInfo/ProcessInfo.swift
+@@ -23,6 +23,8 @@ import Glibc
+ import Musl
+ #elseif os(Windows)
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if !NO_PROCESS
+diff --git a/Sources/FoundationEssentials/PropertyList/OpenStepPlist.swift b/Sources/FoundationEssentials/PropertyList/OpenStepPlist.swift
+index c042820..61b6d80 100644
+--- a/Sources/FoundationEssentials/PropertyList/OpenStepPlist.swift
++++ b/Sources/FoundationEssentials/PropertyList/OpenStepPlist.swift
+@@ -18,6 +18,8 @@ import Bionic
+ import Glibc
+ #elseif canImport(Musl)
+ import Musl
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ #if canImport(CRT)
+diff --git a/Sources/FoundationEssentials/String/String+Path.swift b/Sources/FoundationEssentials/String/String+Path.swift
+index aaf62d1..7047b9b 100644
+--- a/Sources/FoundationEssentials/String/String+Path.swift
++++ b/Sources/FoundationEssentials/String/String+Path.swift
+@@ -20,6 +20,8 @@ import Glibc
+ import Musl
+ #elseif os(Windows)
+ import WinSDK
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ internal import _FoundationCShims
+diff --git a/Sources/FoundationInternationalization/Calendar/Calendar_ICU.swift b/Sources/FoundationInternationalization/Calendar/Calendar_ICU.swift
+index 0d3c371..01895b8 100644
+--- a/Sources/FoundationInternationalization/Calendar/Calendar_ICU.swift
++++ b/Sources/FoundationInternationalization/Calendar/Calendar_ICU.swift
+@@ -24,6 +24,8 @@ import Musl
+ import CRT
+ #elseif canImport(Darwin)
+ import Darwin
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ internal import _FoundationICU
+diff --git a/Sources/FoundationInternationalization/Formatting/Duration+Formatting.swift b/Sources/FoundationInternationalization/Formatting/Duration+Formatting.swift
+index a94f571..dfe2fad 100644
+--- a/Sources/FoundationInternationalization/Formatting/Duration+Formatting.swift
++++ b/Sources/FoundationInternationalization/Formatting/Duration+Formatting.swift
+@@ -24,6 +24,8 @@ import Glibc
+ import Musl
+ #elseif os(Windows)
+ import CRT
++#elseif os(WASI)
++import WASILibc
+ #endif
+ 
+ @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+-- 
+2.43.2
+
