@@ -1,0 +1,166 @@
+From f2e4534e75a972a96b802dc682e870f142b72fe9 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Tue, 6 Aug 2024 02:20:54 +0900
+Subject: [PATCH] Enable wasi-libc emulation features (#777)
+
+* Enable wasi-libc emulation features
+
+Those features require explicit macro definitions to be enabled, so add
+them to the package definition. Only affects WASI builds.
+
+* Prefer `TARGET_OS_WASI` over `__wasi__`
+
+And explain why we need definition checks for `signal.h` and `sys/mman.h`
+---
+ CMakeLists.txt                                |  8 +++++
+ Package.swift                                 | 35 ++++++++++++++-----
+ Sources/FoundationEssentials/CMakeLists.txt   |  1 +
+ .../CMakeLists.txt                            |  1 +
+ Sources/_FoundationCShims/include/_CStdlib.h  | 16 ++++++++-
+ 5 files changed, 51 insertions(+), 10 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a8dc410..3243e53 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -116,6 +116,14 @@ foreach(version ${_SwiftFoundation_versions})
+     endforeach()
+ endforeach()
+ 
++# wasi-libc emulation feature flags
++set(_SwiftFoundation_wasi_libc_flags)
++if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
++    list(APPEND _SwiftFoundation_wasi_libc_flags
++        "SHELL:$<$<COMPILE_LANGUAGE:Swift>:-Xcc -D_WASI_EMULATED_SIGNAL>"
++        "SHELL:$<$<COMPILE_LANGUAGE:Swift>:-Xcc -D_WASI_EMULATED_MMAN>")
++endif()
++
+ include(GNUInstallDirs)
+ include(SwiftFoundationSwiftSupport)
+ 
+diff --git a/Package.swift b/Package.swift
+index daaf638..67bce50 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -70,6 +70,11 @@ var dependencies: [Package.Dependency] {
+     }
+ }
+ 
++let wasiLibcCSettings: [CSetting] = [
++    .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
++    .define("_WASI_EMULATED_MMAN", .when(platforms: [.wasi])),
++]
++
+ let package = Package(
+     name: "FoundationPreview",
+     platforms: [.macOS("13.3"), .iOS("16.4"), .tvOS("16.4"), .watchOS("9.4")],
+@@ -91,15 +96,23 @@ let package = Package(
+             path: "Sources/Foundation"),
+ 
+         // _FoundationCShims (Internal)
+-        .target(name: "_FoundationCShims",
+-                cSettings: [.define("_CRT_SECURE_NO_WARNINGS",
+-                                    .when(platforms: [.windows]))]),
++        .target(
++            name: "_FoundationCShims",
++            cSettings: [
++                .define("_CRT_SECURE_NO_WARNINGS", .when(platforms: [.windows]))
++            ] + wasiLibcCSettings
++        ),
+ 
+         // TestSupport (Internal)
+-        .target(name: "TestSupport", dependencies: [
+-            "FoundationEssentials",
+-            "FoundationInternationalization",
+-        ], swiftSettings: availabilityMacros + concurrencyChecking),
++        .target(
++            name: "TestSupport",
++            dependencies: [
++                "FoundationEssentials",
++                "FoundationInternationalization",
++            ],
++            cSettings: wasiLibcCSettings,
++            swiftSettings: availabilityMacros + concurrencyChecking
++        ),
+ 
+         // FoundationEssentials
+         .target(
+@@ -130,11 +143,14 @@ let package = Package(
+           ],
+           cSettings: [
+             .define("_GNU_SOURCE", .when(platforms: [.linux]))
+-          ],
++          ] + wasiLibcCSettings,
+           swiftSettings: [
+             .enableExperimentalFeature("VariadicGenerics"),
+             .enableExperimentalFeature("AccessLevelOnImport")
+-          ] + availabilityMacros + concurrencyChecking
++          ] + availabilityMacros + concurrencyChecking,
++          linkerSettings: [
++            .linkedLibrary("wasi-emulated-getpid", .when(platforms: [.wasi])),
++          ]
+         ),
+         .testTarget(
+             name: "FoundationEssentialsTests",
+@@ -166,6 +182,7 @@ let package = Package(
+                 "CMakeLists.txt",
+                 "Predicate/CMakeLists.txt"
+             ],
++            cSettings: wasiLibcCSettings,
+             swiftSettings: [
+                 .enableExperimentalFeature("AccessLevelOnImport")
+             ] + availabilityMacros + concurrencyChecking
+diff --git a/Sources/FoundationEssentials/CMakeLists.txt b/Sources/FoundationEssentials/CMakeLists.txt
+index 617ef2f..98c419a 100644
+--- a/Sources/FoundationEssentials/CMakeLists.txt
++++ b/Sources/FoundationEssentials/CMakeLists.txt
+@@ -66,6 +66,7 @@ target_compile_options(FoundationEssentials PRIVATE
+     "SHELL:$<$<COMPILE_LANGUAGE:Swift>:-Xfrontend -enable-experimental-feature -Xfrontend StrictConcurrency>"
+     "SHELL:$<$<COMPILE_LANGUAGE:Swift>:-Xfrontend -enable-upcoming-feature -Xfrontend InferSendableFromCaptures>")
+ target_compile_options(FoundationEssentials PRIVATE ${_SwiftFoundation_availability_macros})
++target_compile_options(FoundationEssentials PRIVATE ${_SwiftFoundation_wasi_libc_flags})
+ target_compile_options(FoundationEssentials PRIVATE -package-name "SwiftFoundation")
+ 
+ target_link_libraries(FoundationEssentials PUBLIC
+diff --git a/Sources/FoundationInternationalization/CMakeLists.txt b/Sources/FoundationInternationalization/CMakeLists.txt
+index 5a89ceb..857db9c 100644
+--- a/Sources/FoundationInternationalization/CMakeLists.txt
++++ b/Sources/FoundationInternationalization/CMakeLists.txt
+@@ -33,6 +33,7 @@ target_compile_options(FoundationInternationalization PRIVATE
+     "SHELL:$<$<COMPILE_LANGUAGE:Swift>:-Xfrontend -enable-experimental-feature -Xfrontend StrictConcurrency>"
+     "SHELL:$<$<COMPILE_LANGUAGE:Swift>:-Xfrontend -enable-upcoming-feature -Xfrontend InferSendableFromCaptures>")
+ target_compile_options(FoundationInternationalization PRIVATE ${_SwiftFoundation_availability_macros})
++target_compile_options(FoundationInternationalization PRIVATE ${_SwiftFoundation_wasi_libc_flags})
+ target_compile_options(FoundationInternationalization PRIVATE -package-name "SwiftFoundation")
+ 
+ target_link_libraries(FoundationInternationalization PUBLIC
+diff --git a/Sources/_FoundationCShims/include/_CStdlib.h b/Sources/_FoundationCShims/include/_CStdlib.h
+index 8967eb7..0337393 100644
+--- a/Sources/_FoundationCShims/include/_CStdlib.h
++++ b/Sources/_FoundationCShims/include/_CStdlib.h
+@@ -60,7 +60,21 @@
+ #endif
+ 
+ #if __has_include(<signal.h>)
+-#include <signal.h>
++/// Guard against including `signal.h` on WASI. The `signal.h` header file
++/// itself is available in wasi-libc, but it's just a stub that doesn't actually
++/// do anything. And also including it requires a special macro definition
++/// (`_WASI_EMULATED_SIGNAL`) and it causes compilation errors without the macro.
++# if !TARGET_OS_WASI || defined(_WASI_EMULATED_SIGNAL)
++#  include <signal.h>
++# endif
++#endif
++
++#if __has_include(<sys/mman.h>)
++/// Similar to `signal.h`, guard against including `sys/mman.h` on WASI unless
++/// `_WASI_EMULATED_MMAN` is enabled.
++# if !TARGET_OS_WASI || defined(_WASI_EMULATED_MMAN)
++#  include <sys/mman.h>
++# endif
+ #endif
+ 
+ #if __has_include(<stdalign.h>)
+-- 
+2.43.2
+

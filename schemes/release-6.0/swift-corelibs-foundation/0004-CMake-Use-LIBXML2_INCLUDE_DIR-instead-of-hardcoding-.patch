@@ -1,0 +1,30 @@
+From 278d6ffde7788d16455f5dbcef9400b75f849adf Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 7 Aug 2024 05:10:42 +0000
+Subject: [PATCH] [CMake] Use LIBXML2_INCLUDE_DIR instead of hardcoding
+ /usr/include/libxml2
+
+`find_package(LibXml2 REQUIRED)` sets `LIBXML2_INCLUDE_DIR` to the correct
+include directory for the libxml2 headers. Use this variable instead of
+hardcoding `/usr/include/libxml2`. This allows the build to work with
+custom libxml2 builds on WASI.
+---
+ Sources/_CFXMLInterface/CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Sources/_CFXMLInterface/CMakeLists.txt b/Sources/_CFXMLInterface/CMakeLists.txt
+index d6e63a3f..d550a520 100644
+--- a/Sources/_CFXMLInterface/CMakeLists.txt
++++ b/Sources/_CFXMLInterface/CMakeLists.txt
+@@ -20,7 +20,7 @@ target_include_directories(_CFXMLInterface
+         ../CoreFoundation/include
+     PRIVATE
+         ../CoreFoundation/internalInclude
+-        /usr/include/libxml2/)
++        ${LIBXML2_INCLUDE_DIR})
+ 
+ target_compile_options(_CFXMLInterface INTERFACE
+   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xcc -fmodule-map-file=${CMAKE_CURRENT_SOURCE_DIR}/../CoreFoundation/include/module.modulemap>"
+-- 
+2.43.2
+

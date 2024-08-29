@@ -1,0 +1,25 @@
+From 0c954d9de286e15204240722d717e1928e165cbb Mon Sep 17 00:00:00 2001
+From: Max Desiatov <max@desiatov.com>
+Date: Mon, 5 Aug 2024 20:16:22 +0100
+Subject: [PATCH] Add `.windows` to `platformsWithThreads` in `Package.swift`
+
+(cherry picked from commit bc0dd484adbabdb978e68cf6905e3b44ca5117bd)
+---
+ Package.swift | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Package.swift b/Package.swift
+index 4949fe4e..aca50e80 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -12,6 +12,7 @@ let platformsWithThreads: [Platform] = [
+     .driverKit,
+     .android,
+     .linux,
++    .windows,
+ ]
+ var dispatchIncludeFlags: [CSetting]
+ if let environmentPath = Context.environment["DISPATCH_INCLUDE_PATH"] {
+-- 
+2.43.2
+
