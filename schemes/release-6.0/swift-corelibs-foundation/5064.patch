@@ -1,0 +1,63 @@
+From 4127e856e0eda0c1508e60f1c03b4d5c1cbe78db Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sat, 10 Aug 2024 18:35:56 +0000
+Subject: [PATCH] Make curl an optional dependency when not building
+ FoundationNetworking
+
+When building for WASI, FoundationNetworking is not supported, so we
+should not require curl to be present. This change makes curl an optional
+dependency when FoundationNetworking is not being built.
+---
+ CMakeLists.txt         | 12 +++++++++++-
+ Sources/CMakeLists.txt |  4 ++--
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4b545a381e..1d9c684d94 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -63,6 +63,14 @@ if(BUILD_SHARED_LIBS)
+     option(FOUNDATION_BUILD_TOOLS "build tools" ON)
+ endif()
+ 
++set(FOUNDATION_BUILD_NETWORKING_default ON)
++if(CMAKE_SYSTEM_NAME STREQUAL WASI)
++    # Networking is not supported on WASI
++    set(FOUNDATION_BUILD_NETWORKING_default OFF)
++endif()
++option(FOUNDATION_BUILD_NETWORKING "build FoundationNetworking"
++    ${FOUNDATION_BUILD_NETWORKING_default})
++
+ set(CMAKE_POSITION_INDEPENDENT_CODE YES)
+ 
+ # Fetchable dependcies
+@@ -121,7 +129,9 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
+     endif()
+ endif()
+ find_package(LibXml2 REQUIRED)
+-find_package(CURL REQUIRED)
++if(FOUNDATION_BUILD_NETWORKING)
++    find_package(CURL REQUIRED)
++endif()
+ 
+ # Common build flags (_CFURLSessionInterface, _CFXMLInterface, CoreFoundation)
+ list(APPEND _Foundation_common_build_flags
+diff --git a/Sources/CMakeLists.txt b/Sources/CMakeLists.txt
+index 29b9244065..f239bdf0ff 100644
+--- a/Sources/CMakeLists.txt
++++ b/Sources/CMakeLists.txt
+@@ -14,12 +14,12 @@
+ 
+ add_subdirectory(CoreFoundation)
+ add_subdirectory(_CFXMLInterface)
+-if(NOT CMAKE_SYSTEM_NAME STREQUAL "WASI")
++if(FOUNDATION_BUILD_NETWORKING)
+     add_subdirectory(_CFURLSessionInterface)
+ endif()
+ add_subdirectory(Foundation)
+ add_subdirectory(FoundationXML)
+-if(NOT CMAKE_SYSTEM_NAME STREQUAL "WASI")
++if(FOUNDATION_BUILD_NETWORKING)
+     add_subdirectory(FoundationNetworking)
+ endif()
+ if(FOUNDATION_BUILD_TOOLS)
