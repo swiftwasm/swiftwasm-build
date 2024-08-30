@@ -35,6 +35,8 @@ class CloneAction(Action):
 
         args = ['git', 'clone'] + git_options + ['https://github.com/apple/swift.git', '../swift']
         self.system(*args)
+        print('=====> Checking out Swift tag {}'.format(self.options.tag))
+        self.system('git', '-C', '../swift', 'checkout', self.options.tag)
 
 class UpdateCheckoutAction(Action):
     def run(self):
