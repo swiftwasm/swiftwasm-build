@@ -682,7 +682,7 @@ class Distribution:
             body += """\
 ### Installation
 
-You can install the toolchain using the following command:
+You can install Swift SDKs for WebAssembly using the following commands:
 
 """
             for name, download_url, checksum in checksums:
