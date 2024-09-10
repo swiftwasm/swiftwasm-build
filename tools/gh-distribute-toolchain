@@ -12,7 +12,7 @@ import tarfile
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from build.build_support.actions import derive_options_from_args, REPO_ROOT
 
 
@@ -224,6 +224,10 @@ class GitHub:
             "body": body
         })
 
+    def update_release_notes(self, release_id: str, body: str):
+        url = (f"https://api.github.com/repos/{self.repo}/releases/{release_id}")
+        return self.json_request("PATCH", url, body={"body": body})
+
     def workflow_runs(self, workflow_name: str, branch: str):
         url = ("https://api.github.com"
                f"/repos/{self.repo}/actions/workflows/{workflow_name}"
@@ -395,7 +399,7 @@ class Distribution:
         if not tag_name:
             raise Exception("Could not determine tag name")
 
-        release = self.create_tag_and_prerelease(tag_name, options)
+        release, swift_version, swiftwasm_build_version = self.create_tag_and_prerelease(tag_name, options)
 
         # Move to artifacts directory because "zip" does not have
         # --chdir option unlike "tar"
@@ -424,6 +428,15 @@ class Distribution:
                     return
                 self.upload_to_release(package, release)
 
+                # Upload sha256 checksum
+                import hashlib
+                checksum_path = package + ".sha256"
+                with open(package, "rb") as f:
+                    checksum = hashlib.sha256(f.read()).hexdigest()
+                with open(checksum_path, "w") as f:
+                    f.write(checksum)
+                self.upload_to_release(checksum_path, release)
+
             print(f"Packaging {artifact['name']}...")
             packaging_tasks.append(
                 asyncio.create_task(package_sdk_work(downloaded)))
@@ -435,6 +448,10 @@ class Distribution:
             for task in packaging_tasks:
                 task.cancel()
             raise e
+
+        # Update release notes with checksums
+        self.update_release_notes_with_checksums(
+            release, downloaded_paths, swift_version, swiftwasm_build_version)
 
         if options.only_swift_sdk:
             return
@@ -646,9 +663,10 @@ class Distribution:
         print(f"Creating prerelease for {tag_name}...")
         body = self.make_release_note(swift_version, swiftwasm_build_version)
         print(f"Release note:\n{body}")
-        return self.swift_github.create_prerelease(tag_name, body)
+        return [self.swift_github.create_prerelease(tag_name, body), swift_version, swiftwasm_build_version]
 
-    def make_release_note(self, swift_version, swiftwasm_build_version):
+    def make_release_note(self, swift_version, swiftwasm_build_version,
+                          checksums: Optional[List[tuple]]=None):
         projects = [
             ["apple/swift",
                 f"releases/tag/{swift_version}"],
@@ -659,7 +677,32 @@ class Distribution:
         body += "|:--|:--|\n"
         for repo, subpath in projects:
             body += f"| `{repo}` | https://github.com/{repo}/{subpath} |\n"
+        if checksums:
+            body += "\n"
+            body += """\
+### Installation
+
+You can install the toolchain using the following command:
+
+"""
+            for name, download_url, checksum in checksums:
+                body += f"**{name}**\n\n"
+                body += "```console\n"
+                body += f"$ swift sdk install {download_url} --checksum {checksum}\n"
+                body += "```\n"
         return body
+
+    def update_release_notes_with_checksums(self, release, downloaded_paths, swift_version, swiftwasm_build_version):
+        checksums = []
+        for artifact, artifact_path in downloaded_paths:
+            if artifact["name"].endswith("-artifactbundle"):
+                name = os.path.basename(artifact_path)
+                checksum_path = artifact_path + ".sha256"
+                with open(checksum_path, "r") as f:
+                    checksum = f.read().strip()
+                checksums.append((name, artifact["archive_download_url"], checksum))
+        body = self.make_release_note(swift_version, swiftwasm_build_version, checksums)
+        self.swift_github.update_release_notes(release["id"], body)
 
     def git_push_swift_source(self, options, tag_name):
         build_repo = "https://github.com/swiftwasm/swiftwasm-build.git"
