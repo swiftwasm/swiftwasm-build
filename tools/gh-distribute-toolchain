@@ -215,6 +215,15 @@ class GitHub:
                f"/repos/{self.repo}/releases/tags/{tag_name}")
         return self.json_request("GET", url)
 
+    def get_release_by_id(self, id: str):
+        url = (f"https://api.github.com/repos/{self.repo}/releases/{id}")
+        return self.json_request("GET", url)
+
+    def download_release_asset(self, url: str):
+        return self.request("GET", url, headers={
+            "Accept": "application/octet-stream"
+        })
+
     def create_prerelease(self, tag_name: str, body: str):
         url = f"https://api.github.com/repos/{self.repo}/releases"
         return self.json_request("POST", url, body={
@@ -451,7 +460,7 @@ class Distribution:
 
         # Update release notes with checksums
         self.update_release_notes_with_checksums(
-            release, downloaded_paths, swift_version, swiftwasm_build_version)
+            release, swift_version, swiftwasm_build_version)
 
         if options.only_swift_sdk:
             return
@@ -692,15 +701,19 @@ You can install Swift SDKs for WebAssembly using the following commands:
                 body += "```\n"
         return body
 
-    def update_release_notes_with_checksums(self, release, downloaded_paths, swift_version, swiftwasm_build_version):
+    def update_release_notes_with_checksums(self, release, swift_version, swiftwasm_build_version):
         checksums = []
-        for artifact, artifact_path in downloaded_paths:
-            if artifact["name"].endswith("-artifactbundle"):
-                name = os.path.basename(artifact_path)
-                checksum_path = artifact_path + ".sha256"
-                with open(checksum_path, "r") as f:
-                    checksum = f.read().strip()
-                checksums.append((name, artifact["archive_download_url"], checksum))
+        release = self.swift_github.get_release_by_id(release["id"])
+        for artifact in release["assets"]:
+            if not artifact["name"].endswith(".artifactbundle.zip"):
+                continue
+            name = artifact["name"]
+            artifact_download_url = artifact["browser_download_url"]
+            checksum_download_url = artifact_download_url + ".sha256"
+            checksum = self.github.download_release_asset(checksum_download_url)
+            checksum = checksum.read().decode("utf-8").strip()
+            checksums.append([name, artifact_download_url, checksum])
+
         body = self.make_release_note(swift_version, swiftwasm_build_version, checksums)
         self.swift_github.update_release_notes(release["id"], body)
 
