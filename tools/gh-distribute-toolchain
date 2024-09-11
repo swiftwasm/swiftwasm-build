@@ -657,7 +657,7 @@ class Distribution:
             # If release already exists, use it
             release = self.swift_github.get_release(tag_name)
             print(f"Use existing prerelease for {tag_name}...")
-            return release
+            return [release, swift_version, swiftwasm_build_version]
         except Exception:
             pass
         print(f"Creating prerelease for {tag_name}...")
