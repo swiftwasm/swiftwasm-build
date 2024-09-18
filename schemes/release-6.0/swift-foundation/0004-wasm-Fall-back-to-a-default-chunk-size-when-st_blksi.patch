@@ -31,7 +31,7 @@ index 03adcc6..71ef113 100644
 +        }
          var current: off_t = 0
          
-         while current < total {
+         #if os(WASI)
 -- 
 2.43.2
 
