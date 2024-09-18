@@ -1,0 +1,29 @@
+From 7c3bf8e91d8fd74c496e0051139bc542887b3327 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 18 Sep 2024 17:11:23 +0000
+Subject: [PATCH] [wasm] Fix cross-compilation on macOS host machine
+
+We didn't set the CMAKE_SYSTEM_NAME and CMAKE_SYSTEM_PROCESSOR when
+cross-compiling stdlib for WASI. This caused the build to fail on macOS
+host machines as the build system was trying to build some overlays
+assuming the target is macOS.
+---
+ .../swift_build_support/products/wasmstdlib.py                  | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/utils/swift_build_support/swift_build_support/products/wasmstdlib.py b/utils/swift_build_support/swift_build_support/products/wasmstdlib.py
+index 4d8beeaae8a..d042fc38038 100644
+--- a/utils/swift_build_support/swift_build_support/products/wasmstdlib.py
++++ b/utils/swift_build_support/swift_build_support/products/wasmstdlib.py
+@@ -44,6 +44,8 @@ class WasmStdlib(cmake_product.CMakeProduct):
+     def _build(self, host_target, target_triple):
+         self.cmake_options.define('CMAKE_INSTALL_PREFIX:PATH', '/usr')
+         self.cmake_options.define('CMAKE_BUILD_TYPE:STRING', self._build_variant)
++        self.cmake_options.define('CMAKE_SYSTEM_NAME:STRING', 'WASI')
++        self.cmake_options.define('CMAKE_SYSTEM_PROCESSOR:STRING', 'wasm32')
+         self.cmake_options.define(
+             'SWIFT_STDLIB_BUILD_TYPE:STRING', self._build_variant)
+ 
+-- 
+2.46.0
+
