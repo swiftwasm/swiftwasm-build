@@ -86,7 +86,7 @@ index 911fc9e..9c7e959 100644
 --- a/Sources/_FoundationCShims/include/platform_shims.h
 +++ b/Sources/_FoundationCShims/include/platform_shims.h
 @@ -68,4 +68,17 @@ typedef enum {
- INTERNAL const char * _Nonnull _platform_shims_kOSThermalNotificationPressureLevelName();
+ INTERNAL const char * _Nonnull _platform_shims_kOSThermalNotificationPressureLevelName(void);
  #endif
  
 +#if TARGET_OS_WASI
