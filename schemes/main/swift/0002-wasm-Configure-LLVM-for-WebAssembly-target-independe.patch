@@ -1,4 +1,4 @@
-From 061b9339c6c76064e3930ee81811be058ca853fc Mon Sep 17 00:00:00 2001
+From 8105c1de468d1962c7aacd0aaf31ec2dc90121c0 Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Thu, 19 Sep 2024 04:45:51 +0000
 Subject: [PATCH 2/2] [wasm] Configure LLVM for WebAssembly target
@@ -11,11 +11,11 @@ we fixed the stdlib build to use `WASI` as the system name properly in
 the previous commit. This exposed the issue that the host LLVM build
 directory is not suitable for configuring the stdlib build.
 ---
- .../products/wasmstdlib.py                    | 51 ++++++++++++++++---
- 1 file changed, 45 insertions(+), 6 deletions(-)
+ .../products/wasmstdlib.py                    | 57 +++++++++++++++++--
+ 1 file changed, 51 insertions(+), 6 deletions(-)
 
 diff --git a/utils/swift_build_support/swift_build_support/products/wasmstdlib.py b/utils/swift_build_support/swift_build_support/products/wasmstdlib.py
-index d042fc38038..053756139d5 100644
+index d042fc38038..f87cd87d41c 100644
 --- a/utils/swift_build_support/swift_build_support/products/wasmstdlib.py
 +++ b/utils/swift_build_support/swift_build_support/products/wasmstdlib.py
 @@ -17,6 +17,8 @@ from . import llvm
@@ -80,17 +80,23 @@ index d042fc38038..053756139d5 100644
          self.cmake_options.define(
              'SWIFT_STDLIB_BUILD_TYPE:STRING', self._build_variant)
  
-@@ -71,9 +110,6 @@ class WasmStdlib(cmake_product.CMakeProduct):
+@@ -71,9 +110,12 @@ class WasmStdlib(cmake_product.CMakeProduct):
          self.cmake_options.define('SWIFT_WASI_SYSROOT_PATH:STRING',
                                    self._wasi_sysroot_path(target_triple))
  
 -        # It's ok to use the host LLVM build dir just for CMake functionalities
 -        llvm_cmake_dir = os.path.join(self._host_llvm_build_dir(
 -            host_target), 'lib', 'cmake', 'llvm')
++        # compiler-rt for WebAssembly target is not installed in the host toolchain
++        # so skip compiler health checks here.
++        self.cmake_options.define('CMAKE_C_COMPILER_WORKS:BOOL', 'TRUE')
++        self.cmake_options.define('CMAKE_CXX_COMPILER_WORKS:BOOL', 'TRUE')
++        self.cmake_options.define('LLVM_COMPILER_CHECKED:BOOL', 'TRUE')
++
          self.cmake_options.define('LLVM_DIR:PATH', llvm_cmake_dir)
  
          # Standalone stdlib configuration
-@@ -90,6 +126,9 @@ class WasmStdlib(cmake_product.CMakeProduct):
+@@ -90,6 +132,9 @@ class WasmStdlib(cmake_product.CMakeProduct):
          self.cmake_options.define('SWIFT_BUILD_STATIC_STDLIB:BOOL', 'TRUE')
          self.cmake_options.define('SWIFT_BUILD_DYNAMIC_STDLIB:BOOL', 'FALSE')
          self.cmake_options.define('SWIFT_BUILD_STATIC_SDK_OVERLAY:BOOL', 'TRUE')
@@ -100,7 +106,7 @@ index d042fc38038..053756139d5 100644
          self.cmake_options.define('SWIFT_STDLIB_TRACING:BOOL', 'FALSE')
          self.cmake_options.define('SWIFT_STDLIB_HAS_ASLR:BOOL', 'FALSE')
          self.cmake_options.define('SWIFT_STDLIB_CONCURRENCY_TRACING:BOOL', 'FALSE')
-@@ -200,7 +239,7 @@ class WasmStdlib(cmake_product.CMakeProduct):
+@@ -200,7 +245,7 @@ class WasmStdlib(cmake_product.CMakeProduct):
  
  class WasmThreadsStdlib(WasmStdlib):
      def build(self, host_target):
