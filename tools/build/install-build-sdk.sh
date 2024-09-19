@@ -11,6 +11,7 @@ CURRENT_SCHEME_FILE="$BUILD_SDK_PATH/scheme"
 
 install_libxml2() {
   read -r -a LIBXML2_URLS <<< "$(python3 -c 'import sys, json; print(" ".join(json.load(sys.stdin)["libxml2"]))' < "$SCHEME_DIR/manifest.json")"
+  [ -z "${LIBXML2_URLS+x}" ] && return
   for url in "${LIBXML2_URLS[@]}"; do
     curl -L "$url" | tar xz -C "$BUILD_SDK_PATH"
   done
@@ -22,6 +23,7 @@ install_libxml2() {
 
 install_icu() {
   read -r -a ICU_URLS <<< "$(python3 -c 'import sys, json; print(" ".join(json.load(sys.stdin)["icu4c"]))' < "$SCHEME_DIR/manifest.json")"
+  [ -z "${ICU_URLS+x}" ] && return
   rm -rf "$BUILD_SDK_PATH/icu"
   for url in "${ICU_URLS[@]}"; do
     curl -L "$url" | tar Jx -C "$BUILD_SDK_PATH"
