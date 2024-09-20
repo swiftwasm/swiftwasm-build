@@ -44,7 +44,10 @@ def derive_wasi_sysroot(options, packaging_dir: str, target_triple: str) -> str:
         return os.path.join(packaging_dir, 'wasi-sysroot', target_triple)
 
 
-def copy_icu_libs(build_sdk_path, dist_toolchain_path, target_triple):
+def copy_icu_libs(scheme, build_sdk_path, dist_toolchain_path, target_triple):
+    if scheme not in ["release-5.9", "release-5.10", "release-6.0"]:
+        # We don't need to copy ICU libraries for recent channels
+        return
     import shutil
     icu_lib_dir = os.path.join(build_sdk_path, f"icu-{target_triple}", 'lib')
     if not os.path.exists(icu_lib_dir):
@@ -96,7 +99,7 @@ class PackageAction(Action):
         print(f"=====> Copying base snapshot {base_toolchain_path} to {dist_toolchain_path}")
         self.rsync("-a", base_toolchain_path + "/", dist_toolchain_path)
 
-        copy_icu_libs(build_sdk_path, target_toolchain_path, self.target_triple)
+        copy_icu_libs(self.options.scheme, build_sdk_path, target_toolchain_path, self.target_triple)
         copy_libxml2_libs(build_sdk_path, target_toolchain_path, self.target_triple)
         # Copying target stdlib to dist toolchain, and cross compiler if
         # host compiler is built with patches by ourselves.
@@ -215,7 +218,7 @@ class PackageSwiftSDKAction(Action):
 
     def run(self):
         build_sdk_path = os.path.join('..', 'build-sdk')
-        copy_icu_libs(build_sdk_path, self.target_toolchain_path, self.target_triple)
+        copy_icu_libs(self.options.scheme, build_sdk_path, self.target_toolchain_path, self.target_triple)
         copy_libxml2_libs(build_sdk_path, self.target_toolchain_path, self.target_triple)
         self.make_swift_sdk(
             self.base_toolchain_path,
