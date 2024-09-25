@@ -1,0 +1,38 @@
+From af1b3ddbb8c43c00a278619dfc8251f0f9554dc5 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 25 Sep 2024 15:31:41 +0000
+Subject: [PATCH] [wasm] Fix CocoaError construction for unsupported copy/link
+ operations
+
+This is a follow-up fix for 6c0a3e8453cdde633e1c55f6112fd53a0d756979,
+which re-organized CocoaError helper functions.
+---
+ .../FoundationEssentials/FileManager/FileOperations.swift    | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/Sources/FoundationEssentials/FileManager/FileOperations.swift b/Sources/FoundationEssentials/FileManager/FileOperations.swift
+index 1082e6b0..6f228d80 100644
+--- a/Sources/FoundationEssentials/FileManager/FileOperations.swift
++++ b/Sources/FoundationEssentials/FileManager/FileOperations.swift
+@@ -920,10 +920,11 @@ enum _FileOperations {
+             try delegate.throwIfNecessary(errno, src, dst)
+             return
+         }
++        let copyFile = delegate.copyData
+         guard !stat.isDirectory else {
+             // wasi-libc does not support FTS for now, so we don't support copying/linking
+             // directories on WASI for now.
+-            let error = CocoaError.fileOperationError(.featureUnsupported, src, dst)
++            let error = CocoaError.errorWithFilePath(.featureUnsupported, src, variant: copyFile ? "Copy" : "Link", source: src, destination: dst)
+             try delegate.throwIfNecessary(error, src, dst)
+             return
+         }
+@@ -943,7 +944,7 @@ enum _FileOperations {
+                 try delegate.throwIfNecessary(errno, src, dst)
+             }
+         } else {
+-            if delegate.copyData {
++            if copyFile {
+                 try _copyRegularFile(srcPtr, dstPtr, delegate: delegate)
+             } else {
+                 if link(srcPtr, dstPtr) != 0 {
