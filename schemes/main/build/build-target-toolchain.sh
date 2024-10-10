@@ -28,8 +28,9 @@ build_target_toolchain() {
   local SWIFT_BIN_DIR="$3"
   local TRIPLE="$4"
   local SHORT_TRIPLE="$5"
-  local STDLIB_PRODUCT="$6"
-  local COMPILER_RT_OS_DIR="$7"
+  local CLANG_MULTIARCH_TRIPLE="$6"
+  local STDLIB_PRODUCT="$7"
+  local COMPILER_RT_OS_DIR="$8"
 
   local HOST_SUFFIX
   HOST_SUFFIX=$(find "$TARGET_BUILD_ROOT" -name "wasmstdlib-*" -exec basename {} \; | sed 's/wasmstdlib-//')
@@ -39,9 +40,16 @@ build_target_toolchain() {
   env DESTDIR="$TRIPLE_DESTDIR" \
     cmake --install "$TARGET_BUILD_ROOT/$STDLIB_PRODUCT-$HOST_SUFFIX" --prefix /usr
 
+  local swift_testing_build_dir="$TARGET_BUILD_ROOT/swift-testing-$SHORT_TRIPLE"
+  # TODO: Remove this check once we build swift-testing for +threads target
+  if [[ -d "$swift_testing_build_dir" ]]; then
+    env DESTDIR="$TRIPLE_DESTDIR" \
+      cmake --install "$swift_testing_build_dir" --prefix /usr
+  fi
+
   rm -rf "$TRIPLE_DESTDIR/usr/lib/swift_static/clang/lib/$COMPILER_RT_OS_DIR"
   # XXX: Is this the right way to install compiler-rt?
-  cp -R "$TARGET_BUILD_ROOT/wasi-sysroot/$SHORT_TRIPLE/lib/$COMPILER_RT_OS_DIR" "$TRIPLE_DESTDIR/usr/lib/swift_static/clang/lib/$COMPILER_RT_OS_DIR"
+  cp -R "$TARGET_BUILD_ROOT/wasi-sysroot/$CLANG_MULTIARCH_TRIPLE/lib/$COMPILER_RT_OS_DIR" "$TRIPLE_DESTDIR/usr/lib/swift_static/clang/lib/$COMPILER_RT_OS_DIR"
 
   # FIXME: Clang resource directory installation is not the best way currently.
   # We currently have two copies of compiler headers copied from the base toolchain in
@@ -160,8 +168,8 @@ main() {
     "$OPTIONS_SWIFT_BIN"
   )
 
-  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasi" "wasm32-wasi" "wasmstdlib" "wasi"
-  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasm32-wasip1-threads" "wasmthreadsstdlib" "wasip1"
+  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasi" "wasi-wasm32" "wasm32-wasi" "wasmstdlib" "wasi"
+  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasip1-threads-wasm32" "wasm32-wasip1-threads" "wasmthreadsstdlib" "wasip1"
 
   rsync -av "$WASI_SYSROOT_PATH/" "$PACKAGING_DIR/wasi-sysroot/"
 
