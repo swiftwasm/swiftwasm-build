@@ -1,0 +1,324 @@
+From 4d0bc720421901407bab80d1e104220ddb145564 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 10 Oct 2024 04:29:54 +0000
+Subject: [PATCH] Revert "[6.0] [CMake] [Darwin] Don't build the SDK overlays
+ by default on Apple platforms"
+
+This reverts commit c6666f766022012b0406893f1b51ab227f7d89d6.
+---
+ CMakeLists.txt                                   |  9 +--------
+ .../cmake/modules/AddSwiftBenchmarkSuite.cmake   |  2 +-
+ cmake/modules/DarwinSDKs.cmake                   |  6 +-----
+ stdlib/private/CMakeLists.txt                    | 16 +++++++---------
+ stdlib/public/CMakeLists.txt                     |  7 ++++---
+ test/Driver/loaded_module_trace_foundation.swift |  4 ++--
+ test/Driver/loaded_module_trace_header.swift     |  2 +-
+ test/SIL/Serialization/deserialize_darwin.sil    |  7 +++++++
+ test/embedded/concurrency-actors.swift           |  4 ----
+ test/embedded/concurrency-async-let.swift        |  4 ----
+ test/embedded/concurrency-simple.swift           |  4 ----
+ test/embedded/darwin-bridging-header.swift       |  4 ----
+ test/embedded/darwin.swift                       |  4 ----
+ test/lit.cfg                                     |  4 ++--
+ .../build_swift/build_swift/driver_arguments.py  |  3 +--
+ utils/build_swift/tests/expected_options.py      |  3 +--
+ 16 files changed, 28 insertions(+), 55 deletions(-)
+ create mode 100644 test/SIL/Serialization/deserialize_darwin.sil
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b69c79736e0..6ae6f27330b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -247,16 +247,9 @@ option(SWIFT_BUILD_CLANG_OVERLAYS
+   "Build Swift overlays for the clang builtin modules"
+   TRUE)
+ 
+-# The SDK overlay is provided by the SDK itself on Darwin platforms.
+-if(SWIFT_HOST_VARIANT_SDK IN_LIST SWIFT_DARWIN_PLATFORMS)
+-  set(SWIFT_BUILD_DYNAMIC_SDK_OVERLAY_default FALSE)
+-else()
+-  set(SWIFT_BUILD_DYNAMIC_SDK_OVERLAY_default TRUE)
+-endif()
+-
+ option(SWIFT_BUILD_DYNAMIC_SDK_OVERLAY
+     "Build dynamic variants of the Swift SDK overlay"
+-    "${SWIFT_BUILD_DYNAMIC_SDK_OVERLAY_default}")
++    TRUE)
+ 
+ option(SWIFT_BUILD_STATIC_SDK_OVERLAY
+     "Build static variants of the Swift SDK overlay"
+diff --git a/benchmark/cmake/modules/AddSwiftBenchmarkSuite.cmake b/benchmark/cmake/modules/AddSwiftBenchmarkSuite.cmake
+index 25c04a59483..b96723f16ba 100644
+--- a/benchmark/cmake/modules/AddSwiftBenchmarkSuite.cmake
++++ b/benchmark/cmake/modules/AddSwiftBenchmarkSuite.cmake
+@@ -714,7 +714,7 @@ function(swift_benchmark_compile)
+ 
+   if(NOT SWIFT_BENCHMARK_BUILT_STANDALONE)
+     set(stdlib_dependencies "swift-frontend" "swiftCore-${SWIFT_SDK_${SWIFT_HOST_VARIANT_SDK}_LIB_SUBDIR}")
+-    if((SWIFT_HOST_VARIANT_SDK IN_LIST SWIFT_DARWIN_PLATFORMS) AND SWIFT_BUILD_SDK_OVERLAY)
++    if(SWIFT_HOST_VARIANT_SDK IN_LIST SWIFT_DARWIN_PLATFORMS)
+       list(APPEND stdlib_dependencies "swiftDarwin-${SWIFT_SDK_${SWIFT_HOST_VARIANT_SDK}_LIB_SUBDIR}")
+     endif()
+     foreach(stdlib_dependency ${UNIVERSAL_LIBRARY_NAMES_${SWIFT_BENCHMARK_COMPILE_PLATFORM}})
+diff --git a/cmake/modules/DarwinSDKs.cmake b/cmake/modules/DarwinSDKs.cmake
+index 32e1e4bface..558771b1516 100644
+--- a/cmake/modules/DarwinSDKs.cmake
++++ b/cmake/modules/DarwinSDKs.cmake
+@@ -48,11 +48,7 @@ if(swift_build_freestanding AND (SWIFT_FREESTANDING_FLAVOR STREQUAL "apple"))
+   configure_target_variant(FREESTANDING-R  "FREESTANDING Release"         FREESTANDING R  "Release")
+   configure_target_variant(FREESTANDING-S  "FREESTANDING MinSizeRelease"  FREESTANDING S  "MinSizeRelease")
+ 
+-  if(SWIFT_BUILD_SDK_OVERLAY)
+-    set(SWIFT_FREESTANDING_TEST_DEPENDENCIES "Darwin")
+-  else()
+-    set(SWIFT_FREESTANDING_TEST_DEPENDENCIES "")
+-  endif()
++  set(SWIFT_FREESTANDING_TEST_DEPENDENCIES "Darwin")
+ endif()
+ 
+ # Compatible cross-compile SDKS for Darwin OSes: IOS, IOS_SIMULATOR, TVOS,
+diff --git a/stdlib/private/CMakeLists.txt b/stdlib/private/CMakeLists.txt
+index 5bb77689950..05ef455b755 100644
+--- a/stdlib/private/CMakeLists.txt
++++ b/stdlib/private/CMakeLists.txt
+@@ -1,16 +1,12 @@
+-if(SWIFT_BUILD_SDK_OVERLAY
+-   OR (SWIFT_BUILD_TEST_SUPPORT_MODULES
+-       AND NOT SWIFT_BUILD_DYNAMIC_SDK_OVERLAY_default
+-       AND (SWIFT_ENABLE_REFLECTION
+-            OR NOT SWIFT_HOST_VARIANT_SDK IN_LIST SWIFT_DARWIN_PLATFORMS)))
++if(SWIFT_BUILD_SDK_OVERLAY)
+   # SwiftPrivateThreadExtras makes use of Darwin/Glibc, which is part of the
+-  # SDK overlay. If the SDK overlay doesn't build by default, then it should
+-  # be available in the SDK and DifferentiationUnittest can still be built.
+-  # However, the overlay in the Apple SDKs requires the standard library to
+-  # have reflection enabled.
++  # SDK overlay. It can't be built separately from the SDK overlay.
+   if(SWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING)
+     add_subdirectory(DifferentiationUnittest)
+   endif()
++endif()
++
++if(SWIFT_BUILD_SDK_OVERLAY OR SWIFT_BUILD_TEST_SUPPORT_MODULES)
+   add_subdirectory(SwiftPrivate)
+   add_subdirectory(RuntimeUnittest)
+   add_subdirectory(StdlibUnicodeUnittest)
+@@ -22,7 +18,9 @@ if(SWIFT_BUILD_SDK_OVERLAY
+   # SwiftPrivateThreadExtras to ensure that the dependency targets are setup in
+   # the correct order for Windows.
+   add_subdirectory(StdlibUnittest)
++endif()
+ 
++if(SWIFT_BUILD_SDK_OVERLAY)
+   add_subdirectory(OSLog)
+ 
+   if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+diff --git a/stdlib/public/CMakeLists.txt b/stdlib/public/CMakeLists.txt
+index eff3c646ce5..2883fd057c1 100644
+--- a/stdlib/public/CMakeLists.txt
++++ b/stdlib/public/CMakeLists.txt
+@@ -242,7 +242,7 @@ if(SWIFT_BUILD_STDLIB)
+   add_subdirectory(core)
+   add_subdirectory(SwiftOnoneSupport)
+ 
+-  if(SWIFT_BUILD_CLANG_OVERLAYS OR SWIFT_BUILD_TEST_SUPPORT_MODULES)
++  if(SWIFT_BUILD_CLANG_OVERLAYS)
+     add_subdirectory(ClangOverlays)
+   endif()
+ endif()
+@@ -287,12 +287,13 @@ if(SWIFT_BUILD_REMOTE_MIRROR)
+   add_subdirectory(SwiftRemoteMirror)
+ endif()
+ 
+-if(SWIFT_BUILD_SDK_OVERLAY OR (SWIFT_BUILD_TEST_SUPPORT_MODULES AND SWIFT_BUILD_DYNAMIC_SDK_OVERLAY_default))
++if(SWIFT_BUILD_SDK_OVERLAY OR SWIFT_BUILD_TEST_SUPPORT_MODULES)
+   add_subdirectory(Platform)
+ endif()
+ 
+ if(SWIFT_BUILD_SDK_OVERLAY)
+-  # On Apple platforms, we aren't building any overlays. Instead, we're picking them up from the SDK.
++  # On Apple platforms, we aren't building any overlays (other than Darwin in
++  # Platform above). Instead, we're picking them up from the SDK.
+ 
+   if(WINDOWS IN_LIST SWIFT_SDKS)
+     add_subdirectory(Windows)
+diff --git a/test/Driver/loaded_module_trace_foundation.swift b/test/Driver/loaded_module_trace_foundation.swift
+index 3a66f173361..a2f3de1da5f 100644
+--- a/test/Driver/loaded_module_trace_foundation.swift
++++ b/test/Driver/loaded_module_trace_foundation.swift
+@@ -9,12 +9,12 @@
+ // CHECK: "arch":"{{[^"]*}}"
+ // CHECK: "swiftmodules":[
+ 
+-// Swift and SwiftOnoneSupport is expected to be locally built;
++// Darwin, Swift and SwiftOnoneSupport is expected to be locally built;
+ // everything else comes from the SDK, built from swiftinterface.
+ 
+ // CHECK-DAG: "{{[^"]*}}/ObjectiveC.swiftmodule{{(\\/[^"]+[.]swift(module|interface))?}}"
+ // CHECK-DAG: "{{[^"]*}}/Dispatch.swiftmodule{{(\\/[^"]+[.]swift(module|interface))?}}"
+-// CHECK-DAG: "{{[^"]*}}/Darwin.swiftmodule{{(\\/[^"]+[.]swift(module|interface))?}}"
++// CHECK-DAG: "{{[^"]*}}/Darwin.swiftmodule{{(\\/[^"]+[.]swiftmodule)?}}"
+ // CHECK-DAG: "{{[^"]*}}/Foundation.swiftmodule{{(\\/[^"]+[.]swift(module|interface))?}}"
+ // CHECK-DAG: "{{[^"]*}}/Swift.swiftmodule{{(\\/[^"]+[.]swiftmodule)?}}"
+ // CHECK-DAG: "{{[^"]*}}/SwiftOnoneSupport.swiftmodule{{(\\/[^"]+[.]swiftmodule)?}}"
+diff --git a/test/Driver/loaded_module_trace_header.swift b/test/Driver/loaded_module_trace_header.swift
+index 14181b134d7..8ce2e3c9219 100644
+--- a/test/Driver/loaded_module_trace_header.swift
++++ b/test/Driver/loaded_module_trace_header.swift
+@@ -11,7 +11,7 @@
+ // CHECK: "swiftmodules":[
+ // CHECK-DAG: "{{[^"]*}}/ObjectiveC.swiftmodule{{(\\/[^"]+[.]swift(module|interface))?}}"
+ // CHECK-DAG: "{{[^"]*}}/Dispatch.swiftmodule{{(\\/[^"]+[.]swift(module|interface))?}}"
+-// CHECK-DAG: "{{[^"]*}}/Darwin.swiftmodule{{(\\/[^"]+[.]swift(module|interface))?}}"
++// CHECK-DAG: "{{[^"]*}}/Darwin.swiftmodule{{(\\/[^"]+[.]swiftmodule)?}}"
+ // CHECK-DAG: "{{[^"]*}}/Foundation.swiftmodule{{(\\/[^"]+[.]swift(module|interface))?}}"
+ // CHECK-DAG: "{{[^"]*}}/Swift.swiftmodule{{(\\/[^"]+[.]swiftmodule)?}}"
+ // CHECK-DAG: "{{[^"]*}}/SwiftOnoneSupport.swiftmodule{{(\\/[^"]+[.]swiftmodule)?}}"
+diff --git a/test/SIL/Serialization/deserialize_darwin.sil b/test/SIL/Serialization/deserialize_darwin.sil
+new file mode 100644
+index 00000000000..cb3429291d5
+--- /dev/null
++++ b/test/SIL/Serialization/deserialize_darwin.sil
+@@ -0,0 +1,7 @@
++// Make sure that we can deserialize darwin.
++// RUN: %target-sil-opt %platform-sdk-overlay-dir/Darwin.swiftmodule/%target-swiftmodule-name -module-name Darwin > /dev/null
++// RUN: llvm-bcanalyzer %platform-sdk-overlay-dir/Darwin.swiftmodule/%target-swiftmodule-name | %FileCheck %s
++
++// REQUIRES: objc_interop
++
++// CHECK-NOT: Unknown
+diff --git a/test/embedded/concurrency-actors.swift b/test/embedded/concurrency-actors.swift
+index 0076b54335c..15486a7d143 100644
+--- a/test/embedded/concurrency-actors.swift
++++ b/test/embedded/concurrency-actors.swift
+@@ -9,10 +9,6 @@
+ // REQUIRES: optimized_stdlib
+ // REQUIRES: OS=macosx
+ 
+-// The Darwin SDK overlay module in the macOS SDK cannot be imported in
+-// embedded Swift mode.
+-// XFAIL: OS=macosx
+-
+ import _Concurrency
+ 
+ actor Number {
+diff --git a/test/embedded/concurrency-async-let.swift b/test/embedded/concurrency-async-let.swift
+index ec616c934cf..4b8e0ea20f6 100644
+--- a/test/embedded/concurrency-async-let.swift
++++ b/test/embedded/concurrency-async-let.swift
+@@ -9,10 +9,6 @@
+ // REQUIRES: optimized_stdlib
+ // REQUIRES: OS=macosx
+ 
+-// The Darwin SDK overlay module in the macOS SDK cannot be imported in
+-// embedded Swift mode.
+-// XFAIL: OS=macosx
+-
+ import _Concurrency
+ 
+ func fib(_ n: Int) -> Int {
+diff --git a/test/embedded/concurrency-simple.swift b/test/embedded/concurrency-simple.swift
+index 3b42b59290c..004cf4aa8f7 100644
+--- a/test/embedded/concurrency-simple.swift
++++ b/test/embedded/concurrency-simple.swift
+@@ -9,10 +9,6 @@
+ // REQUIRES: optimized_stdlib
+ // REQUIRES: OS=macosx
+ 
+-// The Darwin SDK overlay module in the macOS SDK cannot be imported in
+-// embedded Swift mode.
+-// XFAIL: OS=macosx
+-
+ import _Concurrency
+ 
+ public func test() async -> Int {
+diff --git a/test/embedded/darwin-bridging-header.swift b/test/embedded/darwin-bridging-header.swift
+index d9fb85e5c45..e919e8ee0a1 100644
+--- a/test/embedded/darwin-bridging-header.swift
++++ b/test/embedded/darwin-bridging-header.swift
+@@ -11,10 +11,6 @@
+ // REQUIRES: VENDOR=apple
+ // REQUIRES: OS=macosx
+ 
+-// The Darwin SDK overlay module in the macOS SDK cannot be imported in
+-// embedded Swift mode.
+-// XFAIL: OS=macosx
+-
+ // BEGIN BridgingHeader.h
+ 
+ #include <unistd.h>
+diff --git a/test/embedded/darwin.swift b/test/embedded/darwin.swift
+index e90513ea284..e15cf66d88a 100644
+--- a/test/embedded/darwin.swift
++++ b/test/embedded/darwin.swift
+@@ -9,10 +9,6 @@
+ // REQUIRES: VENDOR=apple
+ // REQUIRES: OS=macosx
+ 
+-// The Darwin SDK overlay module in the macOS SDK cannot be imported in
+-// embedded Swift mode.
+-// XFAIL: OS=macosx
+-
+ import Darwin
+ 
+ @main
+diff --git a/test/lit.cfg b/test/lit.cfg
+index 16d5c01a8da..c327efdb9f7 100644
+--- a/test/lit.cfg
++++ b/test/lit.cfg
+@@ -1498,8 +1498,8 @@ if run_vendor == 'apple':
+         '%s -modulewrap -target %s' %
+         (config.swiftc, config.variant_triple))
+     config.target_swift_emit_pcm = (
+-        '%s -emit-pcm -target %s -sdk %r' %
+-        (config.swiftc, config.variant_triple, config.variant_sdk))
++        '%s -emit-pcm -target %s' %
++        (config.swiftc, config.variant_triple))
+     subst_target_swift_frontend_mock_sdk_after = \
+         target_options_for_mock_sdk_after
+     config.target_sil_opt = (
+diff --git a/utils/build_swift/build_swift/driver_arguments.py b/utils/build_swift/build_swift/driver_arguments.py
+index 4345cb43d6d..cd9480cc7b3 100644
+--- a/utils/build_swift/build_swift/driver_arguments.py
++++ b/utils/build_swift/build_swift/driver_arguments.py
+@@ -8,7 +8,6 @@
+ 
+ import multiprocessing
+ import os
+-import platform
+ 
+ import android.adb.commands
+ 
+@@ -1146,7 +1145,7 @@ def create_argument_parser():
+            help='build static variants of the Swift standard library')
+ 
+     option('--build-swift-dynamic-sdk-overlay', toggle_true,
+-           default=platform.system() != "Darwin",
++           default=True,
+            help='build dynamic variants of the Swift SDK overlay')
+ 
+     option('--build-swift-static-sdk-overlay', toggle_true,
+diff --git a/utils/build_swift/tests/expected_options.py b/utils/build_swift/tests/expected_options.py
+index 72687e27fd2..5d1a6a6898a 100644
+--- a/utils/build_swift/tests/expected_options.py
++++ b/utils/build_swift/tests/expected_options.py
+@@ -8,7 +8,6 @@
+ 
+ 
+ import multiprocessing
+-import platform
+ 
+ from build_swift import argparse
+ from build_swift import defaults
+@@ -81,7 +80,7 @@ EXPECTED_DEFAULTS = {
+     'build_runtime_with_host_compiler': False,
+     'build_stdlib_deployment_targets': ['all'],
+     'build_subdir': None,
+-    'build_swift_dynamic_sdk_overlay': platform.system() != "Darwin",
++    'build_swift_dynamic_sdk_overlay': True,
+     'build_swift_dynamic_stdlib': True,
+     'build_swift_inspect': False,
+     'build_swift_external_generic_metadata_builder': True,
+-- 
+2.46.0
+
