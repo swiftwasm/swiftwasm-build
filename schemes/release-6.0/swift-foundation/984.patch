@@ -1,0 +1,42 @@
+From 904db472e5db7bf77aed8f36f84f761fbd471cda Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Wed, 16 Oct 2024 05:12:44 +0000
+Subject: [PATCH] [wasm] Fix WASI build around TimeZone
+
+https://github.com/swiftlang/swift-foundation/pull/975 started to
+restrict the fallback value for `TZDIR` and it revealed that WASI
+platform implicitly depends on TZDIR even though it won't have such
+directory. This patch explicitly handles the case for WASI platform for
+timezone operations.
+---
+ Sources/FoundationEssentials/TimeZone/TimeZone.swift       | 2 +-
+ Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift | 3 +++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/Sources/FoundationEssentials/TimeZone/TimeZone.swift b/Sources/FoundationEssentials/TimeZone/TimeZone.swift
+index 9be9de09..fa26a8c7 100644
+--- a/Sources/FoundationEssentials/TimeZone/TimeZone.swift
++++ b/Sources/FoundationEssentials/TimeZone/TimeZone.swift
+@@ -390,7 +390,7 @@ extension TimeZone {
+ 
+ extension TimeZone {
+     internal static func dataFromTZFile(_ name: String) -> Data {
+-#if NO_TZFILE || os(Windows)
++#if NO_TZFILE || os(Windows) || os(WASI)
+         return Data()
+ #else
+         let path = TZDIR + "/" + name
+diff --git a/Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift b/Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift
+index b4c84d71..ccbb69aa 100644
+--- a/Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift
++++ b/Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift
+@@ -131,6 +131,9 @@ struct TimeZoneCache : Sendable, ~Copyable {
+                     return TimeZone(inner: result)
+                 }
+             }
++#elseif os(WASI)
++            // WASI doesn't provide a way to get the current timezone for now, so
++            // just return the default GMT timezone.
+ #else
+             let buffer = UnsafeMutableBufferPointer<CChar>.allocate(capacity: Int(PATH_MAX + 1))
+             defer { buffer.deallocate() }
