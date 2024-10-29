@@ -1,0 +1,134 @@
+From d3d8499bcfea5e1d16060d8a1c1e772b23a606d9 Mon Sep 17 00:00:00 2001
+From: Jeremy Schonfeld <jschonfeld@apple.com>
+Date: Fri, 11 Oct 2024 11:18:11 -0700
+Subject: [PATCH] Fix TimeZone.current lookup on Windows (#975) (#978)
+
+---
+ .../TimeZone/TimeZone.swift                   |  2 +-
+ .../TimeZone/TimeZone_Cache.swift             | 26 ++++++++++---------
+ .../TimeZone/TimeZone_ICU.swift               | 24 +++++++++++++++++
+ Sources/_FoundationCShims/include/_CStdlib.h  |  2 ++
+ 4 files changed, 41 insertions(+), 13 deletions(-)
+
+diff --git a/Sources/FoundationEssentials/TimeZone/TimeZone.swift b/Sources/FoundationEssentials/TimeZone/TimeZone.swift
+index d924312..09cd1ff 100644
+--- a/Sources/FoundationEssentials/TimeZone/TimeZone.swift
++++ b/Sources/FoundationEssentials/TimeZone/TimeZone.swift
+@@ -390,7 +390,7 @@ extension TimeZone {
+ 
+ extension TimeZone {
+     internal static func dataFromTZFile(_ name: String) -> Data {
+-#if NO_TZFILE
++#if NO_TZFILE || os(Windows)
+         return Data()
+ #else
+         let path = TZDIR + "/" + name
+diff --git a/Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift b/Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift
+index efb8d67..ac61ee3 100644
+--- a/Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift
++++ b/Sources/FoundationEssentials/TimeZone/TimeZone_Cache.swift
+@@ -50,6 +50,12 @@ dynamic package func _timeZoneGMTClass() -> _TimeZoneProtocol.Type {
+ }
+ #endif
+ 
++#if os(Windows)
++dynamic package func _timeZoneIdentifier(forWindowsIdentifier windowsIdentifier: String) -> String? {
++    nil
++}
++#endif
++
+ /// Singleton which listens for notifications about preference changes for TimeZone and holds cached values for current, fixed time zones, etc.
+ struct TimeZoneCache : Sendable {
+     // MARK: - State
+@@ -129,18 +135,14 @@ struct TimeZoneCache : Sendable {
+             }
+ 
+ #if os(Windows)
+-            let hFile = TZDEFAULT.withCString(encodedAs: UTF16.self) {
+-                CreateFileW($0, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nil, OPEN_EXISTING, 0, nil)
+-            }
+-            defer { CloseHandle(hFile) }
+-            let dwSize = GetFinalPathNameByHandleW(hFile, nil, 0, VOLUME_NAME_DOS)
+-            let path = withUnsafeTemporaryAllocation(of: WCHAR.self, capacity: Int(dwSize)) {
+-                _ = GetFinalPathNameByHandleW(hFile, $0.baseAddress, dwSize, VOLUME_NAME_DOS)
+-                return String(decodingCString: $0.baseAddress!, as: UTF16.self)
+-            }
+-            if let rangeOfZoneInfo = path._range(of: "\(TZDIR)\\", anchored: false, backwards: false) {
+-                let name = path[rangeOfZoneInfo.upperBound...]
+-                if let result = fixed(String(name)) {
++            var timeZoneInfo = TIME_ZONE_INFORMATION()
++            if GetTimeZoneInformation(&timeZoneInfo) != TIME_ZONE_ID_INVALID {
++                let windowsName = withUnsafePointer(to: &(timeZoneInfo.StandardName)) {
++                    $0.withMemoryRebound(to: WCHAR.self, capacity: 32) {
++                        String(decoding: UnsafeBufferPointer(start: $0, count: wcslen($0)), as: UTF16.self)
++                    }
++                }
++                if let identifier = _timeZoneIdentifier(forWindowsIdentifier: windowsName), let result = fixed(identifier) {
+                     return TimeZone(inner: result)
+                 }
+             }
+diff --git a/Sources/FoundationInternationalization/TimeZone/TimeZone_ICU.swift b/Sources/FoundationInternationalization/TimeZone/TimeZone_ICU.swift
+index 8b63f09..bff665f 100644
+--- a/Sources/FoundationInternationalization/TimeZone/TimeZone_ICU.swift
++++ b/Sources/FoundationInternationalization/TimeZone/TimeZone_ICU.swift
+@@ -32,6 +32,13 @@ private func _timeZoneICUClass_localized() -> _TimeZoneProtocol.Type? {
+ }
+ #endif
+ 
++#if os(Windows)
++@_dynamicReplacement(for: _timeZoneIdentifier(forWindowsIdentifier:))
++private func _timeZoneIdentifier_ICU(forWindowsIdentifier windowsIdentifier: String) -> String? {
++    _TimeZoneICU.getSystemTimeZoneID(forWindowsIdentifier: windowsIdentifier)
++}
++#endif
++
+ internal final class _TimeZoneICU: _TimeZoneProtocol, Sendable {
+     init?(secondsFromGMT: Int) {
+         fatalError("Unexpected init")
+@@ -309,6 +316,23 @@ internal final class _TimeZoneICU: _TimeZoneProtocol, Sendable {
+         return result
+     }
+ 
++    #if os(Windows)
++    internal static func getSystemTimeZoneID(forWindowsIdentifier identifier: String) -> String? {
++        let timeZoneIdentifier = Array(identifier.utf16)
++        let result: String? = timeZoneIdentifier.withUnsafeBufferPointer { identifier in
++            return _withResizingUCharBuffer { buffer, size, status in
++                let len = ucal_getTimeZoneIDForWindowsID(identifier.baseAddress, Int32(identifier.count), nil, buffer, size, &status)
++                if status.isSuccess {
++                    return len
++                } else {
++                    return nil
++                }
++            }
++        }
++        return result
++    }
++    #endif
++
+     internal static func timeZoneNamesFromICU() -> [String] {
+         let filteredTimeZoneNames = [
+             "ACT",
+diff --git a/Sources/_FoundationCShims/include/_CStdlib.h b/Sources/_FoundationCShims/include/_CStdlib.h
+index 0337393..5232967 100644
+--- a/Sources/_FoundationCShims/include/_CStdlib.h
++++ b/Sources/_FoundationCShims/include/_CStdlib.h
+@@ -156,6 +156,7 @@
+ #include <tzfile.h>
+ #else
+ 
++#if TARGET_OS_MAC || TARGET_OS_LINUX
+ #ifndef TZDIR
+ #define TZDIR    "/usr/share/zoneinfo/" /* Time zone object file directory */
+ #endif /* !defined TZDIR */
+@@ -163,6 +164,7 @@
+ #ifndef TZDEFAULT
+ #define TZDEFAULT    "/etc/localtime"
+ #endif /* !defined TZDEFAULT */
++#endif /* TARGET_OS_MAC || TARGET_OS_LINUX */
+ 
+ #endif
+ 
+-- 
+2.46.0
+

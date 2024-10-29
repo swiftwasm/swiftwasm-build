@@ -1,0 +1,66 @@
+From 8873088ed6903231235bf8f338358a68157794a8 Mon Sep 17 00:00:00 2001
+From: Max Desiatov <m_desiatov@apple.com>
+Date: Mon, 5 Aug 2024 20:28:46 +0100
+Subject: [PATCH] Reflect `Package.swift` WASI changes in `CMakeLists.txt`
+
+---
+ CMakeLists.txt | 26 ++++++++++++++++++++++++--
+ 1 file changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 30d960cb..edb6cf06 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -115,7 +115,6 @@ list(APPEND _Foundation_common_build_flags
+     "-DCF_BUILDING_CF"
+     "-DDEPLOYMENT_ENABLE_LIBDISPATCH"
+     "-DHAVE_STRUCT_TIMESPEC"
+-    "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS"
+     "-Wno-shorten-64-to-32"
+     "-Wno-deprecated-declarations"
+     "-Wno-unreachable-code"
+@@ -127,6 +126,18 @@ list(APPEND _Foundation_common_build_flags
+     "-Wno-switch"
+     "-fblocks")
+ 
++if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
++  list(APPEND _Foundation_common_build_flags
++    "-D_WASI_EMULATED_SIGNAL"
++    "-DHAVE_STRLCPY"
++    "-DHAVE_STRLCAT"
++  )
++else()
++  list(APPEND _Foundation_common_build_flags
++    "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS"
++  )
++endif()
++
+ if(NOT "${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
+     list(APPEND _Foundation_common_build_flags
+         "-fconstant-cfstrings"
+@@ -154,10 +165,21 @@ set(_Foundation_swift_build_flags)
+ list(APPEND _Foundation_swift_build_flags
+     "-swift-version 6"
+     "-DDEPLOYMENT_RUNTIME_SWIFT"
+-    "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS"
+     "-Xfrontend"
+     "-require-explicit-sendable")
+ 
++if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
++  list(APPEND _Foundation_swift_build_flags
++    "-D_WASI_EMULATED_SIGNAL"
++    "-DHAVE_STRLCPY"
++    "-DHAVE_STRLCAT"
++  )
++else()
++  list(APPEND _Foundation_swift_build_flags
++    "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS"
++  )
++endif()
++
+ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
+     list(APPEND _Foundation_common_build_flags
+         "-D_GNU_SOURCE")
+-- 
+2.46.0
+
