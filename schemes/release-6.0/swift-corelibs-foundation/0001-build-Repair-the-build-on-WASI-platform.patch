@@ -1,0 +1,96 @@
+From acdc7e138ff67f02c261bb6372f755c2fdb6bc7b Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sat, 30 Mar 2024 10:28:40 +0000
+Subject: [PATCH] build: Repair the build on WASI platform
+
+Cherry picked from https://github.com/apple/swift-corelibs-foundation/pull/4934
+
+(cherry picked from commit 51ee6906be0556eb63cd35a16ad4167f69f16a63)
+---
+ Package.swift                     | 20 ++++++++++++++++++--
+ Sources/CoreFoundation/CFBundle.c |  8 +++++++-
+ Sources/CoreFoundation/CFString.c |  2 +-
+ 3 files changed, 26 insertions(+), 4 deletions(-)
+
+diff --git a/Package.swift b/Package.swift
+index 4ead01c3..8aa40e79 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -3,6 +3,16 @@
+ 
+ import PackageDescription
+ 
++let platformsWithThreads: [Platform] = [
++    .iOS,
++    .macOS,
++    .tvOS,
++    .watchOS,
++    .macCatalyst,
++    .driverKit,
++    .android,
++    .linux,
++]
+ var dispatchIncludeFlags: [CSetting]
+ if let environmentPath = Context.environment["DISPATCH_INCLUDE_PATH"] {
+     dispatchIncludeFlags = [.unsafeFlags([
+@@ -31,8 +41,11 @@ let coreFoundationBuildSettings: [CSetting] = [
+     .define("DEPLOYMENT_ENABLE_LIBDISPATCH"),
+     .define("DEPLOYMENT_RUNTIME_SWIFT"),
+     .define("HAVE_STRUCT_TIMESPEC"),
+-    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS"),
++    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads)),
+     .define("_GNU_SOURCE", .when(platforms: [.linux, .android])),
++    .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
++    .define("HAVE_STRLCPY", .when(platforms: [.wasi])),
++    .define("HAVE_STRLCAT", .when(platforms: [.wasi])),
+     .unsafeFlags([
+         "-Wno-shorten-64-to-32",
+         "-Wno-deprecated-declarations",
+@@ -61,8 +74,11 @@ let interfaceBuildSettings: [CSetting] = [
+     .define("CF_BUILDING_CF"),
+     .define("DEPLOYMENT_ENABLE_LIBDISPATCH"),
+     .define("HAVE_STRUCT_TIMESPEC"),
+-    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS"),
++    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads)),
+     .define("_GNU_SOURCE", .when(platforms: [.linux, .android])),
++    .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
++    .define("HAVE_STRLCPY", .when(platforms: [.wasi])),
++    .define("HAVE_STRLCAT", .when(platforms: [.wasi])),
+     .unsafeFlags([
+         "-Wno-shorten-64-to-32",
+         "-Wno-deprecated-declarations",
+diff --git a/Sources/CoreFoundation/CFBundle.c b/Sources/CoreFoundation/CFBundle.c
+index 8026a262..05afe988 100644
+--- a/Sources/CoreFoundation/CFBundle.c
++++ b/Sources/CoreFoundation/CFBundle.c
+@@ -596,7 +596,13 @@ static CFBundleRef _CFBundleGetBundleWithIdentifier(CFStringRef bundleID, void *
+ 
+ CFBundleRef CFBundleGetBundleWithIdentifier(CFStringRef bundleID) {
+     // Use the frame that called this as a hint
+-    return _CFBundleGetBundleWithIdentifier(bundleID, __builtin_return_address(0));
++    void *hint;
++#if TARGET_OS_WASI
++    hint = NULL;
++#else
++    hint = __builtin_frame_address(0);
++#endif
++    return _CFBundleGetBundleWithIdentifier(bundleID, hint);
+ }
+ 
+ CFBundleRef _CFBundleGetBundleWithIdentifierWithHint(CFStringRef bundleID, void *pointer) {
+diff --git a/Sources/CoreFoundation/CFString.c b/Sources/CoreFoundation/CFString.c
+index 1de46dac..94a6c86d 100644
+--- a/Sources/CoreFoundation/CFString.c
++++ b/Sources/CoreFoundation/CFString.c
+@@ -28,7 +28,7 @@
+ #include "CFRuntime_Internal.h"
+ #include <assert.h>
+ #include <_foundation_unicode/uchar.h>
+-#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD
++#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
+ #include "CFConstantKeys.h"
+ #include "CFStringLocalizedFormattingInternal.h"
+ #endif
+-- 
+2.46.0
+
