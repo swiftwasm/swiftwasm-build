@@ -474,7 +474,7 @@ class Distribution:
             platform_suffix, _, _ = derive_platform_suffix_and_scheme(
                 artifact["name"], options.scheme)
             artifact_path = self.unpack_toolchain(artifact_path)
-            package = await self.package_toolchain(
+            package, artifact_path = await self.package_toolchain(
                 artifact_path, tag_name, platform_suffix)
             if options.dry_run:
                 print(f"Skip uploading actual artifact \"{package}\"")
@@ -512,22 +512,22 @@ class Distribution:
             pkg_path = os.path.join(
                 artifacts_path, f"{tag_name}-{platform_suffix}.pkg")
             if os.path.exists(pkg_path):
-                return pkg_path
+                return [pkg_path, artifact_path]
             swift_source_dir = os.path.join(self.checkout_dir, "swift")
             await DarwinToolchainPackaging(
                 self.secrets, self.dry_run, self.verbose
             ).package(artifact_path, tag_name, pkg_path, swift_source_dir)
-            return pkg_path
+            return [pkg_path, artifact_path]
         else:
             tarball_path = os.path.join(
                 artifacts_path, f"{tag_name}-{platform_suffix}.tar.gz")
             if os.path.exists(tarball_path):
-                return tarball_path
+                return [tarball_path, artifact_path]
             tar_args = ["tar", "cfz", tarball_path,
                         "-C", os.path.dirname(artifact_path),
                         os.path.basename(artifact_path)]
             self.subprocess_run(tar_args, check=True)
-            return tarball_path
+            return [tarball_path, artifact_path]
 
     async def package_artifactbundle(
         self, artifact_path: str, tag_name: str,
