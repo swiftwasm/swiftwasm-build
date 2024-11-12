@@ -201,7 +201,9 @@ jobs:
 
       - name: Install Homebrew dependencies
         if: ${{ startsWith(matrix.build_os, 'macos-') }}
-        run: brew bundle --file swift/Brewfile
+        run: |
+          brew bundle --file swift/Brewfile
+          brew install curl # For Foundation build
 
       # LLVM implicitly depends on libzstd if it's found in the system
       - name: Uninstall libzstd on macOS
