@@ -299,7 +299,7 @@ jobs:
       # Prepare for running tests
       - uses: bytecodealliance/actions/wasmtime/setup@v1
         with:
-          version: "v17.0.1"
+          version: "v25.0.3"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       # WORKAROUND: wasmkit-cli should be built from checked out source but we don't have
