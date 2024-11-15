@@ -1,7 +1,6 @@
 // RUN: %{target_simple_swift_build}
 // RUN: %{wasm_run} %t.dir/.build/debug/Check.wasm | %{FileCheck} %s
 // REQUIRES: FileCheck
-// XFAIL: scheme=main
 
 import FoundationXML
 
