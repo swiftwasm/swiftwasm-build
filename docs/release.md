@@ -31,6 +31,7 @@ We are usually doing the following steps:
     - `update-checkout-scheme` field should be updated to the one passed to `--scheme` option of [`utils/update-checkout`](https://github.com/swiftlang/swift/blob/main/utils/update-checkout) script.
     - `swift-org-download-channel` field should be updated to the new release branch.
         e.g. If a download link of a new release snapshot is "https://download.swift.org/swift-6.1-branch/xcode/swift-6.1-DEVELOPMENT-SNAPSHOT-2024-11-19-a/swift-6.1-DEVELOPMENT-SNAPSHOT-2024-11-19-a-osx.pkg", the value should be "swift-6.1-branch".
+3. Update `.github/scripts/build-matrix.rb` to pin the builder container image version for the new release scheme:
 3. Update CI configuration to build the new release scheme:
     - [`.github/workflows/nightly-distribution.yml`](https://github.com/swiftwasm/swift/blob/0895044e2ba31ccd1aade8068088b1fd3137fffb/.github/workflows/nightly-distribution.yml#L8-L11)
 
