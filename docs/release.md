@@ -25,14 +25,22 @@ We are usually doing the following steps:
 1. Create a new release scheme in [swiftwasm-build's `./schemes` directory](https://github.com/swiftwasm/swiftwasm-build/tree/main/schemes) by copying the patches from `main` scheme at the moment.
     ```console
     $ cp -r schemes/main schemes/release-5.x
-    $ vim schemes/release-5.x/manifest.json # Update the fields for the new release
     ```
-2. Update CI configuration to build the new release scheme:
+2. Update `schemes/<release-scheme>/manifest.json`
+    - `base-tag` field should be updated to the tag of the new release branch.
+    - `update-checkout-scheme` field should be updated to the one passed to `--scheme` option of [`utils/update-checkout`](https://github.com/swiftlang/swift/blob/main/utils/update-checkout) script.
+    - `swift-org-download-channel` field should be updated to the new release branch.
+        e.g. If a download link of a new release snapshot is "https://download.swift.org/swift-6.1-branch/xcode/swift-6.1-DEVELOPMENT-SNAPSHOT-2024-11-19-a/swift-6.1-DEVELOPMENT-SNAPSHOT-2024-11-19-a-osx.pkg", the value should be "swift-6.1-branch".
+3. Update CI configuration to build the new release scheme:
     - [`.github/workflows/nightly-distribution.yml`](https://github.com/swiftwasm/swift/blob/0895044e2ba31ccd1aade8068088b1fd3137fffb/.github/workflows/nightly-distribution.yml#L8-L11)
 
 Once the upstream publishes their official release, we are doing the following steps:
 
-1. Quality assurance of our latest release candidate snapshot toolchain
+1. Update `schemes/<release-scheme>/manifest.json`
+    - `base-tag` field should be updated to the tag of the official release.
+    - `swift-org-download-channel` field should be updated to the new release branch.
+        e.g. If a download link of a new release is `https://download.swift.org/swift-6.0.2-release/xcode/swift-6.0.2-RELEASE/swift-6.0.2-RELEASE-osx.pkg`, the value should be "swift-6.0.2-release".
+2. Quality assurance of our latest release candidate snapshot toolchain
     1. Check core libraries and tools we are maintaining work properly with the toolchain. List of the libraries and tools we are maintaining:
         - [JavaScriptKit](https://github.com/swiftwasm/JavaScriptKit): See [the past PR](https://github.com/swiftwasm/JavaScriptKit/pull/227)
         - [carton](https://github.com/swiftwasm/carton): See [the past PR](https://github.com/swiftwasm/carton/pull/398)
@@ -40,7 +48,7 @@ Once the upstream publishes their official release, we are doing the following s
         - [swiftwasm-action](https://github.com/swiftwasm/swiftwasm-action): Update the base carton image version.
         - [setup-swiftwasm](https://github.com/swiftwasm/setup-swiftwasm): Update the default toolchain version.
     2. Collect feedback from the community by asking them to try a release candidate snapshot.
-2. Once we are ready to release, trigger GitHub Actions workflow by running the following command:
+3. Once we are ready to release, trigger GitHub Actions workflow by running the following command:
 
     ```console
     $ gh workflow run manual-distribution.yml --repo swiftwasm/swift -f scheme=5.9 -f run-id=<replace-run-id> -f override-name=swift-wasm-5.9.0-RELEASE -f display_name="Swift for WebAssembly 5.9.0 Release $(date +'%Y-%m-%d')" -f display_name_short="Swift for WebAssembly 5.9.0 Release"
