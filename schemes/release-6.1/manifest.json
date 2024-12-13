@@ -1,6 +1,6 @@
 {
   "update-checkout-scheme": "release/6.1",
-  "base-tag": "swift-6.1-DEVELOPMENT-SNAPSHOT-2024-12-11-a",
+  "base-tag": "swift-6.1-DEVELOPMENT-SNAPSHOT-2024-12-12-a",
   "build-compiler": false,
   "icu4c": [],
   "libxml2": [
