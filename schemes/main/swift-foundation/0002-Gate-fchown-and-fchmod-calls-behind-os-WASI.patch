@@ -1,7 +1,7 @@
 From 88ddc3cc219262ea2c3d421be0333b8625b4d77c Mon Sep 17 00:00:00 2001
 From: Yuta Saito <kateinoigakukun@gmail.com>
 Date: Sat, 14 Dec 2024 06:48:35 +0000
-Subject: [PATCH 2/2] Gate `fchown` and `fchmod` calls behind `os(WASI)`
+Subject: [PATCH 2/4] Gate `fchown` and `fchmod` calls behind `os(WASI)`
 
 They are not available on WASI, so we gate them behind `os(WASI)`.
 ---
