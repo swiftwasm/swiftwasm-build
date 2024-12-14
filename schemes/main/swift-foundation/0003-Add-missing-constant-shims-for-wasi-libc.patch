@@ -1,0 +1,47 @@
+From 694cc281ab301a2b0f9b18d17d59aa8e5f94b65a Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Sat, 14 Dec 2024 09:12:24 +0000
+Subject: [PATCH 3/4] Add missing constant shims for wasi-libc
+
+---
+ Sources/FoundationEssentials/WASILibc+Extensions.swift | 9 +++++++++
+ Sources/_FoundationCShims/include/platform_shims.h     | 4 ++++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/Sources/FoundationEssentials/WASILibc+Extensions.swift b/Sources/FoundationEssentials/WASILibc+Extensions.swift
+index 351fe19..44f3f93 100644
+--- a/Sources/FoundationEssentials/WASILibc+Extensions.swift
++++ b/Sources/FoundationEssentials/WASILibc+Extensions.swift
+@@ -49,5 +49,14 @@ internal var O_TRUNC: Int32 {
+ internal var O_WRONLY: Int32 {
+     return _platform_shims_O_WRONLY()
+ }
++internal var O_RDONLY: Int32 {
++    return _platform_shims_O_RDONLY()
++}
++internal var O_DIRECTORY: Int32 {
++    return _platform_shims_O_DIRECTORY()
++}
++internal var O_NOFOLLOW: Int32 {
++    return _platform_shims_O_NOFOLLOW()
++}
+ 
+ #endif // os(WASI)
+diff --git a/Sources/_FoundationCShims/include/platform_shims.h b/Sources/_FoundationCShims/include/platform_shims.h
+index 6bc0a0e..e02b581 100644
+--- a/Sources/_FoundationCShims/include/platform_shims.h
++++ b/Sources/_FoundationCShims/include/platform_shims.h
+@@ -102,6 +102,10 @@ static inline int32_t _platform_shims_O_CREAT(void) { return O_CREAT; }
+ static inline int32_t _platform_shims_O_EXCL(void) { return O_EXCL; }
+ static inline int32_t _platform_shims_O_TRUNC(void) { return O_TRUNC; }
+ static inline int32_t _platform_shims_O_WRONLY(void) { return O_WRONLY; }
++static inline int32_t _platform_shims_O_RDONLY(void) { return O_RDONLY; }
++static inline int32_t _platform_shims_O_DIRECTORY(void) { return O_DIRECTORY; }
++static inline int32_t _platform_shims_O_NOFOLLOW(void) { return O_NOFOLLOW; }
++
+ #endif
+ 
+ #endif /* CSHIMS_PLATFORM_SHIMS */
+-- 
+2.46.0
+
