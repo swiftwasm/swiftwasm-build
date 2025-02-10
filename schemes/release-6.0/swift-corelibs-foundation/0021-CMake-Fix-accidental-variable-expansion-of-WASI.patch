@@ -1,0 +1,87 @@
+From 1f62d2ee7b53240134e30d0044ec11f94c628928 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 19 Sep 2024 04:16:20 +0000
+Subject: [PATCH] CMake: Fix accidental variable expansion of `WASI`
+
+CMake recently introduced a new variable `WASI` to check if the target
+platform is WASI (https://gitlab.kitware.com/cmake/cmake/-/merge_requests/9659).
+However, the change led to `WASI` being expanded as a variable, which
+is not what we want in checking the platform name.
+
+To have compatibility with older and newer versions of CMake, we should
+quote the string `WASI` to prevent it from being expanded as a variable.
+---
+ CMakeLists.txt                         | 8 ++++----
+ Sources/CoreFoundation/CMakeLists.txt  | 2 +-
+ Sources/_CFXMLInterface/CMakeLists.txt | 2 +-
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 196262ad..fa842040 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -65,7 +65,7 @@ if(BUILD_SHARED_LIBS)
+ endif()
+ 
+ set(FOUNDATION_BUILD_NETWORKING_default ON)
+-if(CMAKE_SYSTEM_NAME STREQUAL WASI)
++if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
+     # Networking is not supported on WASI
+     set(FOUNDATION_BUILD_NETWORKING_default OFF)
+ endif()
+@@ -134,7 +134,7 @@ endif()
+ # System dependencies
+ 
+ # We know libdispatch is always unavailable on WASI
+-if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
++if(NOT CMAKE_SYSTEM_NAME STREQUAL "WASI")
+     find_package(LibRT)
+     find_package(dispatch CONFIG)
+     if(NOT dispatch_FOUND)
+@@ -171,7 +171,7 @@ list(APPEND _Foundation_common_build_flags
+     "-Wno-switch"
+     "-fblocks")
+ 
+-if(NOT CMAKE_SYSTEM_NAME STREQUAL WASI)
++if(NOT CMAKE_SYSTEM_NAME STREQUAL "WASI")
+     list(APPEND _Foundation_common_build_flags
+         "-DDEPLOYMENT_ENABLE_LIBDISPATCH"
+         "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS")
+@@ -207,7 +207,7 @@ list(APPEND _Foundation_swift_build_flags
+     "-Xfrontend"
+     "-require-explicit-sendable")
+ 
+-if(CMAKE_SYSTEM_NAME STREQUAL WASI)
++if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
+     # Enable wasi-libc emulation features
+     set(WASI_EMULATION_DEFS _WASI_EMULATED_MMAN _WASI_EMULATED_SIGNAL _WASI_EMULATED_PROCESS_CLOCKS)
+     foreach(def ${WASI_EMULATION_DEFS})
+diff --git a/Sources/CoreFoundation/CMakeLists.txt b/Sources/CoreFoundation/CMakeLists.txt
+index 7ae617b4..9afac9e9 100644
+--- a/Sources/CoreFoundation/CMakeLists.txt
++++ b/Sources/CoreFoundation/CMakeLists.txt
+@@ -119,7 +119,7 @@ target_link_libraries(CoreFoundation
+         _FoundationICU
+         dispatch)
+ 
+-if(CMAKE_SYSTEM_NAME STREQUAL WASI)
++if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
+     # On WASI, we use vendored BlocksRuntime instead of the one from libdispatch
+     add_subdirectory(BlockRuntime)
+     # Add BlocksRuntime object library to CoreFoundation static archive
+diff --git a/Sources/_CFXMLInterface/CMakeLists.txt b/Sources/_CFXMLInterface/CMakeLists.txt
+index 9cfe63cd..80c75205 100644
+--- a/Sources/_CFXMLInterface/CMakeLists.txt
++++ b/Sources/_CFXMLInterface/CMakeLists.txt
+@@ -32,7 +32,7 @@ target_link_libraries(_CFXMLInterface PRIVATE
+     dispatch
+     LibXml2::LibXml2)
+ 
+-if(CMAKE_SYSTEM_NAME STREQUAL WASI)
++if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
+     target_link_libraries(_CFXMLInterface PRIVATE BlocksRuntime)
+ endif()
+ 
+-- 
+2.46.0
+
