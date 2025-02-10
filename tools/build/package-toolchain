@@ -5,6 +5,7 @@ import os
 import argparse
 import json
 import datetime
+import re
 from typing import Optional
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 from build_support.platform import PlatformInfo
@@ -414,12 +415,38 @@ def derive_snapshot_info(daily_snapshot: bool, scheme: str, now: datetime.dateti
     return SnapshotInfo(now.year, now.month, now.day, swift_version, artifact_name, daily_snapshot)
 
 
+def derive_date_suffix_from_base_tag(tag: str) -> datetime.datetime:
+    # e.g.
+    # swift-6.1-DEVELOPMENT-SNAPSHOT-2025-02-07-a -> 2025-02-07-a
+    # swift-DEVELOPMENT-SNAPSHOT-2025-02-06-a -> 2025-02-06-a
+    """
+    Extracts the date suffix from the given tag string.
+
+    Example:
+        Input: "swift-6.1-DEVELOPMENT-SNAPSHOT-2025-02-07-a"
+        Output: "2025-02-07-a"
+
+        Input: "swift-DEVELOPMENT-SNAPSHOT-2025-02-06-a"
+        Output: "2025-02-06-a"
+
+        Input: "swift-6.0.3-RELEASE"
+        Output: None
+    """
+    match = re.search(r"\b((\d{4})-(\d{2})-(\d{2}))-[a-z]$", tag)
+    if match is None:
+        # If the tag doesn't have a date suffix, return the current date
+        # which will be just used as darwin toolchain version.
+        return datetime.datetime.utcnow()
+
+    return datetime.datetime.strptime(match.group(1), "%Y-%m-%d")
+
+
 def main():
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
     parser.add_argument("--only-swift-sdk", action="store_true", help="Create only Swift SDK")
     options = derive_options_from_args(sys.argv[1:], parser)
-    now = datetime.datetime.utcnow()
+    now = derive_date_suffix_from_base_tag(options.tag)
     actions = []
     if options.optimize_disk_footprint:
         actions.append(CleanBuildArtifactAction(options))
