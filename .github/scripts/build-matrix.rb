@@ -3,28 +3,11 @@ require "optparse"
 
 BASE_MATRIX_ENTRIES = [
   {
-    "build_os": "ubuntu-18.04",
-    "agent_query": "ubuntu-20.04",
-    "target": "ubuntu18.04_x86_64",
-    "containers": {
-      # "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04",
-      "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-18.04@sha256:d5d555cf48fc02f5003928a064c03b76c012fef8afbe54a1942c6bfc3d773c58"
-    },
-    "run_stdlib_test": true,
-    "run_full_test": false,
-    "run_e2e_test": true,
-    "build_hello_wasm": true,
-    "clean_build_dir": false,
-    "free_disk_space": true,
-    "only_swift_sdk": false,
-  },
-  {
     "build_os": "ubuntu-20.04",
     "agent_query": "ubuntu-20.04",
     "target": "ubuntu20.04_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
-      "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:cc1b99e352ee207da2c75c7bcf81aa8b1d2c08215fd1d05dc0777c40a62f31f1",
       "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:9007661fb6d57ebef902618e831458e88068350b0ecc8d85e56441d25a9f4312",
       "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:9007661fb6d57ebef902618e831458e88068350b0ecc8d85e56441d25a9f4312",
     },
@@ -42,7 +25,6 @@ BASE_MATRIX_ENTRIES = [
     "target": "ubuntu22.04_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
-      "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:adfa0a8fbc6e5cc7ce5e38a5a9406d4fa5c557871204a65f0690478022d6b359",
       "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:8060adba9c044b1fc751b9671167320c9cc0094d0a45d7b8fedb707c49b764c2",
       "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:8060adba9c044b1fc751b9671167320c9cc0094d0a45d7b8fedb707c49b764c2",
     },
@@ -60,7 +42,6 @@ BASE_MATRIX_ENTRIES = [
     "target": "amazonlinux2_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2",
-      "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:d5264ac43e935249b1c8777f6809ebbd2836cb0e8f7dac3bfeeb0b3cdb479b70",
       "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:fc95912c595faecacbb869635fa871f8f31b8d6ed2f0df6792b53628db7ada94",
       "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:fc95912c595faecacbb869635fa871f8f31b8d6ed2f0df6792b53628db7ada94",
     },
@@ -75,6 +56,7 @@ BASE_MATRIX_ENTRIES = [
   {
     "build_os": "macos-13",
     "agent_query": "macos-13",
+    "schemes": ["release-6.0", "release-6.1", "main"],
     "target": "macos_x86_64",
     "run_stdlib_test": false,
     "run_full_test": false,
@@ -86,7 +68,7 @@ BASE_MATRIX_ENTRIES = [
   {
     "build_os": "macos-14",
     "agent_query": "macos-14",
-    "schemes": ["release-5.10", "release-6.0", "release-6.1", "main"],
+    "schemes": ["release-6.0", "release-6.1", "main"],
     "target": "macos_arm64",
     "run_stdlib_test": true,
     "run_full_test": false,
@@ -174,7 +156,6 @@ def main
         "target": "ubuntu20.04_aarch64",
         "containers": {
           "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
-          "release-5.10": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:0e04dd550557d9f4f773bda55a6ac355c7c9696ea6efc3e59318bd49569aa00e",
           "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:2a977060476a0f6f702d59ed0cd4e8506c7c1f1ed48d85a1a684d2d3fb62c297",
           "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:2a977060476a0f6f702d59ed0cd4e8506c7c1f1ed48d85a1a684d2d3fb62c297",
         },
