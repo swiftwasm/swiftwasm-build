@@ -2,82 +2,6 @@ require "json"
 require "optparse"
 
 BASE_MATRIX_ENTRIES = [
-  {
-    "build_os": "ubuntu-20.04",
-    "agent_query": "ubuntu-20.04",
-    "target": "ubuntu20.04_x86_64",
-    "containers": {
-      "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
-      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:9007661fb6d57ebef902618e831458e88068350b0ecc8d85e56441d25a9f4312",
-      "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:9007661fb6d57ebef902618e831458e88068350b0ecc8d85e56441d25a9f4312",
-    },
-    "run_stdlib_test": true,
-    "run_full_test": false,
-    "run_e2e_test": true,
-    "build_hello_wasm": true,
-    "clean_build_dir": false,
-    "free_disk_space": true,
-    "only_swift_sdk": false,
-  },
-  {
-    "build_os": "ubuntu-22.04",
-    "agent_query": "ubuntu-22.04",
-    "target": "ubuntu22.04_x86_64",
-    "containers": {
-      "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
-      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:8060adba9c044b1fc751b9671167320c9cc0094d0a45d7b8fedb707c49b764c2",
-      "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:8060adba9c044b1fc751b9671167320c9cc0094d0a45d7b8fedb707c49b764c2",
-    },
-    "run_stdlib_test": true,
-    "run_full_test": false,
-    "run_e2e_test": true,
-    "build_hello_wasm": true,
-    "clean_build_dir": false,
-    "free_disk_space": true,
-    "only_swift_sdk": false,
-  },
-  {
-    "build_os": "amazon-linux-2",
-    "agent_query": "ubuntu-22.04",
-    "target": "amazonlinux2_x86_64",
-    "containers": {
-      "main": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2",
-      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:fc95912c595faecacbb869635fa871f8f31b8d6ed2f0df6792b53628db7ada94",
-      "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-amazon-linux-2@sha256:fc95912c595faecacbb869635fa871f8f31b8d6ed2f0df6792b53628db7ada94",
-    },
-    "run_stdlib_test": false,
-    "run_full_test": false,
-    "run_e2e_test": false,
-    "build_hello_wasm": true,
-    "clean_build_dir": false,
-    "free_disk_space": true,
-    "only_swift_sdk": false,
-  },
-  {
-    "build_os": "macos-13",
-    "agent_query": "macos-13",
-    "schemes": ["release-6.0", "release-6.1", "main"],
-    "target": "macos_x86_64",
-    "run_stdlib_test": false,
-    "run_full_test": false,
-    "run_e2e_test": false,
-    "build_hello_wasm": false,
-    "clean_build_dir": false,
-    "only_swift_sdk": false,
-  },
-  {
-    "build_os": "macos-14",
-    "agent_query": "macos-14",
-    "schemes": ["release-6.0", "release-6.1", "main"],
-    "target": "macos_arm64",
-    "run_stdlib_test": true,
-    "run_full_test": false,
-    "run_e2e_test": true,
-    "build_hello_wasm": true,
-    "clean_build_dir": true,
-    "free_disk_space": true,
-    "only_swift_sdk": false,
-  },
   # Generic Swift SDK build
   {
     "job_name": "Swift SDK",
@@ -147,28 +71,6 @@ def main
   end.parse!
 
   matrix_entries = BASE_MATRIX_ENTRIES.dup
-  if options[:runner]
-    runner = JSON.parse(File.read(options[:runner]))
-    if label = runner["outputs"]["ubuntu20_04_aarch64-label"]
-      matrix_entries << {
-        "build_os": "ubuntu-20.04",
-        "agent_query": label,
-        "target": "ubuntu20.04_aarch64",
-        "containers": {
-          "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04",
-          "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:2a977060476a0f6f702d59ed0cd4e8506c7c1f1ed48d85a1a684d2d3fb62c297",
-          "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:2a977060476a0f6f702d59ed0cd4e8506c7c1f1ed48d85a1a684d2d3fb62c297",
-        },
-        "run_stdlib_test": false,
-        "run_full_test": false,
-        "run_e2e_test": false,
-        "build_hello_wasm": true,
-        "clean_build_dir": false,
-        "free_disk_space": false,
-        "only_swift_sdk": false,
-      }
-    end
-  end
 
   schemes = derive_schemes(options)
   schemes = schemes

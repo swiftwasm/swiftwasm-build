@@ -19,57 +19,8 @@ on:
         default: 'main'
 
 jobs:
-  start-runner:
-    name: Start self-hosted EC2 runner
-    runs-on: ubuntu-latest
-    # Run only on main branches to avoid triggers by non-collaborator
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'check-self-hosted-ci') }}
-    outputs:
-      ubuntu20_04_aarch64-label: ${{ steps.start-ubuntu20_04_aarch64-runner.outputs.label }}
-      ubuntu20_04_aarch64-ec2-instance-id: ${{ steps.start-ubuntu20_04_aarch64-runner.outputs.ec2-instance-id }}
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      - name: Start EC2 runner (ubuntu20_04_aarch64)
-        id: start-ubuntu20_04_aarch64-runner
-        uses: machulav/ec2-github-runner@v2
-        with:
-          mode: start
-          github-token: ${{ secrets.SWIFTWASM_BUILDBOT_TOKEN }}
-          ec2-image-id: ami-03803f6b50b56647a # swiftwasm-ci/ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-20221201
-          ec2-instance-type: c6g.xlarge
-          subnet-id: subnet-327f4a13
-          security-group-id: sg-0429f5ec2bee9dc0c
-  stop-runner:
-    name: Stop self-hosted EC2 runner
-    needs: [start-runner, build-toolchain]
-    runs-on: ubuntu-latest
-    # Required to stop the runner even if the error happened in the previous jobs
-    if: ${{ always() && needs.start-runner.result == 'success' }}
-    # The runner can be already stopped when re-running a part of failed jobs
-    continue-on-error: true
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      - name: Stop EC2 runner (ubuntu20_04_aarch64)
-        uses: machulav/ec2-github-runner@v2
-        with:
-          mode: stop
-          github-token: ${{ secrets.SWIFTWASM_BUILDBOT_TOKEN }}
-          label: ${{ needs.start-runner.outputs.ubuntu20_04_aarch64-label }}
-          ec2-instance-id: ${{ needs.start-runner.outputs.ubuntu20_04_aarch64-ec2-instance-id }}
-
   build-matrix:
     name: Build matrix
-    needs: [start-runner]
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
     outputs:
