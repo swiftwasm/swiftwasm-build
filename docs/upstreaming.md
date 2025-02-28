@@ -44,7 +44,7 @@ If our upstreaming commits break ci.swift.org, we should revert the commit or fi
    After that, we can focus on building standard library and save much time.
 
 2. ✅ Upstream standard library patches
-3. 🚧 Set up WebAssembly check in ci.swift.org and make it mandatory to pass the check to merge a PR like [the Windows check](https://ci-external.swift.org/job/swift-PR-windows/)
+3. ✅ Set up WebAssembly check in ci.swift.org and make it mandatory to pass the check to merge a PR like [the Windows check](https://ci-external.swift.org/job/swift-PR-windows/)
 
 ## Checkout-build-edit-test cycle
 
