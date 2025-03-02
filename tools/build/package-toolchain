@@ -9,7 +9,6 @@ import re
 from typing import Optional
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 from build_support.platform import PlatformInfo
-from build_support.llvm_tools import WASM_SPECIFIC_TOOLS_TO_INSTALL
 
 
 class SnapshotInfo:
@@ -75,127 +74,6 @@ def copy_libxml2_libs(build_sdk_path, dist_toolchain_path, target_triple):
     for lib in ["libxml2.a"]:
         dest_path = os.path.join(dest_dir, lib)
         shutil.copy(os.path.join(lib_dir, lib), dest_path)
-
-
-class PackageAction(Action):
-    def __init__(self, options, snapshot_info: SnapshotInfo):
-        super().__init__(options)
-        self.snapshot_info = snapshot_info
-        self.target_triple = "wasm32-unknown-wasi"
-
-    def run(self):
-        import shutil
-        print('=====> Packaging toolchain {}'.format(self.snapshot_info.toolchain_name))
-        packaging_dir = os.path.join('..', 'build', 'Packaging')
-        base_toolchain_path = os.path.join(packaging_dir, 'base-snapshot')
-        target_toolchain_path = os.path.join(
-            packaging_dir, 'target-toolchain', self.target_triple)
-        dist_toolchain_path = os.path.join(packaging_dir, 'dist-toolchain', self.snapshot_info.toolchain_name)
-        llvm_toolchain_path = os.path.join(packaging_dir, 'llvm-toolchain')
-        llvm_tools_path = os.path.join('..', 'build', 'llvm-tools')
-        build_sdk_path = os.path.join('..', 'build-sdk')
-
-        shutil.rmtree(os.path.dirname(dist_toolchain_path), ignore_errors=True)
-        os.makedirs(dist_toolchain_path, exist_ok=True)
-        print(f"=====> Copying base snapshot {base_toolchain_path} to {dist_toolchain_path}")
-        self.rsync("-a", base_toolchain_path + "/", dist_toolchain_path)
-
-        copy_icu_libs(self.options.scheme, build_sdk_path, target_toolchain_path, self.target_triple)
-        copy_libxml2_libs(build_sdk_path, target_toolchain_path, self.target_triple)
-        # Copying target stdlib to dist toolchain, and cross compiler if
-        # host compiler is built with patches by ourselves.
-        print(f"=====> Copying target toolchain {target_toolchain_path} to {dist_toolchain_path}")
-        self.rsync("-a", target_toolchain_path + "/", dist_toolchain_path)
-
-        self.install_extra_llvm_tools(llvm_tools_path, base_toolchain_path, dist_toolchain_path)
-
-        # FIXME: We now support only legacy driver because the new swift-driver doesn't have hacks for default
-        # -sdk and forcing -use-static-resource-dir (-static-executable).
-        # e.g.
-        # The canonical way to build a static executable is to use -static-executable and specify -sdk because
-        # we don't have good concensus for the wasi-sysroot layout and the driver should not assume the SDK path.
-        # $ echo | ./usr/bin/swiftc -target wasm32-unknown-wasi -o /dev/null - -static-executable -sdk ./usr/share/wasi-sysroot
-        # But we don't want to force users to specify -sdk, so we have a hack in the legacy driver to assume
-        # the SDK path and pass -static-executable (effectively -use-static-resource-dir).
-        # $ echo | ./usr/bin/swiftc -target wasm32-unknown-wasi -o /dev/null -
-        # The new swift-driver doesn't have this hack, so we remove swift-driver from the toolchain for now.
-        swift_driver_path = os.path.join(dist_toolchain_path, 'usr', 'bin', 'swift-driver')
-        if os.path.exists(swift_driver_path) and \
-                (self.options.scheme == 'release-5.9' or \
-                self.options.scheme == 'release-5.10'):
-            os.remove(swift_driver_path)
-
-        # Select wasi-sysroot
-        wasi_sysroot_path = derive_wasi_sysroot(self.options, packaging_dir, 'wasm32-wasi')
-        print("=====> Using wasi-sysroot from {}".format(wasi_sysroot_path))
-
-        # Now dist toolchain always has cross compiler regardless of whether
-        # host compiler is built by ourselves or just downloaded from swift.org
-        if self.options.scheme in ['release-5.9', 'release-5.10']:
-            # We still need to distribute custom built cross compiler tools
-            # for 5.9 and 5.10.
-            self.make_swift_sdk(
-                base_toolchain_path,
-                dist_toolchain_path,
-                target_toolchain_path,
-                wasi_sysroot_path,
-                self.snapshot_info.swift_sdk_name)
-
-        shutil.copytree(wasi_sysroot_path, os.path.join(dist_toolchain_path, 'usr', 'share', 'wasi-sysroot'))
-
-    def rsync(self, *args):
-        import subprocess
-        args = ['rsync'] + list(args)
-        if self.options.dry_run:
-            print(' '.join(args))
-            return
-        subprocess.check_call(args)
-
-    def install_extra_llvm_tools(self, llvm_tools_path, base_toolchain_path, dist_toolchain_path):
-        import shutil
-        print(f"=====> Installing extra LLVM tools")
-        llvm_tools_bin_dir = os.path.join(llvm_tools_path, 'bin')
-        install_bin_dir = os.path.join(dist_toolchain_path, 'usr', 'bin')
-        os.makedirs(install_bin_dir, exist_ok=True)
-        for tool_name in WASM_SPECIFIC_TOOLS_TO_INSTALL:
-            # Skip installing if the tool already exists
-            if os.path.exists(os.path.join(base_toolchain_path, 'usr', 'bin', tool_name)):
-                continue
-
-            tool_path = os.path.join(llvm_tools_bin_dir, tool_name)
-            if os.path.islink(tool_path) and \
-                    os.path.dirname(os.readlink(tool_path)) != "":
-                # Copy the tool with following the symlink if it points to a file
-                # that does not beside the symlink
-                print(f"Copying {tool_path} to {install_bin_dir} (following symlink)")
-                shutil.copy(tool_path, install_bin_dir, follow_symlinks=True)
-            else:
-                # Copy the tool while preserving the symlink
-                print(f"Copying {tool_path} to {install_bin_dir}")
-                shutil.copy(tool_path, install_bin_dir, follow_symlinks=False)
-
-            # If it's a symlink, copy the direct symlink target too
-            if os.path.islink(tool_path):
-                target = os.readlink(tool_path)
-                if os.path.exists(os.path.join(install_bin_dir, target)):
-                    continue
-                target_path = os.path.join(llvm_tools_bin_dir, target)
-                print(f"Copying {target_path} to {install_bin_dir} (target of {tool_path})")
-                shutil.copy(target_path, install_bin_dir, follow_symlinks=False)
-
-    def make_swift_sdk(
-        self,
-        base_toolchain_path: str,
-        host_toolchain_path: Optional[str],
-        target_toolchain_path: str,
-        wasi_sysroot_path: str,
-        swift_sdk_name: str,
-    ):
-        underlying = PackageSwiftSDKAction(
-            self.options, self.snapshot_info, base_toolchain_path,
-            host_toolchain_path, target_toolchain_path, wasi_sysroot_path,
-            swift_sdk_name, self.target_triple)
-        underlying.run()
 
 
 class PackageSwiftSDKAction(Action):
@@ -316,64 +194,6 @@ class PackageSwiftSDKAction(Action):
         return info["target"]["triple"]
 
 
-class DarwinInfoPlistAction(Action):
-
-    def __init__(self, options, snapshot_info: SnapshotInfo):
-        super().__init__(options)
-        self.snapshot_info = snapshot_info
-
-    def run(self):
-        print('=====> Creating Info.plist')
-
-        bundle_prefix="org.swiftwasm"
-        swift_version = self.swift_version()
-        darwin_toolchain_display_name_short="Swift for WebAssembly Snapshot"
-
-        year, month, day = self.snapshot_info.year, self.snapshot_info.month, self.snapshot_info.day
-        if self.snapshot_info.daily_snapshot:
-          darwin_toolchain_version=f"{swift_version}.{year}{month}{day}"
-          darwin_toolchain_bundle_identifier=f"{bundle_prefix}.{year}{month}{day}"
-          darwin_toolchain_display_name=f"{darwin_toolchain_display_name_short} {year}-{month}-{day} (a)"
-        else:
-          darwin_toolchain_version=f"{swift_version}.9999"
-          darwin_toolchain_bundle_identifier=f"{bundle_prefix}.dev"
-          darwin_toolchain_display_name=f"{darwin_toolchain_display_name_short} Development"
-
-        darwin_toolchain_alias="swiftwasm"
-        darwin_toolchain_report_url="https://github.com/swiftwasm/swift/issues"
-
-        plist_path = f"../build/Packaging/dist-toolchain/{self.snapshot_info.toolchain_name}/Info.plist"
-        self.plistbuddy("-c", f"Set DisplayName {darwin_toolchain_display_name}", plist_path)
-        self.plistbuddy("-c", f"Set ShortDisplayName {darwin_toolchain_display_name_short}", plist_path)
-        self.plistbuddy("-c", f"Set Version {darwin_toolchain_version}", plist_path)
-        self.plistbuddy("-c", f"Set CFBundleIdentifier {darwin_toolchain_bundle_identifier}", plist_path)
-        self.plistbuddy("-c", f"Set ReportProblemURL {darwin_toolchain_report_url}", plist_path)
-        self.plistbuddy("-c", f"Set Aliases:0 {darwin_toolchain_alias}", plist_path)
-
-    def plistbuddy(self, *args):
-        import subprocess
-        return subprocess.check_output(['/usr/libexec/PlistBuddy'] + list(args))
-
-    def swift_version(self):
-        version = self.plistbuddy("-c", "Print Version", os.path.join("..", "build", "Packaging", "base-snapshot", "Info.plist"))
-        version = version.decode("utf-8").strip()
-        # Get only the major and minor version
-        return ".".join(version.split(".")[:2])
-
-class ArchiveTarballAction(Action):
-
-    def __init__(self, options, snapshot_info: SnapshotInfo):
-        super().__init__(options)
-        self.snapshot_info = snapshot_info
-
-    def run(self):
-        tarball_path = os.path.join("..", self.snapshot_info.tarball_name)
-        print(f"=====> Creating tarball at {tarball_path}")
-
-        dist_toolchain_dir = os.path.join("..", "build", "Packaging", "dist-toolchain")
-        self.system("tar", "-C",  dist_toolchain_dir, "-czf", tarball_path, self.snapshot_info.toolchain_name)
-
-
 class CleanBuildArtifactAction(Action):
     def run(self):
         import shutil
@@ -444,7 +264,6 @@ def derive_date_suffix_from_base_tag(tag: str) -> datetime.datetime:
 def main():
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
-    parser.add_argument("--only-swift-sdk", action="store_true", help="Create only Swift SDK")
     options = derive_options_from_args(sys.argv[1:], parser)
     now = derive_date_suffix_from_base_tag(options.tag)
     actions = []
@@ -453,44 +272,37 @@ def main():
 
     actions.append(DownloadBaseSnapshotAction(options))
 
-    if not options.only_swift_sdk:
-        snapshot_info = derive_snapshot_info(options.daily_snapshot, options.scheme, now)
-        actions.append(PackageAction(options, snapshot_info))
+    packaging_dir = os.path.join(
+        os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
 
-        if os.uname().sysname == "Darwin":
-            actions.append(DarwinInfoPlistAction(options, snapshot_info))
-        actions.append(ArchiveTarballAction(options, snapshot_info))
-    else:
-        packaging_dir = os.path.join(
-            os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
-
-        toolchain_channel = derive_toolchain_channel(options.scheme)
-        triples = [
-            ["wasm32-unknown-wasi", "wasm32-wasi"],
+    toolchain_channel = derive_toolchain_channel(options.scheme)
+    triples = [
+        ["wasm32-unknown-wasi", "wasm32-wasi"],
+    ]
+    if options.scheme not in ["release-6.0"]:
+        triples += [
+            ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]
         ]
-        if options.scheme not in ["release-6.0"]:
-            triples += [
-                ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]
-            ]
-        for target_triple, short_triple in triples:
-            snapshot_info = SnapshotInfo(
-                now.year, now.month, now.day,
-                swift_version=derive_swift_version(
-                    options.daily_snapshot, toolchain_channel, now),
-                artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT-{target_triple}",
-                daily_snapshot=options.daily_snapshot
-            )
-            actions.append(PackageSwiftSDKAction(
-                options, snapshot_info,
-                base_toolchain_path=os.path.join(packaging_dir, 'base-snapshot'),
-                host_toolchain_path=None,
-                target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain', target_triple),
-                wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir, short_triple),
-                swift_sdk_name=f"{snapshot_info.swift_version}-{target_triple}",
-                target_triple=target_triple,
-            ))
+    for target_triple, short_triple in triples:
+        snapshot_info = SnapshotInfo(
+            now.year, now.month, now.day,
+            swift_version=derive_swift_version(
+                options.daily_snapshot, toolchain_channel, now),
+            artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT-{target_triple}",
+            daily_snapshot=options.daily_snapshot
+        )
+        actions.append(PackageSwiftSDKAction(
+            options, snapshot_info,
+            base_toolchain_path=os.path.join(packaging_dir, 'base-snapshot'),
+            host_toolchain_path=None,
+            target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain', target_triple),
+            wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir, short_triple),
+            swift_sdk_name=f"{snapshot_info.swift_version}-{target_triple}",
+            target_triple=target_triple,
+        ))
 
     ActionRunner(actions).run()
+
 
 if __name__ == '__main__':
     main()
