@@ -80,7 +80,6 @@ class PackageSwiftSDKAction(Action):
     def __init__(
         self, options, snapshot_info: SnapshotInfo,
         base_toolchain_path: str,
-        host_toolchain_path: Optional[str],
         target_toolchain_path: str,
         wasi_sysroot_path: str,
         swift_sdk_name: str,
@@ -89,7 +88,6 @@ class PackageSwiftSDKAction(Action):
         super().__init__(options)
         self.snapshot_info = snapshot_info
         self.base_toolchain_path = base_toolchain_path
-        self.host_toolchain_path = host_toolchain_path
         self.target_toolchain_path = target_toolchain_path
         self.wasi_sysroot_path = wasi_sysroot_path
         self.swift_sdk_name = swift_sdk_name
@@ -101,7 +99,6 @@ class PackageSwiftSDKAction(Action):
         copy_libxml2_libs(build_sdk_path, self.target_toolchain_path, self.target_triple)
         self.make_swift_sdk(
             self.base_toolchain_path,
-            self.host_toolchain_path,
             self.target_toolchain_path,
             self.wasi_sysroot_path,
             self.swift_sdk_name,
@@ -111,7 +108,6 @@ class PackageSwiftSDKAction(Action):
     def make_swift_sdk(
         self,
         base_toolchain_path: str,
-        host_toolchain_path: Optional[str],
         target_toolchain_path: str,
         wasi_sysroot_path: str,
         swift_sdk_name: str,
@@ -122,9 +118,6 @@ class PackageSwiftSDKAction(Action):
 
         :param base_toolchain_path: The path to the base toolchain, which
             is an upstream toolchain downloaded from swift.org/download.
-        :param host_toolchain_path: The path to the host toolchain, which
-            is a toolchain built by ourselves if we need any patches against
-            the compiler, or just a copy of the base toolchain.
         :param target_toolchain_path: The path to the target toolchain, which
             contains the cross-compiled Swift standard library and SDK for
             WebAssembly.
@@ -142,11 +135,6 @@ class PackageSwiftSDKAction(Action):
             "--swift-version", self.snapshot_info.swift_version,
             "--sdk-name", swift_sdk_name,
         ]
-        if host_toolchain_path:
-            sdk_generator_args += [
-                "--host-swift-package-path", host_toolchain_path,
-                "--host", self.get_default_target_triple(base_toolchain_path),
-            ]
         print("=====> Building Swift SDK")
         print(" ".join(sdk_generator_args))
         self.system(*sdk_generator_args)
@@ -294,7 +282,6 @@ def main():
         actions.append(PackageSwiftSDKAction(
             options, snapshot_info,
             base_toolchain_path=os.path.join(packaging_dir, 'base-snapshot'),
-            host_toolchain_path=None,
             target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain', target_triple),
             wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir, short_triple),
             swift_sdk_name=f"{snapshot_info.swift_version}-{target_triple}",
