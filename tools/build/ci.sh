@@ -36,8 +36,4 @@ export PATH="$SCCACHE_INSTALL_PATH:$PATH"
 
 $TOOLS_BUILD_PATH/build-toolchain.sh "$SCHEME"
 
-if [ "$ONLY_SWIFT_SDK" = "true" ]; then
-  $TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot --only-swift-sdk
-else
-  $TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot
-fi
+$TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot

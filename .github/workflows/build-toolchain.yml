@@ -180,26 +180,19 @@ jobs:
             --security-opt seccomp=unconfined \
             -dit \
             -e CI=$CI \
-            -e ONLY_SWIFT_SDK=${{ matrix.only_swift_sdk }} \
             -w /home/build-user/ \
             -v ${{ github.workspace }}:/source \
             -v oss-swift-package:/home/build-user \
             ${{ matrix.container }}
           docker exec swiftwasm-ci-buildbot /bin/bash -lc 'env; cp -r /source/* /home/build-user/; ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}'
 
-      - name: Extract installable archive from Docker container
-        if: ${{ matrix.container != null && !matrix.only_swift_sdk }}
-        run: |
-          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz .
-          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip . || true
-
       - name: Extract installable archive from Docker container (wasm32-unknown-wasi)
-        if: ${{ matrix.container != null && matrix.only_swift_sdk }}
+        if: ${{ matrix.container != null }}
         run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip .
       # release-6.0 doesn't have wasm32-unknown-wasip1-threads SDK support yet
       - name: Extract installable archive from Docker container (wasm32-unknown-wasip1-threads)
-        if: ${{ matrix.container != null && matrix.only_swift_sdk && matrix.scheme != 'release-6.0' }}
+        if: ${{ matrix.container != null && matrix.scheme != 'release-6.0' }}
         run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip .
 
@@ -228,23 +221,13 @@ jobs:
           name: ${{ matrix.target }}-${{ matrix.scheme }}-installable
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz
 
-      - name: Upload ${{ matrix.target }} SDK artifact bundle
-        uses: actions/upload-artifact@v4
-        if: ${{ !matrix.only_swift_sdk }}
-        with:
-          name: ${{ matrix.target }}-${{ matrix.scheme }}-artifactbundle
-          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.artifactbundle.zip
-          if-no-files-found: ignore
-
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasi)
         uses: actions/upload-artifact@v4
-        if: ${{ matrix.only_swift_sdk }}
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasi-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1-threads)
         uses: actions/upload-artifact@v4
-        if: ${{ matrix.only_swift_sdk }}
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-threads-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip
@@ -270,11 +253,6 @@ jobs:
           docker exec swiftwasm-ci-buildbot /bin/bash -lc \
             "./swiftwasm-build/schemes/${{ matrix.scheme }}/build/run-test.sh"
 
-      # We need this step to save disk space for the next steps when building toolchain
-      - name: Cleanup build directory
-        if: ${{ matrix.run_stdlib_test && matrix.container != null && !matrix.only_swift_sdk }}
-        run: docker exec swiftwasm-ci-buildbot /bin/bash -lc "rm -rf build"
-
       - name: Run stdlib tests for wasi-wasm32
         if: ${{ matrix.run_stdlib_test && matrix.container == null }}
         run: ./swiftwasm-build/schemes/${{ matrix.scheme }}/build/run-test.sh
@@ -291,7 +269,7 @@ jobs:
           path: ./swift-test-results.tar.gz
 
       - name: Run integration tests (Swift SDK)
-        if: ${{ matrix.run_e2e_test && matrix.only_swift_sdk }}
+        if: ${{ matrix.run_e2e_test }}
         run: |
           docker exec swiftwasm-ci-buildbot /bin/bash -lc \
             "./llvm-project/llvm/utils/lit/lit.py \
@@ -305,32 +283,3 @@ jobs:
           docker stop swiftwasm-ci-buildbot
           docker rm swiftwasm-ci-buildbot
           docker volume rm --force oss-swift-package
-
-      # Run e2e test
-      - name: Prepare E2E test
-        if: ${{ !matrix.only_swift_sdk }}
-        run: |
-          INSTALL_DIR=$(mktemp -d)
-          tar xf swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz -C "$INSTALL_DIR"
-          echo "TOOLCHAIN=$(find "$INSTALL_DIR" -name "swift-wasm-${{ matrix.toolchain_channel }}-*" -type d | head -n1)" >> $GITHUB_ENV
-      - name: Build hello.wasm
-        shell: bash
-        if: ${{ matrix.build_hello_wasm && !matrix.only_swift_sdk }}
-        run: |
-          echo 'print("Hello, world!")' > hello.swift
-          $TOOLCHAIN/usr/bin/swiftc \
-                -target wasm32-unknown-wasi \
-                -sdk $TOOLCHAIN/usr/share/wasi-sysroot \
-                -resource-dir $TOOLCHAIN/usr/lib/swift_static \
-                hello.swift -o hello.wasm && \
-                echo "Successfully linked hello.wasm"
-      - name: Upload hello.wasm
-        if: ${{ matrix.build_hello_wasm && !matrix.only_swift_sdk && matrix.scheme == 'main' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.target }}-hello.wasm
-          path: hello.wasm
-
-      - name: Run integration tests
-        if: ${{ matrix.run_e2e_test && !matrix.only_swift_sdk }}
-        run: ${{ github.workspace }}/llvm-project/llvm/utils/lit/lit.py --param package-path=$TOOLCHAIN --param scheme=${{ matrix.scheme }} ${{ github.workspace }}/swiftwasm-build/test -vv
