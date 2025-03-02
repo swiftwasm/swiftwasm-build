@@ -1,3 +1,0 @@
-module _CModule {
-  header "_CModule.h"
-}
