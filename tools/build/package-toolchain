@@ -255,7 +255,7 @@ class PackageSwiftSDKAction(Action):
         sdk_generator_pkg_path = os.path.join(
             os.path.dirname(__file__), "..", "swift-sdk-generator")
         sdk_generator_args = [
-            os.path.join(base_toolchain_path, "usr", "bin", "swift"),
+            "swift",
             "run", "--package-path", sdk_generator_pkg_path,
             "--", "swift-sdk-generator", "make-wasm-sdk",
             "--target-swift-package-path", target_toolchain_path,
