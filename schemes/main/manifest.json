@@ -1,6 +1,5 @@
 {
   "base-tag": "swift-DEVELOPMENT-SNAPSHOT-2025-02-28-a",
-  "build-compiler": false,
   "icu4c": [],
   "libxml2": [
     "https://github.com/swiftwasm/libxml2-wasm/releases/download/2.0.0/libxml2-wasm32-unknown-wasi.tar.gz",
