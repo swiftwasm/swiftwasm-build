@@ -19,7 +19,6 @@ BASE_MATRIX_ENTRIES = [
     "build_hello_wasm": true,
     "clean_build_dir": false,
     "free_disk_space": true,
-    "only_swift_sdk": true,
   },
 ]
 
