@@ -879,7 +879,7 @@ def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: s
         artifacts = gh.list_artifacts(run["id"])
         for artifact in artifacts:
             artifact_name = artifact["name"]
-            if not artifact_name.endswith("-installable"):
+            if not artifact_name.endswith("-installable") and not artifact_name.endswith("-artifactbundle"):
                 continue
             _, artifact_scheme, _ = derive_platform_suffix_and_scheme(artifact_name, scheme)
             if artifact_scheme == scheme:
