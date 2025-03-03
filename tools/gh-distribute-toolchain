@@ -167,17 +167,6 @@ class SDKArtifactFormat:
         raise NotImplementedError()
 
 
-class SDKArtifactFormatV2(SDKArtifactFormat):
-    def __init__(self, platform_suffix: str):
-        self.platform_suffix = platform_suffix
-
-    def swift_sdk_artifact_id(self, tag_name: str):
-        return tag_name.removeprefix("swift-wasm-") + "-wasm"
-
-    def swift_sdk_artifact_filename(self, tag_name: str):
-        return f"{tag_name}-{self.platform_suffix}.artifactbundle"
-
-
 class SDKArtifactFormatV3(SDKArtifactFormat):
     def __init__(self, target_triple: str):
         self.target_triple = target_triple
@@ -210,11 +199,15 @@ class Distribution:
         for artifact in self.toolchain_artifacts(options):
             if not artifact["name"].endswith("-artifactbundle"):
                 print(f"Skipping {artifact['name']} because it's not an"
-                      " artifactbundle for --only-swift-sdk")
+                      " artifactbundle")
                 continue
 
-            _, scheme, _ = derive_platform_suffix_and_scheme(
-                artifact["name"], options.scheme)
+            try:
+                scheme, _ = derive_platform_suffix_and_scheme(
+                    artifact["name"], options.scheme)
+            except Exception:
+                print(f"Skipping {artifact['name']} because it's not a valid artifactbundle for {options.scheme}")
+                continue
 
             if options.scheme != scheme:
                 print(f"Skipping {artifact['name']} because it's not scheme {options.scheme}")
@@ -251,7 +244,7 @@ class Distribution:
             for artifact, artifact_path in downloaded_paths:
                 if not artifact["name"].endswith("-artifactbundle"):
                     continue
-                platform_suffix, _, target_triple = derive_platform_suffix_and_scheme(
+                _, target_triple = derive_platform_suffix_and_scheme(
                     artifact["name"], options.scheme)
                 bundle_path = await self.unpack_artifactbundle(artifact_path)
                 dirents = os.listdir(bundle_path)
@@ -278,7 +271,7 @@ class Distribution:
 
             async def package_sdk_work(downloaded):
                 artifact, artifact_path = downloaded
-                platform_suffix, scheme, target_triple = derive_platform_suffix_and_scheme(
+                scheme, target_triple = derive_platform_suffix_and_scheme(
                     artifact["name"], options.scheme)
                 artifact_format = SDKArtifactFormatV3(target_triple)
                 bundle_path = await self.unpack_artifactbundle(artifact_path)
@@ -584,13 +577,13 @@ You can install Swift SDKs for WebAssembly using the following commands:
 
 def derive_platform_suffix_and_scheme(
     artifact_name: str, target_scheme: str
-) -> Tuple[Optional[str], str, str]:
+) -> Optional[Tuple[str, str]]:
     """
     Returns platform suffix, scheme, and target triple derived from the
     artifact name.
     e.g.
         "main-wasm32-unknown-wasi-artifactbundle", scheme="main"
-          -> [None, "main", "wasm32-unknown-wasi"]
+          -> ["main", "wasm32-unknown-wasi"]
     """
 
     # v3 artifact name: <scheme>-<target-triple>-artifactbundle
@@ -610,7 +603,8 @@ def derive_platform_suffix_and_scheme(
                 f"Unexpected artifact name {name} with format v3 should"
                 " end with -artifactbundle")
         target_triple = rest[:-len("-artifactbundle")]
-        return [None, target_scheme, target_triple]
+        return [target_scheme, target_triple]
+    raise Exception(f"Unexpected artifact name {name}")
 
 
 def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: str):
@@ -626,11 +620,13 @@ def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: s
         artifacts = gh.list_artifacts(run["id"])
         for artifact in artifacts:
             artifact_name = artifact["name"]
-            if not artifact_name.endswith("-artifactbundle"):
+            try:
+                artifact_scheme, _ = derive_platform_suffix_and_scheme(
+                    artifact_name, scheme)
+                if artifact_scheme == scheme:
+                    return run["id"]
+            except Exception:
                 continue
-            _, artifact_scheme, _ = derive_platform_suffix_and_scheme(artifact_name, scheme)
-            if artifact_scheme == scheme:
-                return run["id"]
     print(f"Could not find a successful run for {workflow_name} on {branch} branch with scheme {scheme}")
     return None
 
