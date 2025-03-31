@@ -8,12 +8,10 @@ WASI_SYSROOT_PATH=$5
 TRIPLE="$6"
 
 SOURCE_PATH="$(cd "$(dirname $0)/../../../.." && pwd)"
-SCHEME_BUILD_PATH="$(cd "$(dirname $0)" && pwd)"
 BUILD_SDK_PATH="$SOURCE_PATH/build-sdk"
 LIBXML2_PATH="$BUILD_SDK_PATH/libxml2-$TRIPLE"
 
 FOUNDATION_BUILD="$SOURCE_PATH/build/WebAssembly/foundation-$TRIPLE"
-FOUNDATION_MACROS_BUILD="$SOURCE_PATH/build/WebAssembly/foundation-macros-$TRIPLE"
 
 swift_extra_flags=""
 c_extra_flags=""
@@ -21,16 +19,6 @@ if [[ "$TRIPLE" == "wasm32-unknown-wasip1-threads" ]]; then
   swift_extra_flags="-Xcc -matomics -Xcc -mbulk-memory -Xcc -mthread-model -Xcc posix -Xcc -pthread -Xcc -ftls-model=local-exec"
   c_extra_flags="-mthread-model posix -pthread -ftls-model=local-exec"
 fi
-
-cmake -G Ninja \
-  -D CMAKE_C_COMPILER="$CLANG_BIN_DIR/clang" \
-  -D CMAKE_CXX_COMPILER="$CLANG_BIN_DIR/clang++" \
-  -D CMAKE_Swift_COMPILER="$SWIFT_BIN_DIR/swiftc" \
-  -D BUILD_SHARED_LIBS=ON \
-  -B "$FOUNDATION_MACROS_BUILD" \
-  "${SOURCE_PATH}/swift-foundation/Sources/FoundationMacros"
-
-cmake --build "$FOUNDATION_MACROS_BUILD"
 
 cmake -G Ninja \
   -D CMAKE_BUILD_TYPE="Release" \
@@ -58,7 +46,7 @@ cmake -G Ninja \
   -D _SwiftCollections_SourceDIR="$SOURCE_PATH/swift-collections" \
   -D _SwiftFoundation_SourceDIR="$SOURCE_PATH/swift-foundation" \
   -D _SwiftFoundationICU_SourceDIR="$SOURCE_PATH/swift-foundation-icu" \
-  -D SwiftFoundation_MACRO="$FOUNDATION_MACROS_BUILD/lib" \
+  -D SwiftFoundation_MACRO="$SWIFT_BIN_DIR/../lib/swift/host/plugins" \
   -B "$FOUNDATION_BUILD" \
   "${SOURCE_PATH}/swift-corelibs-foundation"
   
