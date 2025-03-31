@@ -1,0 +1,64 @@
+From 6e3a9e2ced5688bfe9e209633735bf6bdc85d64c Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Mon, 31 Mar 2025 11:07:42 +0000
+Subject: [PATCH] [wasm] Gate atomic write option usages behind platform check
+
+`Data.WritingOptions.atomic` is now unavailable on WASI: https://github.com/swiftlang/swift-foundation/pull/992
+---
+ Sources/Foundation/NSData.swift   | 11 +++++++++--
+ Sources/Foundation/NSString.swift |  7 ++++++-
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/Sources/Foundation/NSData.swift b/Sources/Foundation/NSData.swift
+index 1a076bef..e1499ae2 100644
+--- a/Sources/Foundation/NSData.swift
++++ b/Sources/Foundation/NSData.swift
+@@ -433,10 +433,12 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+ #if os(WASI)
+         // WASI does not have permission concept
+         let permissions: Int? = nil
++        var atomicWrite: Bool { false }
+ #else
+         let permissions = try? fm.attributesOfItem(atPath: path)[.posixPermissions] as? Int
++        let atomicWrite = writeOptionsMask.contains(.atomic)
+ #endif
+-        if writeOptionsMask.contains(.atomic) {
++        if atomicWrite {
+             let (newFD, auxFilePath) = try _NSCreateTemporaryFile(path)
+             let fh = FileHandle(fileDescriptor: newFD, closeOnDealloc: true)
+             do {
+@@ -489,7 +491,12 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
+     /// NOTE: the 'atomically' flag is ignored if the url is not of a type the supports atomic writes
+     open func write(toFile path: String, atomically useAuxiliaryFile: Bool) -> Bool {
+         do {
+-            try write(toFile: path, options: useAuxiliaryFile ? .atomic : [])
++            #if os(WASI)
++            let options: WritingOptions = []
++            #else
++            let options: WritingOptions = useAuxiliaryFile ? .atomic : []
++            #endif
++            try write(toFile: path, options: options)
+         } catch {
+             return false
+         }
+diff --git a/Sources/Foundation/NSString.swift b/Sources/Foundation/NSString.swift
+index ccd0ae08..fd1de6f3 100644
+--- a/Sources/Foundation/NSString.swift
++++ b/Sources/Foundation/NSString.swift
+@@ -1269,7 +1269,12 @@ extension NSString {
+     internal func _writeTo(_ url: URL, _ useAuxiliaryFile: Bool, _ enc: UInt) throws {
+         var data = Data()
+         try _getExternalRepresentation(&data, url, enc)
+-        try data.write(to: url, options: useAuxiliaryFile ? .atomic : [])
++        #if os(WASI)
++        let options: Data.WritingOptions = []
++        #else
++        let options: Data.WritingOptions = useAuxiliaryFile ? .atomic : []
++        #endif
++        try data.write(to: url, options: options)
+     }
+     
+     public func write(to url: URL, atomically useAuxiliaryFile: Bool, encoding enc: UInt) throws {
+-- 
+2.48.1
+
