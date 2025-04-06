@@ -452,7 +452,7 @@ You can install Swift SDKs for WebAssembly using the following commands:
             for name, download_url, checksum in checksums:
                 body += f"**{name}**\n\n"
                 body += "```console\n"
-                body += f"$ swift sdk install {download_url} --checksum {checksum}\n"
+                body += f"swift sdk install {download_url} --checksum {checksum}\n"
                 body += "```\n"
         return body
 
