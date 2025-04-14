@@ -1,0 +1,27 @@
+From 3828fe6d24735d59d53f073d9021b954d28e5750 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Mon, 14 Apr 2025 18:20:25 +0000
+Subject: [PATCH] [wasm] Stop requiring `TZDIR` and `TZDEFAULT` on WASI
+
+Those constants are not used on WASI in Swift side, so there's no
+need to require them in the C headers.
+---
+ Sources/_FoundationCShims/include/_CStdlib.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Sources/_FoundationCShims/include/_CStdlib.h b/Sources/_FoundationCShims/include/_CStdlib.h
+index 405febc..408a924 100644
+--- a/Sources/_FoundationCShims/include/_CStdlib.h
++++ b/Sources/_FoundationCShims/include/_CStdlib.h
+@@ -156,7 +156,7 @@
+ #ifndef TZDEFAULT
+ #define TZDEFAULT    "/etc/localtime"
+ #endif /* !defined TZDEFAULT */
+-#elif TARGET_OS_WINDOWS
++#elif TARGET_OS_WINDOWS || TARGET_OS_WASI
+ /* not required */
+ #else
+ #error "possibly define TZDIR and TZDEFAULT for this platform"
+-- 
+2.48.1
+
