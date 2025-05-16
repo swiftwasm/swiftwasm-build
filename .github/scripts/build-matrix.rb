@@ -10,8 +10,8 @@ BASE_MATRIX_ENTRIES = [
     "target": "ubuntu22.04_x86_64",
     "containers": {
       "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
-      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:8060adba9c044b1fc751b9671167320c9cc0094d0a45d7b8fedb707c49b764c2",
-      "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:8060adba9c044b1fc751b9671167320c9cc0094d0a45d7b8fedb707c49b764c2",
+      "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:06faf7795ea077b64986b1c821a27b2756242ebe6d73adcdae17f4e424c17dc5",
+      "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:06faf7795ea077b64986b1c821a27b2756242ebe6d73adcdae17f4e424c17dc5",
     },
     "run_stdlib_test": true,
     "run_full_test": false,
