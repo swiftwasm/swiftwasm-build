@@ -118,7 +118,7 @@ class PackageSwiftSDKAction(Action):
         :param wasi_sysroot_path: The path to the WASI sysroot.
         """
         sdk_generator_pkg_path = os.path.join(
-            os.path.dirname(__file__), "..", "swift-sdk-generator")
+            os.path.dirname(__file__), "..", "..", "..", "swift-sdk-generator")
         sdk_generator_args = [
             "swift",
             "run", "--package-path", sdk_generator_pkg_path,

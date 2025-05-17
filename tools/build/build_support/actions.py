@@ -25,18 +25,25 @@ class Action:
             raise Exception('Command failed: {}'.format(' '.join(args)))
 
 class CloneAction(Action):
+    def __init__(self, options, repo: str, branch: str):
+        super().__init__(options)
+        self.repo = repo
+        self.repo_basename = repo.split('/')[-1]
+        self.branch = branch
+
     def run(self):
-        if os.path.exists("../swift/.git"):
+        repo_dir = os.path.join('..', self.repo_basename)
+        if os.path.exists(os.path.join(repo_dir, '.git')):
             return
         print('=====> Cloning Swift repository')
         git_options = []
         if self.options.skip_history:
-            git_options += ['--depth', '1', '--branch', self.options.tag]
+            git_options += ['--depth', '1', '--branch', self.branch]
 
-        args = ['git', 'clone'] + git_options + ['https://github.com/apple/swift.git', '../swift']
+        args = ['git', 'clone'] + git_options + [f'https://github.com/{self.repo}.git', repo_dir]
         self.system(*args)
-        print('=====> Checking out Swift tag {}'.format(self.options.tag))
-        self.system('git', '-C', '../swift', 'checkout', self.options.tag)
+        print('=====> Checking out Swift tag {}'.format(self.branch))
+        self.system('git', '-C', repo_dir, 'checkout', self.branch)
 
 class UpdateCheckoutAction(Action):
     def run(self):
