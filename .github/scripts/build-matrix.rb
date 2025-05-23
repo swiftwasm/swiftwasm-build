@@ -27,7 +27,6 @@ def affected_schemes(changes, schemes)
     prefixes = [
       "schemes/#{scheme}/",
       "tools/build/",
-      "tools/swift-sdk-generator",
       "tools/git-swift-workspace",
     ]
     changes.any? do |change|

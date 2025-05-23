@@ -35,7 +35,6 @@ jobs:
             changed:
               - "schemes/**"
               - "tools/build/**"
-              - "tools/swift-sdk-generator"
               - "tools/git-swift-workspace"
 
       - name: Generate entries
@@ -129,7 +128,7 @@ jobs:
         run: |
           rm -rf ${{ github.workspace }}/build \
             ${{ github.workspace }}/swift \
-            ${{ github.workspace }}/swiftwasm-build/tools/swift-sdk-generator/Bundles \
+            ${{ github.workspace }}/swift-sdk-generator/Bundles \
             ${{ github.workspace }}/build-cache \
             ${{ github.workspace }}/build-sdk
 
@@ -274,7 +273,7 @@ jobs:
           docker exec swiftwasm-ci-buildbot /bin/bash -lc \
             "./llvm-project/llvm/utils/lit/lit.py \
               --param swift-sdk=wasm32-unknown-wasi \
-              --param swift-sdks-path=./swiftwasm-build/tools/swift-sdk-generator/Bundles \
+              --param swift-sdks-path=./swift-sdk-generator/Bundles \
               --param scheme=${{ matrix.scheme }} ./swiftwasm-build/test -vv"
 
       - name: Cleanup docker volume
