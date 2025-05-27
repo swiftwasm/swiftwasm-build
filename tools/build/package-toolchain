@@ -3,12 +3,14 @@
 import sys
 import os
 import argparse
-import json
 import datetime
 import re
-from typing import Optional
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 from build_support.platform import PlatformInfo
+
+
+SDK_GENERATOR_PKG_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "..", "swift-sdk-generator")
 
 
 class SnapshotInfo:
@@ -117,11 +119,9 @@ class PackageSwiftSDKAction(Action):
             WebAssembly.
         :param wasi_sysroot_path: The path to the WASI sysroot.
         """
-        sdk_generator_pkg_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "swift-sdk-generator")
         sdk_generator_args = [
             "swift",
-            "run", "--package-path", sdk_generator_pkg_path,
+            "run", "--package-path", SDK_GENERATOR_PKG_PATH,
             "--", "swift-sdk-generator", "make-wasm-sdk",
             "--target-swift-package-path", target_toolchain_path,
             "--wasi-sysroot", wasi_sysroot_path,
@@ -134,7 +134,7 @@ class PackageSwiftSDKAction(Action):
         self.system(*sdk_generator_args)
 
         artifactbundle_path = os.path.join(
-            sdk_generator_pkg_path, "Bundles", swift_sdk_name + ".artifactbundle")
+            SDK_GENERATOR_PKG_PATH, "Bundles", swift_sdk_name + ".artifactbundle")
         zip_path = os.path.join(
             os.getcwd(), "..", self.snapshot_info.artifactbundle_zip_name)
 
@@ -254,6 +254,14 @@ def main():
         triples += [
             ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]
         ]
+
+    # FIXME: Clean up "Bundles" directory before packaging to avoid mixing
+    # artifacts from build-script. Eventually we should just use artifactbundles
+    # produced from build-script directly.
+    import shutil
+    shutil.rmtree(
+        os.path.join(SDK_GENERATOR_PKG_PATH, "Bundles"), ignore_errors=True)
+
     for target_triple, short_triple in triples:
         snapshot_info = SnapshotInfo(
             now.year, now.month, now.day,
