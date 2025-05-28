@@ -6,7 +6,6 @@ import argparse
 import datetime
 import re
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
-from build_support.platform import PlatformInfo
 
 
 SDK_GENERATOR_PKG_PATH = os.path.join(
@@ -21,18 +20,6 @@ class SnapshotInfo:
         self.swift_version = swift_version
         self.artifact_name = artifact_name
         self.daily_snapshot = daily_snapshot
-
-    @property
-    def toolchain_name(self):
-        return f"swift-wasm-{self.swift_version}"
-
-    @property
-    def swift_sdk_name(self):
-        return f"{self.swift_version}-wasm"
-
-    @property
-    def tarball_name(self):
-        return f"{self.artifact_name}.tar.gz"
 
     @property
     def artifactbundle_zip_name(self):
@@ -165,21 +152,6 @@ class PackageSwiftSDKAction(Action):
         os.chdir(old_cwd)
 
 
-class CleanBuildArtifactAction(Action):
-    def run(self):
-        import shutil
-        print("=====> Cleaning build artifacts")
-        build_paths = [
-            os.path.join("..", "build", "WebAssemblyCompiler"),
-        ]
-        for path in build_paths:
-            if not os.path.exists(path):
-                continue
-            print(f"=====> Removing {path}")
-            if not self.options.dry_run:
-                shutil.rmtree(path, ignore_errors=True)
-
-
 def derive_toolchain_channel(scheme: str) -> str:
     release_scheme_prefix = "release-"
     if scheme == "main":
@@ -195,15 +167,6 @@ def derive_swift_version(daily_snapshot: bool, toolchain_channel: str, now: date
         return f"{toolchain_channel}-SNAPSHOT-{now.year:04d}-{now.month:02d}-{now.day:02d}-a"
     else:
         return f"{toolchain_channel}-SNAPSHOT"
-
-
-def derive_snapshot_info(daily_snapshot: bool, scheme: str, now: datetime.datetime) -> SnapshotInfo:
-    toolchain_channel = derive_toolchain_channel(scheme)
-    swift_version = derive_swift_version(daily_snapshot, toolchain_channel, now)
-    platform_info = PlatformInfo.derive()
-    os_suffix = "macos" if platform_info.full_name == "osx" else platform_info.full_name
-    artifact_name = f"swift-wasm-{toolchain_channel}-SNAPSHOT-{os_suffix}_{platform_info.arch}"
-    return SnapshotInfo(now.year, now.month, now.day, swift_version, artifact_name, daily_snapshot)
 
 
 def derive_date_suffix_from_base_tag(tag: str) -> datetime.datetime:
@@ -237,11 +200,7 @@ def main():
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
     options = derive_options_from_args(sys.argv[1:], parser)
     now = derive_date_suffix_from_base_tag(options.tag)
-    actions = []
-    if options.optimize_disk_footprint:
-        actions.append(CleanBuildArtifactAction(options))
-
-    actions.append(DownloadBaseSnapshotAction(options))
+    actions = [DownloadBaseSnapshotAction(options)]
 
     packaging_dir = os.path.join(
         os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
