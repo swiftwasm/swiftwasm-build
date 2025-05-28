@@ -214,12 +214,6 @@ jobs:
           path: build-cache
           key: ${{ steps.cache_key.outputs.SCCACHE_KEY }}
 
-      - name: Upload ${{ matrix.target }} installable archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.target }}-${{ matrix.scheme }}-installable
-          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-${{ matrix.target }}.tar.gz
-
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasi)
         uses: actions/upload-artifact@v4
         with:
