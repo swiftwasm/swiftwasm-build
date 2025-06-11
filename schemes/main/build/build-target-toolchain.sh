@@ -40,7 +40,7 @@ build_target_toolchain() {
   env DESTDIR="$TRIPLE_DESTDIR" \
     cmake --install "$TARGET_BUILD_ROOT/$STDLIB_PRODUCT-$HOST_SUFFIX" --prefix /usr
 
-  local swift_testing_build_dir="$TARGET_BUILD_ROOT/swift-testing-$SHORT_TRIPLE"
+  local swift_testing_build_dir="$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/swift-testing/$TRIPLE"
   # TODO: Remove this check once we build swift-testing for +threads target
   if [[ -d "$swift_testing_build_dir" ]]; then
     env DESTDIR="$TRIPLE_DESTDIR" \
