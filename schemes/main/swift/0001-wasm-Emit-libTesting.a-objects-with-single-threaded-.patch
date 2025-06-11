@@ -1,0 +1,41 @@
+From e46480e98c8eb6eb08b8ec0bb0de58fbd9831ff3 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Mon, 9 Jun 2025 21:39:17 +0000
+Subject: [PATCH] [wasm] Emit libTesting.a objects with single-threaded LLVM
+ codegen unit
+
+Since 5f2b0022d14d6eaddd48d4f36034c31218965ead, swift-testing is being
+compiled with WMO, which removes some of inter-object references in
+object files by DCE. The inter-object reference removal revealed a
+long-standing issue that the runtime metadata sections of objects in an
+archive are not always included in the final binary if symbols from
+those objects are not referenced anywhere. To force including all
+metadata sections in the final binary, we have to emit everything in a
+single object file when building the archive.
+This issue happens only for Wasm SDK, which ships swift-testing as a
+static archive.
+---
+ .../swift_build_support/products/wasmswiftsdk.py             | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/utils/swift_build_support/swift_build_support/products/wasmswiftsdk.py b/utils/swift_build_support/swift_build_support/products/wasmswiftsdk.py
+index e5769ca9622..ad4f197a174 100644
+--- a/utils/swift_build_support/swift_build_support/products/wasmswiftsdk.py
++++ b/utils/swift_build_support/swift_build_support/products/wasmswiftsdk.py
+@@ -69,9 +69,12 @@ class WasmSwiftSDK(product.Product):
+             'CMAKE_Swift_COMPILER_TARGET', swift_host_triple)
+         swift_testing.cmake_options.define('CMAKE_SYSROOT', wasi_sysroot)
+         swift_resource_dir = os.path.join(dest_dir, 'usr', 'lib', 'swift_static')
++        # For statically linked objects in an archive, we have to use singlethreaded
++        # LLVM codegen unit to prevent runtime metadata sections from being stripped
++        # at link-time.
+         swift_testing.cmake_options.define(
+             'CMAKE_Swift_FLAGS',
+-            f'-sdk {wasi_sysroot} -resource-dir {swift_resource_dir}')
++            f'-sdk {wasi_sysroot} -resource-dir {swift_resource_dir} -Xfrontend -enable-single-module-llvm-emission')
+         clang_resource_dir = os.path.join(dest_dir, 'usr', 'lib', 'clang')
+         swift_testing.cmake_options.define(
+             'CMAKE_CXX_FLAGS', f'-resource-dir {clang_resource_dir}')
+-- 
+2.39.5 (Apple Git-154)
+
