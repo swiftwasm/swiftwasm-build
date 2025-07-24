@@ -145,6 +145,7 @@ main() {
     --skip-build-cmark \
     --skip-build-benchmarks \
     --skip-early-swift-driver \
+    --skip-test-wasm-stdlib \
     --build-wasm-stdlib \
     --skip-test-wasm-stdlib \
     --native-swift-tools-path="$OPTIONS_SWIFT_BIN" \
