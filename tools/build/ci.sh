@@ -34,6 +34,6 @@ install_sccache_if_needed() {
 install_sccache_if_needed
 export PATH="$SCCACHE_INSTALL_PATH:$PATH"
 
-$TOOLS_BUILD_PATH/build-toolchain.sh "$SCHEME"
+$TOOLS_BUILD_PATH/build-toolchain --scheme "$SCHEME"
 
 $TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot

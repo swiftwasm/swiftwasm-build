@@ -65,13 +65,7 @@ If it's first time to build or patch files are changed, you need to checkout the
 If you want to build the whole toolchain, run the following command:
 
 ```
-./tools/build/build-toolchain.sh
-```
-
-If you already built the compiler and want to build only the standard library for WebAssembly, run the following command:
-
-```
-./tools/build/build-toolchain.sh --skip-build-host-toolchain
+./tools/build/build-toolchain --scheme main
 ```
 
 ### Edit
