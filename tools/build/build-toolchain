@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+
+import sys
+import argparse
+import pathlib
+import subprocess
+from build_support.actions import derive_options_from_args, REPO_ROOT, DownloadBaseSnapshotAction
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Build the Swift toolchain')
+    options = derive_options_from_args(sys.argv[1:], parser)
+
+    # Calculate paths
+    repo_path = pathlib.Path(REPO_ROOT)
+    source_path = repo_path.parent
+    tools_build_path = pathlib.Path(__file__).parent
+
+    build_dir = source_path / "build"
+    cross_compiler_destdir = pathlib.Path(DownloadBaseSnapshotAction.toolchain_path(options))
+
+    # Install base toolchain
+    print("=====> Installing base toolchain")
+    subprocess.check_call([
+        str(tools_build_path / "install-base-toolchain"),
+        "--scheme", options.scheme
+    ])
+
+    # Build LLVM tools
+    print("=====> Building LLVM tools")
+    subprocess.check_call([
+        str(tools_build_path / "build-llvm-tools"),
+        "--toolchain", str(cross_compiler_destdir)
+    ])
+
+    # Build target toolchain
+    print("=====> Building target toolchain")
+    scheme_build_script = repo_path / "schemes" / options.scheme / "build" / "build-target-toolchain.sh"
+
+    subprocess.check_call([
+        str(scheme_build_script),
+        "--llvm-bin", str(build_dir / "llvm-tools" / "bin"),
+        "--clang-bin", str(cross_compiler_destdir / "usr" / "bin"),
+        "--swift-bin", str(cross_compiler_destdir / "usr" / "bin"),
+        "--scheme", options.scheme
+    ])
+
+
+if __name__ == '__main__':
+    main()

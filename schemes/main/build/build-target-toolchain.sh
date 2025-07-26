@@ -137,7 +137,8 @@ main() {
 
   # NOTE: The llvm-cmake-options is a workaround for the issue on amazonlinux2
   # See https://github.com/apple/swift/commit/40c7268e8f7d402b27e3ad16a84180e07c37f92c
-  "$SOURCE_PATH/swift/utils/build-script" \
+  # NOTE: Add llvm-bin directory to PATH so that wasmstdlib.py can find FileCheck during tests
+  env PATH="$OPTIONS_LLVM_BIN:$OPTIONS_SWIFT_BIN:$PATH" "$SOURCE_PATH/swift/utils/build-script" \
     --build-subdir=WebAssembly \
     --release \
     --skip-build-llvm \
@@ -145,11 +146,13 @@ main() {
     --skip-build-cmark \
     --skip-build-benchmarks \
     --skip-early-swift-driver \
+    --wasmkit \
     --build-wasm-stdlib \
     --skip-test-wasm-stdlib \
     --native-swift-tools-path="$OPTIONS_SWIFT_BIN" \
     --native-clang-tools-path="$OPTIONS_CLANG_BIN" \
     --native-llvm-tools-path="$OPTIONS_LLVM_BIN" \
+    --build-runtime-with-host-compiler \
     --extra-cmake-options="\
       -DSWIFT_STDLIB_TRACING=NO \
       -DSWIFT_STDLIB_HAS_ASL=NO \

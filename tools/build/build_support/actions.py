@@ -114,16 +114,25 @@ class CheckoutCorelibsAction(Action):
             self.system('git', '-C', f'../{repo}', 'checkout', rev)
 
 class DownloadBaseSnapshotAction(Action):
+
+    @staticmethod
+    def toolchains_dir():
+        return os.path.join(REPO_ROOT, '..', 'build', 'Packaging', 'base-toolchain')
+
+    @staticmethod
+    def toolchain_path(options):
+        return os.path.join(DownloadBaseSnapshotAction.toolchains_dir(), options.tag)
+
     def run(self):
         platform_info = platform.PlatformInfo.derive()
         snapshot_url, tarball_name = platform_info.snapshot_url(self.options.swift_org_download_channel, self.options.tag)
         extension = platform_info.package_extension
 
-        tarball_path = os.path.join('..', 'build', 'Packaging', f'base-snapshot.{extension}')
-        base_snapshot_dir = os.path.join('..', 'build', 'Packaging', 'base-snapshot')
+        base_toolchain_dir = DownloadBaseSnapshotAction.toolchain_path(self.options)
+        tarball_path = os.path.join(os.path.dirname(base_toolchain_dir), tarball_name)
 
-        if os.path.exists(os.path.join(base_snapshot_dir, 'usr')):
-            print(f"=====> Base snapshot '{base_snapshot_dir}' already exists")
+        if os.path.exists(os.path.join(base_toolchain_dir, 'usr')):
+            print(f"=====> Base snapshot '{base_toolchain_dir}' already exists")
             return
 
         if not os.path.exists(tarball_path):
@@ -132,15 +141,15 @@ class DownloadBaseSnapshotAction(Action):
             self.system('curl', '--fail', '-L', '-o', tarball_path, snapshot_url)
 
         print(f"=====> Unpacking base snapshot {tarball_name}")
-        os.makedirs(base_snapshot_dir, exist_ok=True)
+        os.makedirs(base_toolchain_dir, exist_ok=True)
         if extension == "tar.gz":
-            self.system('tar', '-C', base_snapshot_dir, '--strip-components', '1', '-xzf', tarball_path)
+            self.system('tar', '-C', base_toolchain_dir, '--strip-components', '1', '-xzf', tarball_path)
         elif extension == "pkg":
             import tempfile
             with tempfile.TemporaryDirectory() as tmpdir:
                 self.system('xar', '-xf', tarball_path, '-C', tmpdir)
                 old_cwd = os.getcwd()
-                os.chdir(base_snapshot_dir)
+                os.chdir(base_toolchain_dir)
                 pkg_name = tarball_name.replace(".pkg", "-package.pkg")
                 self.system('cpio', '-i', '-I', os.path.join(tmpdir, pkg_name, 'Payload'))
                 os.chdir(old_cwd)
