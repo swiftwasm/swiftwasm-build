@@ -50,6 +50,12 @@ build_target_toolchain() {
   rm -rf "$TRIPLE_DESTDIR/usr/lib/swift_static/clang/lib/$COMPILER_RT_OS_DIR"
   # XXX: Is this the right way to install compiler-rt?
   cp -R "$TARGET_BUILD_ROOT/wasi-sysroot/$CLANG_MULTIARCH_TRIPLE/lib/$COMPILER_RT_OS_DIR" "$TRIPLE_DESTDIR/usr/lib/swift_static/clang/lib/$COMPILER_RT_OS_DIR"
+
+  # FIXME: The following is a workaround for the issue with wrong libxml2.a path
+  local LIBXML2_PATH_TO_FIX="$TARGET_BUILD_ROOT/wasi-sysroot/$CLANG_MULTIARCH_TRIPLE/lib/libxml2.a"
+  if [[ -f "$LIBXML2_PATH_TO_FIX" ]]; then
+    cp "$LIBXML2_PATH_TO_FIX" "$TRIPLE_DESTDIR/usr/lib/swift_static/wasi/libxml2.a"
+  fi
 }
 
 main() {
