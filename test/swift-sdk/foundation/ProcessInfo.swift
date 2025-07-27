@@ -1,8 +1,6 @@
 // RUN: %{target_simple_swift_build}
 // RUN: %{wasm_run} --dir %t.dir::/tmp %t.dir/.build/debug/Check.wasm | %{FileCheck} %s
 // REQUIRES: FileCheck && scheme=main
-// XFAIL: scheme=main
-// https://github.com/swiftlang/swift-foundation/pull/1447
 
 import Foundation
 
