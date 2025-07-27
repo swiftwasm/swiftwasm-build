@@ -265,10 +265,7 @@ jobs:
         if: ${{ matrix.run_e2e_test }}
         run: |
           docker exec swiftwasm-ci-buildbot /bin/bash -lc \
-            "./llvm-project/llvm/utils/lit/lit.py \
-              --param swift-sdk=wasm32-unknown-wasi \
-              --param swift-sdks-path=./swift-sdk-generator/Bundles \
-              --param scheme=${{ matrix.scheme }} ./swiftwasm-build/test -vv"
+            "./swiftwasm-build/tools/build/run-e2e-test --scheme ${{ matrix.scheme }}"
 
       - name: Cleanup docker volume
         if: ${{ matrix.container != null }}
