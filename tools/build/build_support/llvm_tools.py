@@ -9,4 +9,5 @@ WASM_SPECIFIC_TOOLS = WASM_SPECIFIC_TOOLS_TO_INSTALL + [
     'llvm-nm',
     'FileCheck',
     'split-file',
+    'not',
 ]
