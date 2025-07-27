@@ -51,7 +51,10 @@ def copy_icu_libs(scheme, build_sdk_path, dist_toolchain_path, target_triple):
         shutil.copy(os.path.join(icu_lib_dir, lib), dest_path)
 
 
-def copy_libxml2_libs(build_sdk_path, dist_toolchain_path, target_triple):
+def copy_libxml2_libs(scheme, build_sdk_path, dist_toolchain_path, target_triple):
+    if scheme not in ["release-6.0", "release-6.1"]:
+        # Recent channels install libxml2 in wasi-sysroot by default
+        return
     import shutil
     lib_dir = os.path.join(build_sdk_path, f"libxml2-{target_triple}", 'lib')
     if not os.path.exists(lib_dir):
@@ -83,7 +86,7 @@ class PackageSwiftSDKAction(Action):
     def run(self):
         build_sdk_path = os.path.join('..', 'build-sdk')
         copy_icu_libs(self.options.scheme, build_sdk_path, self.target_toolchain_path, self.target_triple)
-        copy_libxml2_libs(build_sdk_path, self.target_toolchain_path, self.target_triple)
+        copy_libxml2_libs(self.options.scheme, build_sdk_path, self.target_toolchain_path, self.target_triple)
         self.make_swift_sdk(
             self.target_toolchain_path,
             self.wasi_sysroot_path,
@@ -207,8 +210,12 @@ def main():
 
     toolchain_channel = derive_toolchain_channel(options.scheme)
     triples = [
-        ["wasm32-unknown-wasi", "wasm32-wasi"],
+        ["wasm32-unknown-wasip1", "wasm32-wasip1"],
     ]
+    if options.scheme in ["release-6.0", "release-6.1"]:
+        triples = [
+            ["wasm32-unknown-wasi", "wasm32-wasi"],
+        ]
     if options.scheme not in ["release-6.0"]:
         triples += [
             ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]

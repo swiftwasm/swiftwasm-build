@@ -40,48 +40,16 @@ build_target_toolchain() {
   env DESTDIR="$TRIPLE_DESTDIR" \
     cmake --install "$TARGET_BUILD_ROOT/$STDLIB_PRODUCT-$HOST_SUFFIX" --prefix /usr
 
-  local swift_testing_build_dir="$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/swift-testing/$TRIPLE"
-  # TODO: Remove this check once we build swift-testing for +threads target
-  if [[ -d "$swift_testing_build_dir" ]]; then
-    env DESTDIR="$TRIPLE_DESTDIR" \
-      cmake --install "$swift_testing_build_dir" --prefix /usr
-  fi
+  env DESTDIR="$TRIPLE_DESTDIR" \
+    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/swift-testing/$TRIPLE" --prefix /usr
+  env DESTDIR="$TRIPLE_DESTDIR" \
+    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/foundation/$TRIPLE" --prefix /usr
+  env DESTDIR="$TRIPLE_DESTDIR" \
+    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/xctest/$TRIPLE" --prefix /usr
 
   rm -rf "$TRIPLE_DESTDIR/usr/lib/swift_static/clang/lib/$COMPILER_RT_OS_DIR"
   # XXX: Is this the right way to install compiler-rt?
   cp -R "$TARGET_BUILD_ROOT/wasi-sysroot/$CLANG_MULTIARCH_TRIPLE/lib/$COMPILER_RT_OS_DIR" "$TRIPLE_DESTDIR/usr/lib/swift_static/clang/lib/$COMPILER_RT_OS_DIR"
-
-  # FIXME: Clang resource directory installation is not the best way currently.
-  # We currently have two copies of compiler headers copied from the base toolchain in
-  # lib/swift/clang and lib/swift_static/clang. This is because the Swift CMake build
-  # system installs the compiler headers from the native tools path when not building
-  # tools including clang compiler. This is not ideal but then where should we bring
-  # the compiler headers from? If we use the headers beside the base toolchain, clang
-  # driver will not be able to find libclang_rt.builtins-wasm32.a because it is not
-  # a part of the base toolchain. We need to find a better way to handle this.
-  local CLANG_VERSION
-  CLANG_VERSION="$(basename "$($CLANG_BIN_DIR/clang -print-resource-dir)")"
-  mkdir -p "$TRIPLE_DESTDIR/usr/lib/clang/$CLANG_VERSION/lib"
-  ln -sf "../../../swift_static/clang/lib/$COMPILER_RT_OS_DIR" "$TRIPLE_DESTDIR/usr/lib/clang/$CLANG_VERSION/lib/$COMPILER_RT_OS_DIR"
-}
-
-build_target_corelibs() {
-  local LLVM_BIN_DIR="$1"
-  local CLANG_BIN_DIR="$2"
-  local SWIFT_BIN_DIR="$3"
-  local TRIPLE="$4"
-  local SHORT_TRIPLE="$5"
-
-  local TRIPLE_DESTDIR="$TARGET_TOOLCHAIN_DESTDIR/$TRIPLE"
-  local CORELIBS_ARGS=(
-    "$TRIPLE_DESTDIR"
-    "$LLVM_BIN_DIR"
-    "$CLANG_BIN_DIR"
-    "$SWIFT_BIN_DIR"
-    "$WASI_SYSROOT_PATH/$SHORT_TRIPLE"
-  )
-  "$SCHEMES_BUILD_PATH/build-foundation.sh" "${CORELIBS_ARGS[@]}" "$TRIPLE"
-  "$SCHEMES_BUILD_PATH/build-xctest.sh" "${CORELIBS_ARGS[@]}" "$TRIPLE"
 }
 
 main() {
@@ -171,13 +139,10 @@ main() {
     "$OPTIONS_SWIFT_BIN"
   )
 
-  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasi" "wasi-wasm32" "wasm32-wasi" "wasmstdlib" "wasi"
+  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1" "wasip1-wasm32" "wasm32-wasip1" "wasmstdlib" "wasip1"
   build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasip1-threads-wasm32" "wasm32-wasip1-threads" "wasmthreadsstdlib" "wasip1"
 
   rsync -av "$WASI_SYSROOT_PATH/" "$PACKAGING_DIR/wasi-sysroot/"
-
-  build_target_corelibs "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasi" "wasm32-wasi"
-  build_target_corelibs "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasm32-wasip1-threads"
 }
 
 main "$@"
