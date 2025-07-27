@@ -11,7 +11,7 @@ from build_support.actions import derive_options_from_args, REPO_ROOT, DownloadB
 def main():
     parser = argparse.ArgumentParser(
         description='Run e2e integration tests for Swift SDK')
-    parser.add_argument('--swift-sdk', default='wasm32-unknown-wasi',
+    parser.add_argument('--swift-sdk', default='wasm32-unknown-wasip1',
                         help='Swift SDK identifier (default: wasm32-unknown-wasi)')
     parser.add_argument('args', nargs=argparse.REMAINDER,
                         help='Extra arguments to pass to lit.py')
