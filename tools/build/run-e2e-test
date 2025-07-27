@@ -4,15 +4,37 @@ import sys
 import argparse
 import pathlib
 import subprocess
-import os
 from build_support.actions import derive_options_from_args, REPO_ROOT, DownloadBaseSnapshotAction
+
+
+def default_swift_sdk(options, swift_sdks_path: pathlib.Path):
+    """Return the default target triple based on the scheme."""
+    import json
+    for artifact_bundle in swift_sdks_path.iterdir():
+        if not artifact_bundle.is_dir() or not artifact_bundle.name.endswith('.artifactbundle'):
+            # Skip if not ending with .artifactbundle
+            continue
+        info_json = artifact_bundle / 'info.json'
+        if not info_json.is_file():
+            continue
+        try:
+            with info_json.open('r') as f:
+                info = json.load(f)
+
+            sdk_ids = info.get('artifacts', {}).keys()
+            for sdk_id in sdk_ids:
+                if sdk_id.endswith("wasm32-unknown-wasip1") or sdk_id.endswith("wasm32-unknown-wasi"):
+                    return sdk_id
+        except Exception as e:
+            print(f"Error reading {info_json}: {e}", file=sys.stderr)
+            continue
 
 
 def main():
     parser = argparse.ArgumentParser(
         description='Run e2e integration tests for Swift SDK')
-    parser.add_argument('--swift-sdk', default='wasm32-unknown-wasip1',
-                        help='Swift SDK identifier (default: wasm32-unknown-wasi)')
+    parser.add_argument('--swift-sdk', default=None,
+                        help='Swift SDK identifier (default: wasm32-unknown-wasip1)')
     parser.add_argument('args', nargs=argparse.REMAINDER,
                         help='Extra arguments to pass to lit.py')
     options = derive_options_from_args(sys.argv[1:], parser)
@@ -25,11 +47,12 @@ def main():
     base_toolchain_path = DownloadBaseSnapshotAction.toolchain_path(options)
     lit_py_path = repo_path.parent / "llvm-project" / "llvm" / "utils" / "lit" / "lit.py"
     swift_sdks_path = repo_path.parent / "swift-sdk-generator" / "Bundles"
+    swift_sdk = options.swift_sdk or default_swift_sdk(options, swift_sdks_path)
 
     # Build lit command
     lit_cmd = [
         str(lit_py_path),
-        "--param", f"swift-sdk={options.swift_sdk}",
+        "--param", f"swift-sdk={swift_sdk}",
         "--param", f"scheme={options.scheme}",
         "--param", f"base-toolchain-path={base_toolchain_path}",
         "--param", f"swift-sdks-path={swift_sdks_path}",
