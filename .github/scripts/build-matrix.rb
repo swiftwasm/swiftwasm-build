@@ -12,6 +12,7 @@ BASE_MATRIX_ENTRIES = [
       "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
       "release-6.0": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:06faf7795ea077b64986b1c821a27b2756242ebe6d73adcdae17f4e424c17dc5",
       "release-6.1": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:06faf7795ea077b64986b1c821a27b2756242ebe6d73adcdae17f4e424c17dc5",
+      "release-6.2": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-20.04@sha256:ef0e9e4ff5b457103d8a060573050d9b33c91d9f680f7d4202412a99dc52cde0",
     },
     "run_stdlib_test": true,
     "run_full_test": false,
