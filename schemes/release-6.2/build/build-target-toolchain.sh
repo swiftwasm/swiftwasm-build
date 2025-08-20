@@ -40,12 +40,11 @@ build_target_toolchain() {
   env DESTDIR="$TRIPLE_DESTDIR" \
     cmake --install "$TARGET_BUILD_ROOT/$STDLIB_PRODUCT-$HOST_SUFFIX" --prefix /usr
 
-  env DESTDIR="$TRIPLE_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/swift-testing/$TRIPLE" --prefix /usr
-  env DESTDIR="$TRIPLE_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/foundation/$TRIPLE" --prefix /usr
-  env DESTDIR="$TRIPLE_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/xctest/$TRIPLE" --prefix /usr
+  local swift_testing_build_dir="$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/swift-testing/$TRIPLE"
+  if [[ -d "$swift_testing_build_dir" ]]; then
+    env DESTDIR="$TRIPLE_DESTDIR" \
+      cmake --install "$swift_testing_build_dir" --prefix /usr
+  fi
 
   rm -rf "$TRIPLE_DESTDIR/usr/lib/swift_static/clang/lib/$COMPILER_RT_OS_DIR"
   # XXX: Is this the right way to install compiler-rt?
@@ -56,6 +55,25 @@ build_target_toolchain() {
   if [[ -f "$LIBXML2_PATH_TO_FIX" ]]; then
     cp "$LIBXML2_PATH_TO_FIX" "$TRIPLE_DESTDIR/usr/lib/swift_static/wasi/libxml2.a"
   fi
+}
+
+build_target_corelibs() {
+  local LLVM_BIN_DIR="$1"
+  local CLANG_BIN_DIR="$2"
+  local SWIFT_BIN_DIR="$3"
+  local TRIPLE="$4"
+  local SHORT_TRIPLE="$5"
+
+  local TRIPLE_DESTDIR="$TARGET_TOOLCHAIN_DESTDIR/$TRIPLE"
+  local CORELIBS_ARGS=(
+    "$TRIPLE_DESTDIR"
+    "$LLVM_BIN_DIR"
+    "$CLANG_BIN_DIR"
+    "$SWIFT_BIN_DIR"
+    "$WASI_SYSROOT_PATH/$SHORT_TRIPLE"
+  )
+  "$SCHEMES_BUILD_PATH/build-foundation.sh" "${CORELIBS_ARGS[@]}" "$TRIPLE"
+  "$SCHEMES_BUILD_PATH/build-xctest.sh" "${CORELIBS_ARGS[@]}" "$TRIPLE"
 }
 
 main() {
@@ -147,6 +165,9 @@ main() {
   build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasip1-threads-wasm32" "wasm32-wasip1-threads" "wasmthreadsstdlib" "wasip1"
 
   rsync -av "$WASI_SYSROOT_PATH/" "$PACKAGING_DIR/wasi-sysroot/"
+
+  build_target_corelibs "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1" "wasm32-wasip1"
+  build_target_corelibs "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasm32-wasip1-threads"
 }
 
 main "$@"
