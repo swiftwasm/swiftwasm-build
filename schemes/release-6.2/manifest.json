@@ -1,6 +1,6 @@
 {
   "update-checkout-scheme": "release/6.2",
-  "base-tag": "swift-6.2-DEVELOPMENT-SNAPSHOT-2025-09-04-a",
+  "base-tag": "swift-6.2-DEVELOPMENT-SNAPSHOT-2025-09-05-a",
   "icu4c": [],
   "libxml2": [
     "https://github.com/swiftwasm/libxml2-wasm/releases/download/2.0.0/libxml2-wasm32-unknown-wasi.tar.gz",
