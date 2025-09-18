@@ -1,10 +1,10 @@
 {
-  "update-checkout-scheme": "release/6.2",
-  "base-tag": "swift-6.2-DEVELOPMENT-SNAPSHOT-2025-09-10-a",
+  "update-checkout-scheme": "release/6.2.0",
+  "base-tag": "swift-6.2-RELEASE",
   "icu4c": [],
   "libxml2": [
     "https://github.com/swiftwasm/libxml2-wasm/releases/download/2.0.0/libxml2-wasm32-unknown-wasi.tar.gz",
     "https://github.com/swiftwasm/libxml2-wasm/releases/download/2.0.0/libxml2-wasm32-unknown-wasip1-threads.tar.gz"
   ],
-  "swift-org-download-channel": "swift-6.2-branch"
+  "swift-org-download-channel": "swift-6.2-release"
 }
