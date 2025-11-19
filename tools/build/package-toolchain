@@ -5,7 +5,7 @@ import os
 import argparse
 import datetime
 import re
-from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
+from build_support.actions import Action, ActionRunner, derive_options_from_args
 
 
 SDK_GENERATOR_PKG_PATH = os.path.join(
@@ -203,7 +203,7 @@ def main():
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
     options = derive_options_from_args(sys.argv[1:], parser)
     now = derive_date_suffix_from_base_tag(options.tag)
-    actions = [DownloadBaseSnapshotAction(options)]
+    actions = []
 
     packaging_dir = os.path.join(
         os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
