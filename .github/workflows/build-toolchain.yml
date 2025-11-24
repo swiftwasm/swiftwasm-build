@@ -26,7 +26,7 @@ jobs:
     outputs:
       entries: ${{ steps.generate.outputs.entries }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
         id: changes
         with:
@@ -95,7 +95,7 @@ jobs:
             fi
           done
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           path: swiftwasm-build
           submodules: true
