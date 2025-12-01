@@ -201,6 +201,8 @@ def derive_date_suffix_from_base_tag(tag: str) -> datetime.datetime:
 def main():
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
+    parser.add_argument("--swift-version", type=str,
+                        help="The custom Swift version string to use in the SDK (e.g. DEVELOPMENT-SNAPSHOT+PATCH)")
     options = derive_options_from_args(sys.argv[1:], parser)
     now = derive_date_suffix_from_base_tag(options.tag)
     actions = []
@@ -231,7 +233,7 @@ def main():
     for target_triple, short_triple in triples:
         snapshot_info = SnapshotInfo(
             now.year, now.month, now.day,
-            swift_version=derive_swift_version(
+            swift_version=options.swift_version or derive_swift_version(
                 options.daily_snapshot, toolchain_channel, now),
             artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT-{target_triple}",
             daily_snapshot=options.daily_snapshot
