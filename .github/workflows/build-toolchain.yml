@@ -132,7 +132,7 @@ jobs:
             ${{ github.workspace }}/build-cache \
             ${{ github.workspace }}/build-sdk
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v5
         id: build-cache
         with:
           path: build-cache
@@ -212,7 +212,7 @@ jobs:
           SKIP_XCODE_VERSION_CHECK: 1
         run: ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}
 
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v5
         if: ${{ !cancelled() }}
         with:
           path: build-cache
