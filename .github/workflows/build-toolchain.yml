@@ -219,17 +219,17 @@ jobs:
           key: ${{ steps.cache_key.outputs.SCCACHE_KEY }}
 
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1.artifactbundle.zip
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasi)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasi-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1-threads)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-threads-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip
@@ -264,7 +264,7 @@ jobs:
         run: |
           tar cJf ./swift-test-results.tar.gz build/WebAssembly/swift-stdlib-wasi-wasm32/swift-test-results
       - name: Upload test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: ${{ matrix.run_full_test }}
         with:
           name: ${{ matrix.target }}-test-results
