@@ -120,6 +120,7 @@ main() {
     --skip-build-cmark \
     --skip-build-benchmarks \
     --skip-early-swift-driver \
+    --skip-test-wasm-stdlib \
     --wasmkit \
     --build-wasm-stdlib \
     --skip-test-wasm-stdlib \
