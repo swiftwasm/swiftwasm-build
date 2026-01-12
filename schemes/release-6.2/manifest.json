@@ -1,5 +1,5 @@
 {
-  "update-checkout-scheme": "release/6.2.3",
+  "update-checkout-scheme": "release/6.2",
   "base-tag": "swift-6.2.3-RELEASE",
   "icu4c": [],
   "libxml2": [
