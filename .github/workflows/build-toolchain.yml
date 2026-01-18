@@ -79,7 +79,10 @@ jobs:
           sudo apt clean
           
           if docker info > /dev/null 2>&1; then
-            docker rmi $(docker image ls -aq)
+            IMAGES_TO_REMOVE=$(docker image ls -aq)
+            if [[ -n "$IMAGES_TO_REMOVE" ]]; then
+              docker rmi -f $IMAGES_TO_REMOVE || true
+            fi
           fi
           df -h
 
