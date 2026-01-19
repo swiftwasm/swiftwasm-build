@@ -17,6 +17,10 @@ on:
         description: 'Scheme to build'
         required: true
         default: 'main'
+      preview_toolchain_url:
+        description: 'URL to preview base toolchain archive (e.g. https://github.com/swiftwasm/swift/releases/download/swift-PR-86624-1616/swift-PR-86624-1616-ubuntu2204.tar.gz)'
+        required: false
+        default: ''
 
 jobs:
   build-matrix:
@@ -59,6 +63,7 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_15.2.app/Contents/Developer/
       # https://github.com/actions/cache/blob/main/tips-and-workarounds.md#cache-segment-restore-timeout
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 30
+      SWIFTWASM_PREVIEW_TOOLCHAIN_URL: ${{ github.event.inputs.preview_toolchain_url || '' }}
     needs: [build-matrix]
     if: ${{ !cancelled() && needs.build-matrix.outputs.entries != '[]' }}
     strategy:
@@ -182,6 +187,7 @@ jobs:
             --security-opt seccomp=unconfined \
             -dit \
             -e CI=$CI \
+            -e SWIFTWASM_PREVIEW_TOOLCHAIN_URL="$SWIFTWASM_PREVIEW_TOOLCHAIN_URL" \
             -w /home/build-user/ \
             -v ${{ github.workspace }}:/source \
             -v oss-swift-package:/home/build-user \
@@ -213,6 +219,7 @@ jobs:
         timeout-minutes: 300 # Exit before 6 hours limit to allow cache upload
         env:
           SKIP_XCODE_VERSION_CHECK: 1
+          SWIFTWASM_PREVIEW_TOOLCHAIN_URL: ${{ env.SWIFTWASM_PREVIEW_TOOLCHAIN_URL }}
         run: ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}
 
       - uses: actions/cache/save@v5

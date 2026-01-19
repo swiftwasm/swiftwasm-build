@@ -125,8 +125,20 @@ class DownloadBaseSnapshotAction(Action):
 
     def run(self):
         platform_info = platform.PlatformInfo.derive()
-        snapshot_url, tarball_name = platform_info.snapshot_url(self.options.swift_org_download_channel, self.options.tag)
-        extension = platform_info.package_extension
+        preview_toolchain_url = getattr(self.options, "preview_toolchain_url", None) or os.environ.get("SWIFTWASM_PREVIEW_TOOLCHAIN_URL")
+        if preview_toolchain_url:
+            snapshot_url = preview_toolchain_url
+            tarball_name = os.path.basename(preview_toolchain_url)
+            print(f"=====> Using preview toolchain from {snapshot_url}")
+        else:
+            snapshot_url, tarball_name = platform_info.snapshot_url(self.options.swift_org_download_channel, self.options.tag)
+
+        if tarball_name.endswith(".tar.gz"):
+            extension = "tar.gz"
+        elif tarball_name.endswith(".pkg"):
+            extension = "pkg"
+        else:
+            extension = platform_info.package_extension
 
         base_toolchain_dir = DownloadBaseSnapshotAction.toolchain_path(self.options)
         tarball_path = os.path.join(os.path.dirname(base_toolchain_dir), tarball_name)
@@ -172,6 +184,8 @@ def derive_options_from_args(argv, parser: argparse.ArgumentParser):
 
     parser.add_argument('--scheme', help='The scheme to use', required=True, choices=schemes)
     parser.add_argument('--tag', help='The upstream Swift tag to use as the base')
+    parser.add_argument('--preview-toolchain-url', help='URL to preview base toolchain archive',
+                        default=os.environ.get("SWIFTWASM_PREVIEW_TOOLCHAIN_URL"))
     parser.add_argument('--dry-run', help='Prints the commands that would be executed', action='store_true')
     parser.add_argument('-v', '--verbose', help='Prints the commands that are executed', action='store_true')
     parser.add_argument('--skip-history', help='Skip histories when obtaining sources', action='store_true')
@@ -195,4 +209,6 @@ def derive_options_from_args(argv, parser: argparse.ArgumentParser):
         options.update_checkout_scheme = manifest['update-checkout-scheme']
     options.swift_org_download_channel = manifest['swift-org-download-channel']
     options.download_wasi_sysroot = manifest.get('wasi-sysroot', False)
+    if options.preview_toolchain_url == "":
+        options.preview_toolchain_url = None
     return options
