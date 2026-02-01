@@ -30,7 +30,12 @@ def derive_wasi_sysroot(options, packaging_dir: str, target_triple: str) -> str:
     if options.download_wasi_sysroot:
         return os.path.join('..', 'build-sdk', 'wasi-sysroot')
     else:
-        return os.path.join(packaging_dir, 'wasi-sysroot', target_triple)
+        if options.scheme in ["release-6.0", "release-6.1", "release-6.2", "release-6.3"]:
+            # Before https://github.com/swiftlang/swift/pull/86572, the wasi-sysroot didn't
+            # have the 'sysroot' subdirectory.
+            return os.path.join(packaging_dir, 'wasi-sysroot', target_triple)
+        return os.path.join(
+            packaging_dir, 'wasi-sysroot', target_triple, 'sysroot')
 
 
 def copy_icu_libs(scheme, build_sdk_path, dist_toolchain_path, target_triple):
