@@ -24,11 +24,6 @@ def main():
         CloneAction(options, 'swiftlang/swift', options.tag),
         UpdateCheckoutAction(options),
     ]
-    if options.scheme == 'release-6.0':
-        # release/6.0 doesn't have swift-sdk-generator configuration in update-checkout
-        # so we need to clone it manually
-        actions.append(CloneAction(options, 'swiftlang/swift-sdk-generator', 'swift-6.1-RELEASE'))
-
     actions = actions + [
         ApplyPatchesAction(options, 'swift'),
         CheckoutCorelibsAction(options),

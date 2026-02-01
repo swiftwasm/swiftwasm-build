@@ -15,10 +15,6 @@ install_libxml2() {
   for url in "${LIBXML2_URLS[@]}"; do
     curl -L "$url" | tar xz -C "$BUILD_SDK_PATH"
   done
-  # For backward compatibility
-  if [ "$SCHEME" = "release-5.9" ] || [ "$SCHEME" = "release-5.10" ] || [ "$SCHEME" = "release-6.0" ]; then
-    ln -sf libxml2-wasm32-unknown-wasi "$BUILD_SDK_PATH/libxml2"
-  fi
 }
 
 install_icu() {

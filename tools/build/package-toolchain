@@ -30,7 +30,7 @@ def derive_wasi_sysroot(options, packaging_dir: str, target_triple: str) -> str:
     if options.download_wasi_sysroot:
         return os.path.join('..', 'build-sdk', 'wasi-sysroot')
     else:
-        if options.scheme in ["release-6.0", "release-6.1", "release-6.2", "release-6.3"]:
+        if options.scheme in ["release-6.1", "release-6.2", "release-6.3"]:
             # Before https://github.com/swiftlang/swift/pull/86572, the wasi-sysroot didn't
             # have the 'sysroot' subdirectory.
             return os.path.join(packaging_dir, 'wasi-sysroot', target_triple)
@@ -38,26 +38,8 @@ def derive_wasi_sysroot(options, packaging_dir: str, target_triple: str) -> str:
             packaging_dir, 'wasi-sysroot', target_triple, 'sysroot')
 
 
-def copy_icu_libs(scheme, build_sdk_path, dist_toolchain_path, target_triple):
-    if scheme not in ["release-5.9", "release-5.10", "release-6.0"]:
-        # We don't need to copy ICU libraries for recent channels
-        return
-    import shutil
-    icu_lib_dir = os.path.join(build_sdk_path, f"icu-{target_triple}", 'lib')
-    if not os.path.exists(icu_lib_dir):
-        icu_lib_dir = os.path.join(build_sdk_path, 'icu', 'lib')
-
-    dest_dir = os.path.join(
-        dist_toolchain_path, 'usr', 'lib', 'swift_static', 'wasi')
-    print("=====> Copying ICU libraries from {}".format(icu_lib_dir))
-    icu_libs = ["libicuuc.a", "libicui18n.a", "libicudata.a"]
-    for lib in icu_libs:
-        dest_path = os.path.join(dest_dir, lib)
-        shutil.copy(os.path.join(icu_lib_dir, lib), dest_path)
-
-
 def copy_libxml2_libs(scheme, build_sdk_path, dist_toolchain_path, target_triple):
-    if scheme not in ["release-6.0", "release-6.1"]:
+    if scheme not in ["release-6.1"]:
         # Recent channels install libxml2 in wasi-sysroot by default
         return
     import shutil
@@ -90,7 +72,6 @@ class PackageSwiftSDKAction(Action):
 
     def run(self):
         build_sdk_path = os.path.join('..', 'build-sdk')
-        copy_icu_libs(self.options.scheme, build_sdk_path, self.target_toolchain_path, self.target_triple)
         copy_libxml2_libs(self.options.scheme, build_sdk_path, self.target_toolchain_path, self.target_triple)
         self.make_swift_sdk(
             self.target_toolchain_path,
@@ -219,14 +200,13 @@ def main():
     triples = [
         ["wasm32-unknown-wasip1", "wasm32-wasip1"],
     ]
-    if options.scheme in ["release-6.0", "release-6.1"]:
+    if options.scheme in ["release-6.1"]:
         triples = [
             ["wasm32-unknown-wasi", "wasm32-wasi"],
         ]
-    if options.scheme not in ["release-6.0"]:
-        triples += [
-            ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]
-        ]
+    triples += [
+        ["wasm32-unknown-wasip1-threads", "wasm32-wasip1-threads"]
+    ]
 
     # FIXME: Clean up "Bundles" directory before packaging to avoid mixing
     # artifacts from build-script. Eventually we should just use artifactbundles

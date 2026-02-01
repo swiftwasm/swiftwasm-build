@@ -52,10 +52,10 @@ Once the upstream publishes their official release, we are doing the following s
 3. Once we are ready to release, trigger GitHub Actions workflow by running the following command:
 
     ```console
-    $ gh workflow run manual-distribution.yml --repo swiftwasm/swift -f scheme=5.9 -f run-id=<replace-run-id> -f override-name=swift-wasm-5.9.0-RELEASE -f display_name="Swift for WebAssembly 5.9.0 Release $(date +'%Y-%m-%d')" -f display_name_short="Swift for WebAssembly 5.9.0 Release"
+    $ gh workflow run manual-distribution.yml --repo swiftwasm/swift -f scheme=6.3 -f run-id=<replace-run-id> -f override-name=swift-wasm-6.3.0-RELEASE -f display_name="Swift for WebAssembly 6.3.0 Release $(date +'%Y-%m-%d')" -f display_name_short="Swift for WebAssembly 6.3.0 Release"
     ```
 
-    Please replace `5.9` with the version number you are releasing and `<replace-run-id>` with the run ID of [the GitHub Actions workflow in `swiftwasm/swiftwasm-build`](https://github.com/swiftwasm/swiftwasm-build/actions/workflows/build-toolchain.yml)
+    Please replace `6.3` with the version number you are releasing and `<replace-run-id>` with the run ID of [the GitHub Actions workflow in `swiftwasm/swiftwasm-build`](https://github.com/swiftwasm/swiftwasm-build/actions/workflows/build-toolchain.yml)
 
 3. Once the workflow is finished, the release will be published to [GitHub Releases](https://github.com/swiftwasm/swift/releases)
 4. Release new versions of the libraries and tools.
