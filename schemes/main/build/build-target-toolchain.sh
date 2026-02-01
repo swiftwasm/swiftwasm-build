@@ -23,29 +23,16 @@ TARGET_TOOLCHAIN_DESTDIR=$PACKAGING_DIR/target-toolchain
 
 build_target_toolchain() {
 
-  local LLVM_BIN_DIR="$1"
-  local CLANG_BIN_DIR="$2"
-  local SWIFT_BIN_DIR="$3"
   local TRIPLE="$4"
-  local SHORT_TRIPLE="$5"
-  local CLANG_MULTIARCH_TRIPLE="$6"
-  local STDLIB_PRODUCT="$7"
-  local COMPILER_RT_OS_DIR="$8"
 
   local HOST_SUFFIX
   HOST_SUFFIX=$(find "$TARGET_BUILD_ROOT" -name "wasmstdlib-*" -exec basename {} \; | sed 's/wasmstdlib-//')
 
   local TRIPLE_DESTDIR="$TARGET_TOOLCHAIN_DESTDIR/$TRIPLE"
 
-  env DESTDIR="$TRIPLE_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/$STDLIB_PRODUCT-$HOST_SUFFIX" --prefix /usr
-
-  env DESTDIR="$TRIPLE_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/swift-testing/$TRIPLE" --prefix /usr
-  env DESTDIR="$TRIPLE_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/foundation/$TRIPLE" --prefix /usr
-  env DESTDIR="$TRIPLE_DESTDIR" \
-    cmake --install "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/xctest/$TRIPLE" --prefix /usr
+  rm -rf "$TRIPLE_DESTDIR"
+  mkdir -p "$TRIPLE_DESTDIR"
+  cp -R "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/Toolchains/$TRIPLE/usr" "$TRIPLE_DESTDIR/usr"
 }
 
 main() {
