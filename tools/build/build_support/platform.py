@@ -24,8 +24,8 @@ class PlatformInfo:
                     info = ["ubuntu2004", "ubuntu20.04"]
                 elif 'VERSION_ID="22.04"' in release_lines:
                     info = ["ubuntu2204", "ubuntu22.04"]
-                elif 'VERSION_ID="22.04"' in release_lines:
-                    info = ["ubuntu2204", "ubuntu22.04"]
+                elif 'VERSION_ID="24.04"' in release_lines:
+                    info = ["ubuntu2404", "ubuntu24.04"]
                 else:
                     raise Exception("Unsupported Ubuntu version!?")
                 return PlatformInfo(info[0], info[1], "tar.gz", uname.machine)
