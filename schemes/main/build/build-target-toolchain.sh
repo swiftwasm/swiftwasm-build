@@ -32,7 +32,7 @@ build_target_toolchain() {
 
   rm -rf "$TRIPLE_DESTDIR"
   mkdir -p "$TRIPLE_DESTDIR"
-  cp -R "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/Toolchains/$TRIPLE/usr" "$TRIPLE_DESTDIR/usr"
+  cp -R "$TARGET_BUILD_ROOT/wasiswiftsdk-$HOST_SUFFIX/Toolchains/$TRIPLE/usr" "$TRIPLE_DESTDIR/usr"
 }
 
 main() {
