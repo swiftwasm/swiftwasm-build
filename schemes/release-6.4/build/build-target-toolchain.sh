@@ -26,13 +26,13 @@ build_target_toolchain() {
   local TRIPLE="$4"
 
   local HOST_SUFFIX
-  HOST_SUFFIX=$(find "$TARGET_BUILD_ROOT" -name "wasmstdlib-*" -exec basename {} \; | sed 's/wasmstdlib-//')
+  HOST_SUFFIX=$(find "$TARGET_BUILD_ROOT" -name "wasistdlib-*" -exec basename {} \; | sed 's/wasistdlib-//')
 
   local TRIPLE_DESTDIR="$TARGET_TOOLCHAIN_DESTDIR/$TRIPLE"
 
   rm -rf "$TRIPLE_DESTDIR"
   mkdir -p "$TRIPLE_DESTDIR"
-  cp -R "$TARGET_BUILD_ROOT/wasmswiftsdk-$HOST_SUFFIX/Toolchains/$TRIPLE/usr" "$TRIPLE_DESTDIR/usr"
+  cp -R "$TARGET_BUILD_ROOT/wasiswiftsdk-$HOST_SUFFIX/Toolchains/$TRIPLE/usr" "$TRIPLE_DESTDIR/usr"
 }
 
 main() {
@@ -88,7 +88,7 @@ main() {
 
   # NOTE: The llvm-cmake-options is a workaround for the issue on amazonlinux2
   # See https://github.com/apple/swift/commit/40c7268e8f7d402b27e3ad16a84180e07c37f92c
-  # NOTE: Add llvm-bin directory to PATH so that wasmstdlib.py can find FileCheck during tests
+  # NOTE: Add llvm-bin directory to PATH so that wasistdlib.py can find FileCheck during tests
   env PATH="$OPTIONS_LLVM_BIN:$OPTIONS_SWIFT_BIN:$PATH" "$SOURCE_PATH/swift/utils/build-script" \
     --build-subdir=WebAssembly \
     --release \
@@ -98,8 +98,9 @@ main() {
     --skip-build-benchmarks \
     --skip-early-swift-driver \
     --wasmkit \
-    --build-wasm-stdlib \
-    --skip-test-wasm-stdlib \
+    --skip-test-wasi-stdlib \
+    --build-wasi-stdlib \
+    --skip-test-wasi-stdlib \
     --native-swift-tools-path="$OPTIONS_SWIFT_BIN" \
     --native-clang-tools-path="$OPTIONS_CLANG_BIN" \
     --native-llvm-tools-path="$OPTIONS_LLVM_BIN" \
@@ -122,8 +123,8 @@ main() {
     "$OPTIONS_SWIFT_BIN"
   )
 
-  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1" "wasip1-wasm32" "wasm32-wasip1" "wasmstdlib" "wasip1"
-  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasip1-threads-wasm32" "wasm32-wasip1-threads" "wasmthreadsstdlib" "wasip1"
+  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasi" "wasi-wasm32" "wasm32-wasi" "wasistdlib" "wasi"
+  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasip1-threads-wasm32" "wasm32-wasip1-threads" "wasithreadsstdlib" "wasip1"
 
   rsync -av "$WASI_SYSROOT_PATH/" "$PACKAGING_DIR/wasi-sysroot/"
 }
