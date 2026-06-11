@@ -123,7 +123,7 @@ main() {
     "$OPTIONS_SWIFT_BIN"
   )
 
-  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasi" "wasi-wasm32" "wasm32-wasi" "wasistdlib" "wasi"
+  build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1" "wasip1-wasm32" "wasm32-wasip1" "wasistdlib" "wasip1"
   build_target_toolchain "${BUILD_TOOLS_ARGS[@]}" "wasm32-unknown-wasip1-threads" "wasip1-threads-wasm32" "wasm32-wasip1-threads" "wasithreadsstdlib" "wasip1"
 
   rsync -av "$WASI_SYSROOT_PATH/" "$PACKAGING_DIR/wasi-sysroot/"
