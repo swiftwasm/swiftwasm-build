@@ -1,7 +1,7 @@
 {
   "update-checkout-scheme": "release/6.3",
-  "base-tag": "swift-6.3-RELEASE",
+  "base-tag": "swift-6.3.2-RELEASE",
   "icu4c": [],
   "libxml2": [],
-  "swift-org-download-channel": "swift-6.3-release"
+  "swift-org-download-channel": "swift-6.3.2-release"
 }
