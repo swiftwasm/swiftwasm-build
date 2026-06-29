@@ -140,7 +140,7 @@ jobs:
             ${{ github.workspace }}/build-cache \
             ${{ github.workspace }}/build-sdk
 
-      - uses: actions/cache/restore@v5
+      - uses: actions/cache/restore@v6
         id: build-cache
         with:
           path: build-cache
@@ -222,7 +222,7 @@ jobs:
           SWIFTWASM_PREVIEW_TOOLCHAIN_URL: ${{ env.SWIFTWASM_PREVIEW_TOOLCHAIN_URL }}
         run: ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}
 
-      - uses: actions/cache/save@v5
+      - uses: actions/cache/save@v6
         if: ${{ !cancelled() }}
         with:
           path: build-cache
