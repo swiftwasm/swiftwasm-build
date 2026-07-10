@@ -1,6 +1,6 @@
 {
   "update-checkout-scheme": "release/6.4.x",
-  "base-tag": "swift-6.4.x-DEVELOPMENT-SNAPSHOT-2026-06-15-a",
+  "base-tag": "swift-6.4.x-DEVELOPMENT-SNAPSHOT-2026-07-06-a",
   "icu4c": [],
   "libxml2": [],
   "swift-org-download-channel": "swift-6.4.x-branch"
