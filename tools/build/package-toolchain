@@ -5,7 +5,7 @@ import os
 import argparse
 import datetime
 import re
-from build_support.actions import Action, ActionRunner, derive_options_from_args
+from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 
 
 SDK_GENERATOR_PKG_PATH = os.path.join(
@@ -95,8 +95,15 @@ class PackageSwiftSDKAction(Action):
             WebAssembly.
         :param wasi_sysroot_path: The path to the WASI sysroot.
         """
+        # Run the generator with the base snapshot toolchain instead of the
+        # `swift` found on PATH: the CI container ships an older host toolchain
+        # that cannot load swift-sdk-generator's Package.swift since it moved to
+        # swift-tools-version 6.0.
+        swift_bin = os.path.join(
+            DownloadBaseSnapshotAction.toolchain_path(self.options),
+            "usr", "bin", "swift")
         sdk_generator_args = [
-            "swift",
+            swift_bin,
             "run", "--package-path", SDK_GENERATOR_PKG_PATH,
             "--", "swift-sdk-generator", "make-wasm-sdk",
             "--target-swift-package-path", target_toolchain_path,
