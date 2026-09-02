@@ -264,6 +264,20 @@ upstream mismatch between `-experimental-hermetic-seal-at-link` and the way
 Foundation is built. It goes away once Foundation itself can be sealed, which
 is blocked on the `typeIdForMethod` assertion described above.
 
+It is also broader than `open` members. A three-line sealed program calling
+`NSLock.lock()` fails the same way (`$s10Foundation6NSLockC4lockyyFTj`), and a
+large real-world application built under the contract referenced several
+hundred distinct missing Foundation thunks. The 2026-08-30-a Foundation
+archives define no `...Tj` symbols at all, in either flavour. In practice,
+**an application that calls Foundation class methods cannot currently link
+under the contract.** Building such an application without the seal does
+link, but then LTO alone gives no size benefit: the sealed-away metadata and
+virtual-function elimination are where the whole win comes from, and in the
+one large application measured this way the post-Binaryen output came out
+slightly larger than with the normal SDK, with a much slower `wasm-opt`
+step. Until Foundation can be sealed, this flavour is only useful for
+programs that stay on Foundation value types and the standard library.
+
 ### Autolinking still has to be spelled out for libraries the SDK does not ship
 
 Under `-lto=` a stock toolchain emits no autolink information the linker can
