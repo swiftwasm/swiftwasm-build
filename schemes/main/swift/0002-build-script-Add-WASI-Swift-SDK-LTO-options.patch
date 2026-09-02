@@ -1,8 +1,8 @@
-From 2c69adeaa8dcb4bda3f2a233e0951f12c2c3cdc0 Mon Sep 17 00:00:00 2001
+From 8b89aee82c385e1880c2d3502762a69e5fa3ae1b Mon Sep 17 00:00:00 2001
 From: Yuta Saito <yuta@goodnotes.com>
 Date: Wed, 2 Sep 2026 16:19:42 +0000
-Subject: [PATCH] [build-script] Add LTO and hermetic-seal options for the WASI
- Swift SDK Foundation stack
+Subject: [build-script] Add LTO and hermetic-seal options for the WASI Swift
+ SDK Foundation stack
 
 The Foundation stack of the WASI Swift SDK -- libxml2 and
 swift-corelibs-foundation together with the swift-foundation and
@@ -34,15 +34,30 @@ swift-testing and XCTest are deliberately left alone: they are not part
 of a shipped product, and swift-testing is built with library evolution
 enabled, which hermetic sealing rejects.
 
+Two build-system details come with an LTO mode. Bitcode archives have
+to be created with `llvm-ar` and `llvm-ranlib`: GNU `ar` indexes
+bitcode through the LLVM plugin the host binutils were built against,
+which cannot read bitcode produced by a newer LLVM and silently leaves
+the archive with an incomplete symbol table, so `CMAKE_AR` and
+`CMAKE_RANLIB` are pointed at `--native-llvm-tools-path` whenever an
+LTO mode is requested. And CMake's Swift split-compilation model
+(policy CMP0157 NEW) drives the compiler with an output-file-map that
+names only `object` outputs; under `-lto=` the driver emits LLVM
+bitcode, ignores those entries and derives `<basename>.bc` names in the
+working directory instead, so the object files CMake declared are never
+created and the archive step fails. The Foundation projects are
+therefore asked to opt out of that model through
+`FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION`.
+
 When neither option is passed, the generated CMake options are
 unchanged.
 ---
- .../build_swift/driver_arguments.py           | 22 ++++++++++++
- utils/build_swift/tests/expected_options.py   |  4 +++
- .../helpers/wasmswiftsdkhelpers.py            | 10 +++---
- .../products/emscriptenswiftsdk.py            |  8 +++--
- .../products/wasiswiftsdk.py                  | 34 ++++++++++++++++---
- 5 files changed, 66 insertions(+), 12 deletions(-)
+ .../build_swift/driver_arguments.py           | 22 ++++++++
+ utils/build_swift/tests/expected_options.py   |  4 ++
+ .../helpers/wasmswiftsdkhelpers.py            | 10 ++--
+ .../products/emscriptenswiftsdk.py            |  8 +--
+ .../products/wasiswiftsdk.py                  | 54 +++++++++++++++++--
+ 5 files changed, 86 insertions(+), 12 deletions(-)
 
 diff --git a/utils/build_swift/build_swift/driver_arguments.py b/utils/build_swift/build_swift/driver_arguments.py
 index 7aa4d8ad161..e2402a023eb 100644
@@ -192,7 +207,7 @@ index 8993e5f80d5..5e7650215c7 100644
          host_toolchain_path = self.native_toolchain_path(
              self.args.host_target)
 diff --git a/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py b/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
-index 2a1db902371..7a56c8e58b0 100644
+index 2a1db902371..bf9f6b24ddc 100644
 --- a/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
 +++ b/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
 @@ -41,7 +41,8 @@ class WASISwiftSDK(product.Product):
@@ -214,10 +229,30 @@ index 2a1db902371..7a56c8e58b0 100644
          cxx_flags = c_flags + ['-fno-exceptions']
          if has_pthread:
              clang_flags = ['-mthread-model', 'posix', '-pthread']
-@@ -83,6 +84,23 @@ class WASISwiftSDK(product.Product):
+@@ -83,6 +84,43 @@ class WASISwiftSDK(product.Product):
              cmake_options.define('CMAKE_RANLIB', os.path.join(
                  native_toolchain_path, 'bin', 'llvm-ranlib'))
  
++        if self.args.wasi_swift_sdk_lto is not None:
++            # LTO builds emit LLVM bitcode object files. The host's GNU 'ar'
++            # cannot index them (its LTO plugin is built against a different
++            # LLVM version), which silently produces archives with an
++            # incomplete symbol table, so use the LLVM archiver instead.
++            llvm_tools_path = self.args.native_llvm_tools_path
++            if llvm_tools_path:
++                cmake_options.define('CMAKE_AR', os.path.join(
++                    llvm_tools_path, 'llvm-ar'))
++                cmake_options.define('CMAKE_RANLIB', os.path.join(
++                    llvm_tools_path, 'llvm-ranlib'))
++            # CMake's Swift split-compilation model (policy CMP0157 NEW) drives
++            # the compiler with an output-file-map that only names 'object'
++            # outputs; under '-lto=' the driver emits '<basename>.bc' files in
++            # the working directory instead and the build fails. Ask the
++            # Foundation projects to keep the one-step compile-and-archive
++            # model, where the driver names its own outputs.
++            cmake_options.define(
++                'FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION:BOOL', 'TRUE')
++
 +    def _foundation_stack_lto_flags(self):
 +        """Return the extra Swift and C/C++ flags requesting LTO for the
 +        Foundation stack, as configured by '--wasi-swift-sdk-lto' and
@@ -238,7 +273,7 @@ index 2a1db902371..7a56c8e58b0 100644
      def build(self, host_target):
          build_root = os.path.dirname(self.build_dir)
  
-@@ -123,24 +141,30 @@ class WASISwiftSDK(product.Product):
+@@ -123,24 +161,30 @@ class WASISwiftSDK(product.Product):
  
              # Create a closure capturing WASI-specific platform config.
              def append_cmake_opts(cmake_options, extra_swift_flags,

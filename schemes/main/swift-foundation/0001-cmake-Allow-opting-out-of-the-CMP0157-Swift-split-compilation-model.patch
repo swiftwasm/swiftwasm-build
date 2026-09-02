@@ -1,0 +1,47 @@
+From 98879af4759af5f0209f8d12584b4b90c6194fa5 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <yuta@goodnotes.com>
+Date: Wed, 2 Sep 2026 18:05:34 +0000
+Subject: [PATCH] [cmake] Allow opting out of the CMP0157 Swift
+ split-compilation model
+
+CMake's Swift split-compilation model (policy CMP0157 NEW) drives swiftc with
+an output-file-map that only names 'object' outputs. When the compiler is asked
+for LTO ('-lto=llvm-full' / '-lto=llvm-thin') the driver emits LLVM bitcode
+instead and derives '<basename>.bc' names in the working directory, so the
+object files CMake declared are never produced and the static-library step
+fails with 'error opening input file ... .swift.obj'.
+
+Let a build that needs bitcode libraries set
+FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION to keep the one-step
+compile-and-archive model, where the driver names its own outputs and archives
+them itself. The default is unchanged.
+---
+ CMakeLists.txt | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c6a01773..01880b28 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -19,8 +19,17 @@ if(POLICY CMP0156)
+     cmake_policy(SET CMP0156 NEW)
+ endif()
+ 
+-if(POLICY CMP0157)
++if(POLICY CMP0157 AND NOT FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION)
+     # New Swift build model: improved incremental build performance and LSP support
++    #
++    # The split-compilation model drives swiftc with an output-file-map that only
++    # names 'object' outputs. When the Swift compiler is asked for LTO
++    # ('-lto=llvm-full'/'-lto=llvm-thin') the driver produces LLVM bitcode
++    # instead and derives '<basename>.bc' names in the working directory, so the
++    # object files CMake expects are never created and the archive step fails.
++    # Builds that need bitcode libraries set
++    # FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION to fall back to the one-step
++    # compile-and-archive model, which lets the driver name its own outputs.
+     cmake_policy(SET CMP0157 NEW)
+ endif()
+ 
+-- 
+2.43.0
+
