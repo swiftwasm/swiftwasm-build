@@ -64,6 +64,9 @@ jobs:
       # https://github.com/actions/cache/blob/main/tips-and-workarounds.md#cache-segment-restore-timeout
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 30
       SWIFTWASM_PREVIEW_TOOLCHAIN_URL: ${{ github.event.inputs.preview_toolchain_url || '' }}
+      # Selects the hermetic full-LTO flavour of the Swift SDK for matrix
+      # entries with `hermetic_lto: true`. See docs/hermetic-lto-sdk.md.
+      SWIFTWASM_HERMETIC_LTO: ${{ matrix.hermetic_lto && '1' || '' }}
     needs: [build-matrix]
     if: ${{ !cancelled() && needs.build-matrix.outputs.entries != '[]' }}
     strategy:
@@ -122,7 +125,7 @@ jobs:
       - name: Prepare sccache timestamp
         id: cache_key
         run: |
-          export SCCACHE_KEY_PREFIX="${{ matrix.target }}-${{ matrix.toolchain_channel }}-sccache-v15-"
+          export SCCACHE_KEY_PREFIX="${{ matrix.target }}-${{ matrix.toolchain_channel }}${{ matrix.hermetic_lto && '-hermetic-lto' || '' }}-sccache-v15-"
           echo "SCCACHE_KEY_PREFIX=$SCCACHE_KEY_PREFIX" >> $GITHUB_OUTPUT
           echo "SCCACHE_KEY=$SCCACHE_KEY_PREFIX$(date +'%Y-%m-%d-%I-%M-%S')" >> $GITHUB_OUTPUT
 
@@ -188,6 +191,7 @@ jobs:
             -dit \
             -e CI=$CI \
             -e SWIFTWASM_PREVIEW_TOOLCHAIN_URL="$SWIFTWASM_PREVIEW_TOOLCHAIN_URL" \
+            -e SWIFTWASM_HERMETIC_LTO="$SWIFTWASM_HERMETIC_LTO" \
             -w /home/build-user/ \
             -v ${{ github.workspace }}:/source \
             -v oss-swift-package:/home/build-user \
@@ -195,18 +199,29 @@ jobs:
           docker exec swiftwasm-ci-buildbot /bin/bash -lc 'env; cp -r /source/* /home/build-user/; ./swiftwasm-build/tools/build/ci.sh ${{ matrix.scheme }}'
 
       - name: Extract installable archive from Docker container (wasm32-unknown-wasip1)
-        if: ${{ matrix.container != null && matrix.scheme != 'release-6.0' && matrix.scheme != 'release-6.1' }}
+        if: ${{ matrix.container != null && !matrix.hermetic_lto && matrix.scheme != 'release-6.0' && matrix.scheme != 'release-6.1' }}
         run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1.artifactbundle.zip .
       - name: Extract installable archive from Docker container (wasm32-unknown-wasi)
-        if: ${{ matrix.container != null && !(matrix.scheme != 'release-6.0' && matrix.scheme != 'release-6.1') }}
+        if: ${{ matrix.container != null && !matrix.hermetic_lto && !(matrix.scheme != 'release-6.0' && matrix.scheme != 'release-6.1') }}
         run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip .
       # release-6.0 doesn't have wasm32-unknown-wasip1-threads SDK support yet
       - name: Extract installable archive from Docker container (wasm32-unknown-wasip1-threads)
-        if: ${{ matrix.container != null && matrix.scheme != 'release-6.0' }}
+        if: ${{ matrix.container != null && !matrix.hermetic_lto && matrix.scheme != 'release-6.0' }}
         run: |
           docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip .
+
+      # Hermetic full-LTO flavour: the bundles carry a "hermetic-lto-" infix
+      # before the target triple. See docs/hermetic-lto-sdk.md.
+      - name: Extract installable archive from Docker container (hermetic LTO, wasm32-unknown-wasip1)
+        if: ${{ matrix.container != null && matrix.hermetic_lto }}
+        run: |
+          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1.artifactbundle.zip .
+      - name: Extract installable archive from Docker container (hermetic LTO, wasm32-unknown-wasip1-threads)
+        if: ${{ matrix.container != null && matrix.hermetic_lto }}
+        run: |
+          docker cp swiftwasm-ci-buildbot:/home/build-user/swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1-threads.artifactbundle.zip .
 
       - name: Extract build-cache from Docker container
         if: ${{ matrix.container != null && !cancelled() }}
@@ -230,19 +245,35 @@ jobs:
 
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1)
         uses: actions/upload-artifact@v7
+        if: ${{ !matrix.hermetic_lto }}
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1.artifactbundle.zip
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasi)
         uses: actions/upload-artifact@v7
+        if: ${{ !matrix.hermetic_lto }}
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasi-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasi.artifactbundle.zip
       - name: Upload Swift SDK artifact bundle (wasm32-unknown-wasip1-threads)
         uses: actions/upload-artifact@v7
+        if: ${{ !matrix.hermetic_lto }}
         with:
           name: ${{ matrix.scheme }}-wasm32-unknown-wasip1-threads-artifactbundle
           path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-wasm32-unknown-wasip1-threads.artifactbundle.zip
+
+      - name: Upload Swift SDK artifact bundle (hermetic LTO, wasm32-unknown-wasip1)
+        uses: actions/upload-artifact@v7
+        if: ${{ matrix.hermetic_lto }}
+        with:
+          name: ${{ matrix.scheme }}-hermetic-lto-wasm32-unknown-wasip1-artifactbundle
+          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1.artifactbundle.zip
+      - name: Upload Swift SDK artifact bundle (hermetic LTO, wasm32-unknown-wasip1-threads)
+        uses: actions/upload-artifact@v7
+        if: ${{ matrix.hermetic_lto }}
+        with:
+          name: ${{ matrix.scheme }}-hermetic-lto-wasm32-unknown-wasip1-threads-artifactbundle
+          path: swift-wasm-${{ matrix.toolchain_channel }}-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1-threads.artifactbundle.zip
 
       # Prepare for running tests
       - uses: bytecodealliance/actions/wasmtime/setup@v1
