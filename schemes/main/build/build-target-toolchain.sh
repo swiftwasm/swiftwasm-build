@@ -86,6 +86,45 @@ main() {
     OPTIONS_CLANG_BIN="$OPTIONS_LLVM_BIN"
   fi
 
+  # Standard library CMake options shared by every flavour of the Swift SDK.
+  # `--extra-cmake-options` is appended last to the WASI stdlib configure, so
+  # these override the defaults in swift's wasmstdlibhelpers.py.
+  local EXTRA_CMAKE_OPTIONS="\
+      -DSWIFT_STDLIB_TRACING=NO \
+      -DSWIFT_STDLIB_HAS_ASL=NO \
+      -DSWIFT_STDLIB_CONCURRENCY_TRACING=NO \
+      -DSWIFT_RUNTIME_CRASH_REPORTER_CLIENT=NO \
+      -DSWIFT_STDLIB_INSTALL_PARENT_MODULE_FOR_SHIMS=NO \
+    "
+
+  # Extra `utils/build-script` arguments used only by the hermetic full-LTO
+  # flavour. Empty for the default flavour.
+  local HERMETIC_LTO_BUILD_SCRIPT_ARGS=()
+
+  # Hermetic full-LTO flavour of the Swift SDK, enabled by SWIFTWASM_HERMETIC_LTO=1.
+  # See docs/hermetic-lto-sdk.md. When the variable is not "1", the
+  # `utils/build-script` invocation below is identical to the default one.
+  if [[ "${SWIFTWASM_HERMETIC_LTO:-}" == "1" ]]; then
+    EXTRA_CMAKE_OPTIONS+="\
+      -DSWIFT_STDLIB_ENABLE_LTO=full \
+      -DSWIFT_STDLIB_EXPERIMENTAL_HERMETIC_SEAL_AT_LINK=TRUE \
+      -DSWIFT_STDLIB_STABLE_ABI=FALSE \
+    "
+    # TODO(hermetic-lto): once schemes/main/swift/0002-build-script-Add-WASI-Swift-SDK-LTO-options.patch
+    # is carried and the pinned base snapshot understands the options, extend the
+    # flavour to the Foundation stack by adding here:
+    #
+    #   HERMETIC_LTO_BUILD_SCRIPT_ARGS+=(
+    #     --wasi-swift-sdk-lto=full
+    #     --wasi-swift-sdk-hermetic-seal-at-link
+    #   )
+    #
+    # These options do not exist in the snapshot pinned by
+    # schemes/main/manifest.json yet, so they must not be passed before the
+    # patch lands.
+    :
+  fi
+
   # NOTE: The llvm-cmake-options is a workaround for the issue on amazonlinux2
   # See https://github.com/apple/swift/commit/40c7268e8f7d402b27e3ad16a84180e07c37f92c
   # NOTE: Add llvm-bin directory to PATH so that wasistdlib.py can find FileCheck during tests
@@ -105,17 +144,12 @@ main() {
     --native-clang-tools-path="$OPTIONS_CLANG_BIN" \
     --native-llvm-tools-path="$OPTIONS_LLVM_BIN" \
     --build-runtime-with-host-compiler \
-    --extra-cmake-options="\
-      -DSWIFT_STDLIB_TRACING=NO \
-      -DSWIFT_STDLIB_HAS_ASL=NO \
-      -DSWIFT_STDLIB_CONCURRENCY_TRACING=NO \
-      -DSWIFT_RUNTIME_CRASH_REPORTER_CLIENT=NO \
-      -DSWIFT_STDLIB_INSTALL_PARENT_MODULE_FOR_SHIMS=NO \
-    " \
+    --extra-cmake-options="$EXTRA_CMAKE_OPTIONS" \
     --llvm-cmake-options="\
       -DCROSS_TOOLCHAIN_FLAGS_LLVM_NATIVE='-DCMAKE_C_COMPILER=clang;-DCMAKE_CXX_COMPILER=clang++' \
     " \
-    --sccache
+    --sccache \
+    ${HERMETIC_LTO_BUILD_SCRIPT_ARGS[@]+"${HERMETIC_LTO_BUILD_SCRIPT_ARGS[@]}"}
 
   local BUILD_TOOLS_ARGS=(
     "$OPTIONS_LLVM_BIN"
