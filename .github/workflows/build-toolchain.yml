@@ -150,9 +150,11 @@ jobs:
           key: ${{ steps.cache_key.outputs.SCCACHE_KEY }}
           restore-keys: |
             ${{ steps.cache_key.outputs.SCCACHE_KEY_PREFIX }}
+            ${{ matrix.target }}-${{ matrix.toolchain_channel }}-sccache-v15-
 
-      - run: chmod -R 777 ./build-cache
-        if: ${{ steps.build-cache.outputs.cache-hit }}
+      # Always make the cache directory exist and be writable inside the
+      # container, also on a cache miss (a new key prefix starts cold).
+      - run: mkdir -p ./build-cache && chmod -R 777 ./build-cache
 
       - run: ./swiftwasm-build/tools/build/install-build-sdk.sh ${{ matrix.scheme }}
       - run: ./swiftwasm-build/tools/git-swift-workspace --skip-history --verbose --scheme ${{ matrix.scheme }}
