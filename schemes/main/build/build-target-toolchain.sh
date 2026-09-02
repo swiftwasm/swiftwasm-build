@@ -110,19 +110,15 @@ main() {
       -DSWIFT_STDLIB_EXPERIMENTAL_HERMETIC_SEAL_AT_LINK=TRUE \
       -DSWIFT_STDLIB_STABLE_ABI=FALSE \
     "
-    # TODO(hermetic-lto): once schemes/main/swift/0002-build-script-Add-WASI-Swift-SDK-LTO-options.patch
-    # is carried and the pinned base snapshot understands the options, extend the
-    # flavour to the Foundation stack by adding here:
-    #
-    #   HERMETIC_LTO_BUILD_SCRIPT_ARGS+=(
-    #     --wasi-swift-sdk-lto=full
-    #     --wasi-swift-sdk-hermetic-seal-at-link
-    #   )
-    #
-    # These options do not exist in the snapshot pinned by
-    # schemes/main/manifest.json yet, so they must not be passed before the
-    # patch lands.
-    :
+    # Extend the flavour to the Foundation stack (corelibs-foundation with the
+    # swift-foundation sources, CoreFoundation, FoundationICU, libxml2). These
+    # options come from the carried patch
+    # schemes/main/swift/0002-build-script-Add-WASI-Swift-SDK-LTO-options.patch;
+    # SWIFT_STDLIB_ENABLE_LTO alone never reaches those separate CMake projects.
+    HERMETIC_LTO_BUILD_SCRIPT_ARGS+=(
+      --wasi-swift-sdk-lto=full
+      --wasi-swift-sdk-hermetic-seal-at-link
+    )
   fi
 
   # NOTE: The llvm-cmake-options is a workaround for the issue on amazonlinux2
