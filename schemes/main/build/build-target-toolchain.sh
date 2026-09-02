@@ -115,9 +115,15 @@ main() {
     # options come from the carried patch
     # schemes/main/swift/0002-build-script-Add-WASI-Swift-SDK-LTO-options.patch;
     # SWIFT_STDLIB_ENABLE_LTO alone never reaches those separate CMake projects.
+    #
+    # The Foundation stack is shipped as bitcode but is NOT hermetically sealed:
+    # `--wasi-swift-sdk-hermetic-seal-at-link` makes the pinned snapshot's
+    # swift-frontend assert in `typeIdForMethod` (GenClass.cpp) while emitting
+    # the virtual-method type id for NSMutableDictionary's overridden
+    # `init(sharedKeySet:)` in swift-corelibs-foundation. The standard library
+    # and the runtime are still sealed. See docs/hermetic-lto-sdk.md.
     HERMETIC_LTO_BUILD_SCRIPT_ARGS+=(
       --wasi-swift-sdk-lto=full
-      --wasi-swift-sdk-hermetic-seal-at-link
     )
   fi
 

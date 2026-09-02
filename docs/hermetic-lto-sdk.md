@@ -3,17 +3,64 @@
 The `main` scheme can build a second, size-optimised flavour of the WebAssembly
 Swift SDK. Setting `SWIFTWASM_HERMETIC_LTO=1` ships the Swift standard library,
 the Swift runtime and the Foundation stack as **LLVM bitcode** inside their
-static archives, compiled **without library evolution** and with the compiler
-told that every client of the library is visible at the final link.
+static archives, compiled **without library evolution**, and tells the compiler
+that every client of the standard library and the runtime is visible at the
+final link.
 
 `wasm-ld` then runs whole-program link-time optimisation over the application
 plus the libraries and discards everything unreachable, including protocol
-conformance records that the resilient standard library has to keep. An earlier
-measurement of a hello-world program with this configuration shrank the
-executable from 3,438,013 bytes to 1,693,294 bytes.
+conformance records that the resilient standard library has to keep.
+
+**Bitcode and sealing are two different things here.** Everything shipped as
+bitcode takes part in the whole-program LTO: the standard library, the Swift
+runtime, the Foundation stack (corelibs-foundation with the swift-foundation
+sources, CoreFoundation, FoundationICU) and libxml2. But only the standard
+library and the runtime are additionally *hermetically sealed*
+(`-experimental-hermetic-seal-at-link`, which enables virtual-function and
+witness-method elimination). Foundation is not sealed, because the compiler in
+the pinned base snapshot asserts when it is: sealing makes it emit
+virtual-method type ids, and it cannot map an *overriding* designated
+initializer back to its base method, so
+`swift-frontend` aborts in `typeIdForMethod` (`GenClass.cpp`) on
+`NSMutableDictionary.init(sharedKeySet:)`. Foundation therefore still gets LTO
+and dead-code elimination, just not devirtualisation-driven elimination. The
+seal will be turned on for Foundation once that compiler bug is fixed upstream.
+
+XCTest and swift-testing are neither bitcode nor sealed.
 
 This variant is **binary-incompatible** with the normal Swift SDK. It exists
 alongside it, never in place of it.
+
+Please read [Known issues](#known-issues) before using it: as of this writing
+the sealed standard library still fails 28 executable standard-library tests at
+runtime, so the variant is not ready for production use.
+
+## Measured results
+
+From the first complete build of this flavour, against base snapshot
+`swift-DEVELOPMENT-SNAPSHOT-2026-08-30-a`:
+
+| | normal SDK | this variant |
+| --- | --- | --- |
+| hello-world executable (`swift build`, unoptimised, unstripped) | 3,438,013 bytes | **1,347,818 bytes** |
+
+Building and linking that hello-world from a clean scratch path took about
+11 s wall clock against the variant, essentially all of it the LTO link.
+
+The e2e suite (`./tools/build/run-e2e-test --scheme main`) is green against the
+variant bundle: 5 passed, 2 unsupported (both pre-existing `REQUIRES: GH-5587`),
+0 failed.
+
+The artifact bundles themselves are large, because every archive carries
+bitcode rather than object code:
+
+```
+swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1.artifactbundle.zip          231,208,410 bytes
+swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1-threads.artifactbundle.zip  231,246,052 bytes
+```
+
+The bundle's `toolset.json` is unchanged from the normal SDK's — still just
+`"swiftCompiler": { "extraCLIOptions": ["-static-stdlib"] }`.
 
 ## How to build it
 
@@ -44,8 +91,12 @@ The environment variable is read in exactly two places:
   -DSWIFT_STDLIB_STABLE_ABI=FALSE
   ```
 
-  and nothing else. `--extra-cmake-options` is appended last to the WASI stdlib
-  configure, so these override the defaults in swift's `wasmstdlibhelpers.py`.
+  `--extra-cmake-options` is appended last to the WASI stdlib configure, so
+  these override the defaults in swift's `wasmstdlibhelpers.py`. The same
+  block also passes `--wasi-swift-sdk-lto=full` to `utils/build-script`, which
+  is what carries LTO into the Foundation stack; it deliberately does *not*
+  pass `--wasi-swift-sdk-hermetic-seal-at-link` (see the note on sealing
+  above).
 
 - `tools/build/package-toolchain`, which inserts a `hermetic-lto-` infix before
   the target triple.
@@ -95,6 +146,73 @@ its own sccache key. Only the `main` scheme has it; release schemes do not.
   and unsealed, because they are not part of a shipped product. Tests still
   build and run against the variant.
 
+## Known issues
+
+These are all open as of the first complete build of this flavour. The first
+one means the variant **must not be used for production builds yet**.
+
+### The sealed standard library traps at runtime in some generic code
+
+28 of the 466 standard-library and concurrency-runtime tests selected by the
+filtered executable lit run fail against the variant (233 pass, 204 are
+unsupported, 1 fails expectedly). Every one of the 28 is a *runtime* failure,
+not a compile failure; 24 of them are
+`Trap: indirect call to null element (uninitialized element 0)`, i.e. a call
+through a function-table slot that link-time elimination emptied while a live
+path still reaches it.
+
+It reproduces in five lines:
+
+```swift
+func mfw<T: FixedWidthInteger>(_ a: T, _ b: T) -> (high: T, low: T.Magnitude) {
+  return a.multipliedFullWidth(by: b)
+}
+let r = mfw(UInt128(1234567890), UInt128(987654321))
+print(r.high, r.low)
+```
+
+That program traps against the variant, prints the correct answer against the
+normal SDK built from the same base snapshot, and prints the correct answer
+against the variant when linked with `-Xlinker --lto-O0`. So it is not a
+wasm32, WasmKit or snapshot regression, and it is not symbol resolution: it is
+an LTO-pipeline optimisation over the sealed bitcode — most likely
+virtual-function or witness-method elimination, or whole-program
+devirtualisation — removing something a live path still calls.
+
+Under investigation. Which of the two settings is responsible
+(`SWIFT_STDLIB_ENABLE_LTO=full` or
+`SWIFT_STDLIB_EXPERIMENTAL_HERMETIC_SEAL_AT_LINK=TRUE`) has not been determined
+yet; that needs one more standard-library build with the seal turned off.
+
+### Application-wide LTO does not autolink on WebAssembly
+
+Compiling your *own* modules with `-lto=` and a stock toolchain produces
+bitcode objects that carry no autolink information the linker can use, so no
+Swift runtime archive is pulled into the link at all and it fails with a very
+large number of undefined symbols (`swift_release`, `swift_retain`,
+`_swiftEmptyArrayStorage`, ...).
+
+The cause is upstream and needs two changes, one on each side: Swift's IRGen
+emits `!llvm.dependent-libraries` metadata only when the output object format
+is ELF and LTO is on, so for Wasm it emits nothing usable; and `wasm-ld` does
+not read that metadata out of bitcode even when it is present. Until both land,
+an application that compiles its own modules with `-lto=` has to pass the
+needed `-l` archives explicitly on the link line. The exact set can be derived
+by building the same package once *without* LTO and reading the autolink
+entries out of the resulting native objects.
+
+Applications that use the variant without `-lto=` on their own modules are not
+affected: their objects are native, autolink works as usual, and the library
+side still gets LTO.
+
+### The link is single-threaded by default
+
+The static-executable response file the Swift driver uses for WASI passes
+`--threads=1` to `wasm-ld`, which makes the LTO link serial. That is fine for
+a normal build and expensive here, where the link is a whole-program compile.
+Pass `-Xlinker --threads=N` from your own toolset to override it. The default
+is upstream's call and is deliberately left alone in this repository.
+
 ## Recommended application flags
 
 Nothing is mandatory: `wasm-ld` recognises bitcode archive members by itself,
@@ -106,7 +224,9 @@ wrong.
 Put them in your own package's toolset, or pass them on the command line:
 
 - `-lto=llvm-full` for your own modules, so the application is optimised
-  together with the sealed library rather than merely against it.
+  together with the sealed library rather than merely against it. Note that
+  this currently requires spelling out the runtime archives to link; see
+  [Known issues](#known-issues).
 - `-Xlinker --lto-O1` — LTO codegen optimisation level at link time. `--lto-O2`
   and above cost a lot of link time for little size.
 - `-Xlinker --gc-sections` — discard unreferenced sections.
@@ -149,7 +269,17 @@ is dropped as soon as that pull request is in the pinned snapshot.
 | Patch | What it does | Upstream | Removal condition |
 | ----- | ------------ | -------- | ----------------- |
 | `0001-stdlib-Pair-hermetic-seal-at-link-with-the-selected-stdlib-LTO-mode.patch` | Emits the matching `-lto=llvm-full` / `-lto=llvm-thin` inside the hermetic-seal block of `stdlib/cmake/modules/SwiftSource.cmake`, and raises a `FATAL_ERROR` for any other LTO value. The frontend rejects `-experimental-hermetic-seal-at-link` without an `-lto=` mode, and upstream computes the two in different CMake functions with no guard. | [swiftlang/swift#90654](https://github.com/swiftlang/swift/pull/90654) | merged into the pinned base snapshot |
-| `0002-build-script-Add-WASI-Swift-SDK-LTO-options.patch` | Adds `--wasi-swift-sdk-lto` and `--wasi-swift-sdk-hermetic-seal-at-link` to `utils/build-script`, threading LTO flags into the Foundation stack (corelibs-foundation with the swift-foundation sources, CoreFoundation, FoundationICU, libxml2). `SWIFT_STDLIB_ENABLE_LTO` never reaches those; they are separate CMake projects with their own flags. | upstream PR to be opened by the maintainer (prepared on branch `katei/wasi-swift-sdk-lto-option`) | merged into the pinned base snapshot |
+| `0002-build-script-Add-WASI-Swift-SDK-LTO-options.patch` | Adds `--wasi-swift-sdk-lto` and `--wasi-swift-sdk-hermetic-seal-at-link` to `utils/build-script`, threading LTO flags into the Foundation stack (corelibs-foundation with the swift-foundation sources, CoreFoundation, FoundationICU, libxml2). `SWIFT_STDLIB_ENABLE_LTO` never reaches those; they are separate CMake projects with their own flags. With an LTO mode selected it also points `CMAKE_AR`/`CMAKE_RANLIB` at `--native-llvm-tools-path` (GNU `ar` cannot index bitcode produced by a newer LLVM than its plugin and silently writes an incomplete symbol table) and defines `FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION`. | upstream PR to be opened by the maintainer (prepared on branch `katei/wasi-swift-sdk-lto-option`) | merged into the pinned base snapshot |
+
+`schemes/main/swift-corelibs-foundation/` and `schemes/main/swift-foundation/`
+carry one patch each; `tools/git-swift-workspace` applies
+`schemes/<scheme>/<repo>` for every repository it knows about, so the directory
+name is the update-checkout repository name.
+
+| Patch | What it does | Upstream | Removal condition |
+| ----- | ------------ | -------- | ----------------- |
+| `swift-corelibs-foundation/0001-cmake-Allow-opting-out-of-the-CMP0157-Swift-split-compilation-model.patch` | Makes the `cmake_policy(SET CMP0157 NEW)` line conditional on `FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION`. CMake's Swift split-compilation model drives the compiler with an output-file-map naming only `object` outputs; under `-lto=` the driver emits LLVM bitcode, ignores those entries and derives `<basename>.bc` names in the working directory, so the object files CMake declared are never created and the archive step fails with `error opening input file ... .swift.obj`. Opting out restores the one-step compile-and-archive rule, where the driver names and archives its own outputs. The default is unchanged. | upstream PR to be opened by the maintainer | merged into the pinned base snapshot, or fixed in swift-driver / CMake so that split compilation and `-lto=` work together |
+| `swift-foundation/0001-cmake-Allow-opting-out-of-the-CMP0157-Swift-split-compilation-model.patch` | The same one-line change in `swift-foundation`, whose sources are built by the same configure. | upstream PR to be opened by the maintainer | as above |
 
 ## Why full LTO and not thin
 
