@@ -31,36 +31,102 @@ XCTest and swift-testing are neither bitcode nor sealed.
 This variant is **binary-incompatible** with the normal Swift SDK. It exists
 alongside it, never in place of it.
 
-Please read [Known issues](#known-issues) before using it: as of this writing
-the sealed standard library still fails 28 executable standard-library tests at
-runtime, so the variant is not ready for production use.
+## The link contract
+
+**Every Swift module that ends up in the link must be compiled with
+`-experimental-hermetic-seal-at-link -lto=llvm-full`.** This is a requirement
+for *correctness*, not a size preference, and it is the single most important
+thing to know about this SDK.
+
+The hermetic seal is a whole-program contract. It makes IRGen attach
+virtual-function-elimination metadata to every witness table and vtable and
+lower witness-method dispatch to `llvm.type.checked.load`. At link time
+GlobalDCE keeps only the table slots for which it can see a matching checked
+load. A module compiled *without* the seal dispatches through an ordinary load
+that GlobalDCE cannot see, so it concludes the witness is dead and writes a
+null into the slot -- and on WebAssembly a null function pointer is table index
+0, so the program traps with `indirect call to null element` the first time it
+reaches that requirement through unspecialised generic code. It is a
+miscompile, not a missed optimisation.
+
+The bundle's `toolset.json` therefore carries the contract, so that a normal
+SwiftPM build gets it automatically:
+
+```jsonc
+{
+  "swiftCompiler": { "extraCLIOptions": [
+    "-static-stdlib",
+    "-experimental-hermetic-seal-at-link",
+    "-lto=llvm-full"
+  ] },
+  "linker": { "extraCLIOptions": [
+    "-lswiftSwiftOnoneSupport", "-lswiftCore", "-lswiftObservation", ...
+    "-lwasi-emulated-getpid", "-lwasi-emulated-mman", "-lwasi-emulated-signal",
+    "-lxml2"
+  ] }
+}
+```
+
+Two things follow, and both are unavoidable today:
+
+- **SwiftPM has to be told about the LTO mode as well**: build with
+  `swift build --experimental-lto-mode=full`. With an LTO mode selected the
+  driver writes LLVM bitcode, and SwiftPM only names its object files `.bc`
+  (and hands them to the link) when its *own* flag is set. Without it an
+  executable target fails with
+  `clang: error: no such file or directory: '<module>.swift.o'`. The SDK
+  toolset has no way to set a SwiftPM build setting.
+- **`-lto=llvm-thin` is not an alternative.** A ThinLTO client cannot link
+  against this SDK at all: `wasm-ld: error: inconsistent LTO Unit splitting
+  (recompile with -fsplit-lto-unit)`. The sealed standard library is a
+  full-LTO, split-LTO-unit module and the stock frontend does not emit ThinLTO
+  bitcode for object output at all (see
+  [Why full LTO and not thin](#why-full-lto-and-not-thin)).
+
+The explicit `-l` list in `linker.extraCLIOptions` is there because a bitcode
+client cannot autolink on WebAssembly with a stock toolchain: under `-lto=` the
+client's objects are bitcode and carry no autolink information the linker
+reads, so the `@*.autolink` response file the Swift driver normally builds with
+`swift-autolink-extract` is empty and *no* Swift runtime archive reaches the
+link (`static-executable-args.lnk` names only `-lswiftSwiftOnoneSupport`). The
+SDK therefore names its own archives; `tools/build/package-toolchain` derives
+the list from what the bundle actually ships, so it stays correct as the SDK's
+contents change. The upstream fixes are pending on both sides -- Swift's IRGen
+emitting `!llvm.dependent-libraries` for Wasm under LTO, and `wasm-ld` reading
+it out of bitcode.
+
+Please read [Known issues](#known-issues) before using it: `swift test` and
+some Foundation APIs do not work against this flavour yet.
 
 ## Measured results
 
-From the first complete build of this flavour, against base snapshot
-`swift-DEVELOPMENT-SNAPSHOT-2026-08-30-a`:
+Against base snapshot `swift-DEVELOPMENT-SNAPSHOT-2026-08-30-a`, with the link
+contract in force (which is what the toolset now does automatically):
 
 | | normal SDK | this variant |
 | --- | --- | --- |
-| hello-world executable (`swift build`, unoptimised, unstripped) | 3,438,013 bytes | **1,347,818 bytes** |
+| hello-world executable (`swift build`, unoptimised, unstripped) | 3,438,013 bytes | **2,394,531 bytes** |
 
 Building and linking that hello-world from a clean scratch path took about
-11 s wall clock against the variant, essentially all of it the LTO link.
+19 s wall clock against the variant, essentially all of it the LTO link.
+
+An earlier measurement of the same program against this flavour reported
+1,347,818 bytes, but that build did not honour the contract -- it was smaller
+precisely because GlobalDCE had removed witness entries it should have kept.
+Do not compare against it.
 
 The e2e suite (`./tools/build/run-e2e-test --scheme main`) is green against the
-variant bundle: 5 passed, 2 unsupported (both pre-existing `REQUIRES: GH-5587`),
-0 failed.
+variant bundle: 2 passed, 5 unsupported, 0 failed. Two of the unsupported are
+the pre-existing `REQUIRES: GH-5587` skips; the other three are the Foundation
+tests listed under [Known issues](#known-issues).
 
 The artifact bundles themselves are large, because every archive carries
 bitcode rather than object code:
 
 ```
-swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1.artifactbundle.zip          231,208,410 bytes
-swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1-threads.artifactbundle.zip  231,246,052 bytes
+swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1.artifactbundle.zip          231,208,724 bytes
+swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1-threads.artifactbundle.zip  231,246,350 bytes
 ```
-
-The bundle's `toolset.json` is unchanged from the normal SDK's — still just
-`"swiftCompiler": { "extraCLIOptions": ["-static-stdlib"] }`.
 
 ## How to build it
 
@@ -99,7 +165,13 @@ The environment variable is read in exactly two places:
   above).
 
 - `tools/build/package-toolchain`, which inserts a `hermetic-lto-` infix before
-  the target triple.
+  the target triple *and* post-processes each generated
+  `<bundle>/<sdk-id>/<triple>/toolset.json` to carry the link contract (the two
+  compiler flags and the explicit runtime-archive `-l` list). The `-l` list is
+  derived from the archives the bundle actually ships rather than hardcoded;
+  `embedded-toolset.json` is left as generated, because embedded Swift does not
+  use those archives. `./tools/build/package-toolchain --self-test` checks that
+  merge without needing a build tree.
 
 With the variable unset, the `utils/build-script` argument vector and every
 derived name are identical to the default build.
@@ -143,67 +215,73 @@ its own sccache key. Only the `main` scheme has it; release schemes do not.
   round-tripping against the standard library will not behave as it does with
   the normal SDK.
 - **XCTest and swift-testing are untouched** by this flavour: they stay native
-  and unsealed, because they are not part of a shipped product. Tests still
-  build and run against the variant.
+  and unsealed, because they are not part of a shipped product. That makes them
+  the one part of the SDK that cannot meet the link contract, so `swift test`
+  does not work against this variant -- see [Known issues](#known-issues).
 
 ## Known issues
 
-These are all open as of the first complete build of this flavour. The first
-one means the variant **must not be used for production builds yet**.
+### `swift test` is not supported
 
-### The sealed standard library traps at runtime in some generic code
+XCTest and swift-testing are shipped native and unsealed, so a test executable
+cannot satisfy the link contract: the test libraries reach standard-library
+protocol requirements through ordinary witness loads, and GlobalDCE nulls those
+slots. The executable *links*, and a package whose test target contains no
+`XCTestCase` even runs (reporting zero tests), but as soon as there is a real
+test case the runner traps:
 
-28 of the 466 standard-library and concurrency-runtime tests selected by the
-filtered executable lit run fail against the variant (233 pass, 204 are
-unsupported, 1 fails expectedly). Every one of the 28 is a *runtime* failure,
-not a compile failure; 24 of them are
-`Trap: indirect call to null element (uninitialized element 0)`, i.e. a call
-through a function-table slot that link-time elimination emptied while a live
-path still reaches it.
-
-It reproduces in five lines:
-
-```swift
-func mfw<T: FixedWidthInteger>(_ a: T, _ b: T) -> (high: T, low: T.Magnitude) {
-  return a.multipliedFullWidth(by: b)
-}
-let r = mfw(UInt128(1234567890), UInt128(987654321))
-print(r.high, r.low)
+```
+wasm trap: uninitialized element
+    0: $s6XCTest11XCTMainMisc_9arguments9observers...
+    ...
+    7: main
 ```
 
-That program traps against the variant, prints the correct answer against the
-normal SDK built from the same base snapshot, and prints the correct answer
-against the variant when linked with `-Xlinker --lto-O0`. So it is not a
-wasm32, WasmKit or snapshot regression, and it is not symbol resolution: it is
-an LTO-pipeline optimisation over the sealed bitcode — most likely
-virtual-function or witness-method elimination, or whole-program
-devirtualisation — removing something a live path still calls.
+`swift test` against the hermetic variant is unsupported until the test
+libraries are shipped sealed. Do not work around it by sealing your own test
+target -- the trap is inside XCTest, not in your code. Use the normal Swift SDK
+to run tests and the variant for release-shaped builds and size measurements.
 
-Under investigation. Which of the two settings is responsible
-(`SWIFT_STDLIB_ENABLE_LTO=full` or
-`SWIFT_STDLIB_EXPERIMENTAL_HERMETIC_SEAL_AT_LINK=TRUE`) has not been determined
-yet; that needs one more standard-library build with the seal turned off.
+### Foundation APIs that dispatch through open class members do not link
 
-### Application-wide LTO does not autolink on WebAssembly
+The seal makes a client call `open` class members through their *dispatch
+thunks* (`...Tj` symbols). The Foundation stack is shipped as bitcode but is
+**not** sealed, and it emits no dispatch thunks for those members, so the link
+fails, for example with
 
-Compiling your *own* modules with `-lto=` and a stock toolchain produces
-bitcode objects that carry no autolink information the linker can use, so no
-Swift runtime archive is pulled into the link at all and it fails with a very
-large number of undefined symbols (`swift_release`, `swift_retain`,
-`_swiftEmptyArrayStorage`, ...).
+```
+wasm-ld: error: Check.wasm.lto.o: undefined symbol: $s10Foundation6BundleC10bundlePathSSvgTj
+```
+
+Three e2e tests are marked `UNSUPPORTED: hermetic-lto` for this reason:
+`foundation/Bundle.swift`, `foundation/FileManager.swift` and
+`foundation/XML.swift`. `foundation/ProcessInfo.swift`, and Foundation value
+types and structs in general, are unaffected and pass.
+
+This is not specific to this flavour: sealing a client against the *normal*
+Swift SDK produces exactly the same undefined thunk references, so it is an
+upstream mismatch between `-experimental-hermetic-seal-at-link` and the way
+Foundation is built. It goes away once Foundation itself can be sealed, which
+is blocked on the `typeIdForMethod` assertion described above.
+
+### Autolinking still has to be spelled out for libraries the SDK does not ship
+
+Under `-lto=` a stock toolchain emits no autolink information the linker can
+read out of WebAssembly bitcode, so nothing is pulled from an archive unless it
+is named on the link line. The SDK's own archives are **handled by the
+toolset** (see [The link contract](#the-link-contract)). Any *other* autolinked
+library -- a C library your package depends on, a system library a third-party
+package expects to be picked up automatically -- has to be passed by hand with
+`-Xlinker -l<name>`, plus `-Xlinker -L<dir>` if it is not on the default search
+path.
 
 The cause is upstream and needs two changes, one on each side: Swift's IRGen
 emits `!llvm.dependent-libraries` metadata only when the output object format
 is ELF and LTO is on, so for Wasm it emits nothing usable; and `wasm-ld` does
 not read that metadata out of bitcode even when it is present. Until both land,
-an application that compiles its own modules with `-lto=` has to pass the
-needed `-l` archives explicitly on the link line. The exact set can be derived
-by building the same package once *without* LTO and reading the autolink
-entries out of the resulting native objects.
-
-Applications that use the variant without `-lto=` on their own modules are not
-affected: their objects are native, autolink works as usual, and the library
-side still gets LTO.
+the explicit list is the only option. If you need to work out the list for a
+package, build it once *without* LTO and run `swift-autolink-extract` over the
+resulting native objects.
 
 ### The link is single-threaded by default
 
@@ -213,20 +291,40 @@ a normal build and expensive here, where the link is a whole-program compile.
 Pass `-Xlinker --threads=N` from your own toolset to override it. The default
 is upstream's call and is deliberately left alone in this repository.
 
-## Recommended application flags
+### Resolved: the sealed standard library trapping at runtime
 
-Nothing is mandatory: `wasm-ld` recognises bitcode archive members by itself,
-and `toolset.json` in the bundle is byte-identical to the normal SDK's. The
-following are recommendations, deliberately *not* baked into the SDK — flags in
-an SDK toolset leak into host-side macro and plugin builds, where they are
-wrong.
+The first complete build of this flavour failed 28 of the 466 standard-library
+and concurrency-runtime tests selected by the filtered executable lit run, 24
+of them with `Trap: indirect call to null element (uninitialized element 0)`,
+and it reproduced in five lines:
 
-Put them in your own package's toolset, or pass them on the command line:
+```swift
+func mfw<T: FixedWidthInteger>(_ a: T, _ b: T) -> (high: T, low: T.Magnitude) {
+  return a.multipliedFullWidth(by: b)
+}
+let r = mfw(UInt128(1234567890), UInt128(987654321))
+print(r.high, r.low)
+```
 
-- `-lto=llvm-full` for your own modules, so the application is optimised
-  together with the sealed library rather than merely against it. Note that
-  this currently requires spelling out the runtime archives to link; see
-  [Known issues](#known-issues).
+That was the unmet link contract, not a miscompiled library: the test
+executables were built unsealed against a sealed standard library, so GlobalDCE
+nulled the witness-table slots they dispatched through. The same program built
+under the contract prints the right answer. The toolset now enforces the
+contract for SwiftPM builds, so this is resolved for anything that goes through
+`swift build`; anything that compiles Swift by hand has to pass the two flags
+itself.
+
+The escape hatch for code that genuinely cannot be sealed is
+`-Xlinker --mllvm=-enable-vfe=false`, which turns virtual-function elimination
+off for the whole link. It works with unsealed clients and costs roughly 40% of
+the binary, i.e. most of what the seal buys.
+
+## Application build flags
+
+The link contract is not optional and is already in the toolset; see
+[The link contract](#the-link-contract). Beyond it, and beyond the
+`--experimental-lto-mode=full` that SwiftPM needs, these are worth setting:
+
 - `-Xlinker --lto-O1` — LTO codegen optimisation level at link time. `--lto-O2`
   and above cost a lot of link time for little size.
 - `-Xlinker --gc-sections` — discard unreferenced sections.
