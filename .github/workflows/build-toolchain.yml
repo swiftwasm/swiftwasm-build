@@ -316,8 +316,11 @@ jobs:
       - name: Run integration tests (Swift SDK)
         if: ${{ matrix.run_e2e_test }}
         run: |
+          # The hermetic full-LTO flavour turns every e2e link into a full
+          # whole-program LTO link; four parallel lit workers exhaust the
+          # runner's memory (exit 137), so run them one at a time.
           docker exec swiftwasm-ci-buildbot /bin/bash -lc \
-            "./swiftwasm-build/tools/build/run-e2e-test --scheme ${{ matrix.scheme }}"
+            "./swiftwasm-build/tools/build/run-e2e-test --scheme ${{ matrix.scheme }}${{ matrix.hermetic_lto && ' -- -j1' || '' }}"
 
       - name: Cleanup docker volume
         if: ${{ matrix.container != null }}
