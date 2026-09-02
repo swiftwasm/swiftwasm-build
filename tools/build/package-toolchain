@@ -148,6 +148,23 @@ class PackageSwiftSDKAction(Action):
         os.chdir(old_cwd)
 
 
+def derive_variant_infix() -> str:
+    """
+    The infix inserted into both the Swift SDK id and the artifact bundle name
+    to distinguish build flavours of the same base snapshot.
+
+    Returns "hermetic-lto-" for the hermetic full-LTO flavour selected by
+    SWIFTWASM_HERMETIC_LTO=1, and "" for the default flavour.
+
+    The infix is placed *before* the target triple so that
+    tools/gh-distribute-toolchain keeps deriving a triple-free release tag from
+    the SDK id. See docs/hermetic-lto-sdk.md.
+    """
+    if os.environ.get("SWIFTWASM_HERMETIC_LTO") == "1":
+        return "hermetic-lto-"
+    return ""
+
+
 def derive_toolchain_channel(scheme: str) -> str:
     release_scheme_prefix = "release-"
     if scheme == "main":
@@ -204,6 +221,7 @@ def main():
         os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
 
     toolchain_channel = derive_toolchain_channel(options.scheme)
+    variant_infix = derive_variant_infix()
     triples = [
         ["wasm32-unknown-wasip1", "wasm32-wasip1"],
     ]
@@ -227,14 +245,14 @@ def main():
             now.year, now.month, now.day,
             swift_version=options.swift_version or derive_swift_version(
                 options.daily_snapshot, toolchain_channel, now),
-            artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT-{target_triple}",
+            artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT-{variant_infix}{target_triple}",
             daily_snapshot=options.daily_snapshot
         )
         actions.append(PackageSwiftSDKAction(
             options, snapshot_info,
             target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain', target_triple),
             wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir, short_triple),
-            swift_sdk_name=f"{snapshot_info.swift_version}-{target_triple}",
+            swift_sdk_name=f"{snapshot_info.swift_version}-{variant_infix}{target_triple}",
             target_triple=target_triple,
         ))
 
