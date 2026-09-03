@@ -1,102 +1,34 @@
 # Hermetic full-LTO Swift SDK variant
 
 The `main` scheme can build a second, size-optimised flavour of the WebAssembly
-Swift SDK. Setting `SWIFTWASM_HERMETIC_LTO=1` ships the Swift standard library,
-the Swift runtime and the Foundation stack as **LLVM bitcode** inside their
-static archives, compiled **without library evolution**, and tells the compiler
-that every client of the standard library and the runtime is visible at the
-final link.
+Swift SDK. Setting `SWIFTWASM_HERMETIC_LTO=1` ships every library in the SDK -- the
+Swift standard library, the Swift runtime, the Foundation stack, swift-testing
+and XCTest -- as **LLVM bitcode** inside their static archives, compiled
+**without library evolution**, and tells the compiler that every client of them
+is visible at the final link.
 
 `wasm-ld` then runs whole-program link-time optimisation over the application
 plus the libraries and discards everything unreachable, including protocol
 conformance records that the resilient standard library has to keep.
 
-**Bitcode and sealing are two different things here.** Everything shipped as
-bitcode takes part in the whole-program LTO: the standard library, the Swift
-runtime, the Foundation stack (corelibs-foundation with the swift-foundation
-sources, CoreFoundation, FoundationICU) and libxml2. But only the standard
-library and the runtime are additionally *hermetically sealed*
+Every Swift library in the SDK is both bitcode and *hermetically sealed*
 (`-experimental-hermetic-seal-at-link`, which enables virtual-function and
-witness-method elimination). Foundation is not sealed, because the compiler in
-the pinned base snapshot asserts when it is: sealing makes it emit
-virtual-method type ids, and it cannot map an *overriding* designated
-initializer back to its base method, so
-`swift-frontend` aborts in `typeIdForMethod` (`GenClass.cpp`) on
-`NSMutableDictionary.init(sharedKeySet:)`. Foundation therefore still gets LTO
-and dead-code elimination, just not devirtualisation-driven elimination. That
-assertion, and a second one on imported CF types right behind it, are both
-fixed in a compiler patch series prepared for upstreaming; the seal will be
-turned on for Foundation once a pinned snapshot contains them. See
-[Status with the pending compiler fixes](#status-with-the-pending-compiler-fixes).
+witness-method elimination): the standard library, the Swift runtime, the
+Foundation stack (corelibs-foundation with the swift-foundation sources,
+CoreFoundation, FoundationICU), swift-testing and XCTest. The C and C++ pieces
+(libxml2, CoreFoundation's C sources, `_TestingInternals`) get `-flto=full`,
+which is all the seal means for a language with no witness tables. Every
+library therefore emits the dispatch thunks a sealed client calls, and a test
+executable can meet the link contract like any other program.
 
-XCTest and swift-testing are neither bitcode nor sealed.
+swift-testing is additionally built **without library evolution** and installs
+binary `.swiftmodule` files instead of `.swiftinterface` ones -- see
+[Carried patches](#carried-patches). A resilient module cannot be sealed: the
+driver rejects `-enable-library-evolution` together with
+`-experimental-hermetic-seal-at-link`.
 
 This variant is **binary-incompatible** with the normal Swift SDK. It exists
 alongside it, never in place of it.
-
-## Status with the pending compiler fixes
-
-**Read this before the limitations below.** Most of them are properties of the
-*pinned base snapshot's compiler*, not of this SDK flavour, and they have all
-been fixed and validated against a locally built toolchain. That compiler patch
-series is **prepared for upstreaming** and is not in any released snapshot yet,
-so everything in [Known issues](#known-issues) still applies to the bundles
-this repository publishes today.
-
-With the series in place, an assertions-enabled `swift-frontend` built from a
-recent snapshot plus the patches, and the SDK rebuilt by it with
-`--wasi-swift-sdk-hermetic-seal-at-link` added:
-
-- **Foundation can be sealed.** Both compiler assertions that stopped it are
-  fixed (see the TODO in
-  [`schemes/main/build/build-target-toolchain.sh`](../schemes/main/build/build-target-toolchain.sh)
-  for the exact two, with a reproducer). The Foundation compile really carries
-  `-lto=llvm-full -enable-llvm-vfe -enable-llvm-wme -conditional-runtime-records
-  -internalize-at-link` and finishes with no assertion.
-- **The Foundation class-method limitation goes away.** A sealed Foundation
-  emits dispatch thunks again: `libFoundation.a` defines 2,168 `...Tj` symbols
-  where the current bundles define none, `libFoundationEssentials.a` 538 and
-  `libFoundationXML.a` 236. The three e2e tests marked
-  `UNSUPPORTED: hermetic-lto` -- `foundation/Bundle.swift`,
-  `foundation/FileManager.swift` and `foundation/XML.swift` -- pass with the
-  marker removed, and the whole e2e suite is green. So does a sealed program
-  calling `NSLock.lock()`, and so do applications that call Foundation class
-  methods, which is the case
-  [Known issues](#foundation-apis-that-dispatch-through-open-class-members-do-not-link)
-  says cannot link today.
-- **The manual archive list goes away.** With Wasm autolink metadata emitted by
-  the frontend under LTO and read back by `wasm-ld`, a whole-program link
-  resolves every runtime archive from `!llvm.dependent-libraries` with no
-  explicit `-l` flags at all. The
-  `linker.extraCLIOptions` list that `tools/build/package-toolchain` derives,
-  and the manual `-Xlinker -l<name>` workaround for other autolinked
-  libraries, both become unnecessary. (The toolset list is harmless and can be
-  kept as belt and braces; naming an archive that is also autolinked changes
-  nothing.)
-- **The filtered standard-library executable suite is down to one failure.**
-  Under the link contract it went from ten failures to one, and that one --
-  `stdlib/KeyPath`, which traps with `invalid unsafeDowncast` in the "key path
-  in-place instantiation" case -- is **pre-existing**: it reproduces with LTO
-  optimisation off and with virtual-function elimination off, and until the
-  debug-info fix in the series it was hidden behind a link failure. Six of the
-  nine that were fixed were general compiler bugs with nothing to do with
-  WebAssembly, LTO or the seal; three were resilience-incompatible tests that
-  now report `UNSUPPORTED` through a new lit feature instead of failing.
-- **A large real-world application links under the contract**, with Foundation,
-  the standard library and every application module sealed, needs no
-  hand-derived archive list, passes every structural and runtime gate, and
-  measures substantially smaller than the same application against the same SDK
-  with the seal switched off -- which was the only thing possible before. That
-  reverses this document's earlier conclusion that the flavour is "only useful
-  for programs that stay on Foundation value types and the standard library".
-
-`--wasi-swift-sdk-hermetic-seal-at-link` will be re-enabled in
-`schemes/main/build/build-target-toolchain.sh`, and the corresponding
-[Known issues](#known-issues) entries and e2e `UNSUPPORTED: hermetic-lto`
-markers removed, **once the pinned base snapshot in
-`schemes/main/manifest.json` contains the two frontend fixes** listed in that
-script's TODO. Nothing in this repository has to change before then; the
-limitation is a property of the pinned compiler.
 
 ## The link contract
 
@@ -162,8 +94,7 @@ contents change. The upstream fixes are pending on both sides -- Swift's IRGen
 emitting `!llvm.dependent-libraries` for Wasm under LTO, and `wasm-ld` reading
 it out of bitcode.
 
-Please read [Known issues](#known-issues) before using it: `swift test` and
-some Foundation APIs do not work against this flavour yet.
+Please read [Known issues](#known-issues) before using it.
 
 ## Measured results
 
@@ -183,19 +114,32 @@ precisely because GlobalDCE had removed witness entries it should have kept.
 Do not compare against it.
 
 The e2e suite (`./tools/build/run-e2e-test --scheme main`) is green against the
-variant bundle: 2 passed, 5 unsupported, 0 failed. Two of the unsupported are
-the pre-existing `REQUIRES: GH-5587` skips; the other three are the Foundation
-tests listed under [Known issues](#known-issues).
+variant bundle: 6 passed, 1 unsupported, 0 failed. The one unsupported is the
+pre-existing `REQUIRES: GH-5587` skip on `clang-module.swift`.
 
 The artifact bundles themselves are large, because every archive carries
 bitcode rather than object code:
 
 ```
-swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1.artifactbundle.zip          231,208,724 bytes
-swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1-threads.artifactbundle.zip  231,246,350 bytes
+swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1.artifactbundle.zip          232,718,898 bytes
+swift-wasm-DEVELOPMENT-SNAPSHOT-hermetic-lto-wasm32-unknown-wasip1-threads.artifactbundle.zip  232,748,369 bytes
 ```
 
 ## How to build it
+
+> **This flavour needs a base compiler that carries the pending frontend
+> fixes.** Sealing the Foundation stack makes the pinned 2026-08-30-a
+> `swift-frontend` abort in `typeIdForMethod` (`GenClass.cpp`) on
+> `NSMutableDictionary`'s overriding designated initializer, and in
+> `addVTableTypeMetadata` (`GenMeta.cpp`) on an imported CF type. Both fixes
+> are in a compiler patch series prepared for upstreaming and are **not** in
+> any released snapshot yet, so the flavour only builds against a toolchain
+> that contains them. Point the build at one with
+> `SWIFTWASM_PREVIEW_TOOLCHAIN_URL` (the `preview_toolchain_url` input of
+> `.github/workflows/build-toolchain.yml`), or, for a local build tree, with
+> `--swift-bin` / `--clang-bin` / `--llvm-bin` on
+> `schemes/main/build/build-target-toolchain.sh`. Once a pinned snapshot
+> contains the fixes this note can be deleted.
 
 ```
 $ SWIFTWASM_HERMETIC_LTO=1 ./tools/build/ci.sh main
@@ -226,10 +170,10 @@ The environment variable is read in exactly two places:
 
   `--extra-cmake-options` is appended last to the WASI stdlib configure, so
   these override the defaults in swift's `wasmstdlibhelpers.py`. The same
-  block also passes `--wasi-swift-sdk-lto=full` to `utils/build-script`, which
-  is what carries LTO into the Foundation stack; it deliberately does *not*
-  pass `--wasi-swift-sdk-hermetic-seal-at-link` (see the note on sealing
-  above).
+  block also passes `--wasi-swift-sdk-lto=full` and
+  `--wasi-swift-sdk-hermetic-seal-at-link` to `utils/build-script`, which is
+  what carries LTO and the seal into the libraries that are built as their own
+  CMake projects: the Foundation stack, swift-testing and XCTest.
 
 - `tools/build/package-toolchain`, which inserts a `hermetic-lto-` infix before
   the target triple *and* post-processes each generated
@@ -281,69 +225,38 @@ its own sccache key. Only the `main` scheme has it; release schemes do not.
   stability, mangling stability across builds, or `swiftinterface`
   round-tripping against the standard library will not behave as it does with
   the normal SDK.
-- **XCTest and swift-testing are untouched** by this flavour: they stay native
-  and unsealed, because they are not part of a shipped product. That makes them
-  the one part of the SDK that cannot meet the link contract, so `swift test`
-  does not work against this variant -- see [Known issues](#known-issues).
+- **swift-testing has no library evolution here.** The `Testing`,
+  `_TestDiscovery`, `_TestingInterop` and `_Testing_Foundation` modules are
+  shipped as binary `.swiftmodule` files rather than `.swiftinterface` files,
+  so they are only usable with the compiler that built them -- the same
+  constraint the standard library already has in this flavour.
 
 ## Known issues
 
-### `swift test` is not supported
+### Running tests needs a preopened directory, and XCTest needs `--build-system native`
 
-XCTest and swift-testing are shipped native and unsealed, so a test executable
-cannot satisfy the link contract: the test libraries reach standard-library
-protocol requirements through ordinary witness loads, and GlobalDCE nulls those
-slots. The executable *links*, and a package whose test target contains no
-`XCTestCase` even runs (reporting zero tests), but as soon as there is a real
-test case the runner traps:
+Both are pre-existing wasm problems, not consequences of this flavour: they
+reproduce identically against the **normal** Swift SDK.
 
-```
-wasm trap: uninitialized element
-    0: $s6XCTest11XCTMainMisc_9arguments9observers...
-    ...
-    7: main
-```
-
-`swift test` against the hermetic variant is unsupported until the test
-libraries are shipped sealed. Do not work around it by sealing your own test
-target -- the trap is inside XCTest, not in your code. Use the normal Swift SDK
-to run tests and the variant for release-shaped builds and size measurements.
-
-### Foundation APIs that dispatch through open class members do not link
-
-The seal makes a client call `open` class members through their *dispatch
-thunks* (`...Tj` symbols). The Foundation stack is shipped as bitcode but is
-**not** sealed, and it emits no dispatch thunks for those members, so the link
-fails, for example with
+`XCTMain` reads `Bundle.main`, and on WASI `Bundle.main` traps when the runtime
+has no preopened directory:
 
 ```
-wasm-ld: error: Check.wasm.lto.o: undefined symbol: $s10Foundation6BundleC10bundlePathSSvgTj
+wasm trap: wasm `unreachable` instruction executed
+    0: $s10Foundation6BundleC05_mainB0...LL_WZ
+    1: swift::threading_impl::once_slow(...)
+    2: $s6XCTest11XCTMainMisc_9arguments9observers...
 ```
 
-Three e2e tests are marked `UNSUPPORTED: hermetic-lto` for this reason:
-`foundation/Bundle.swift`, `foundation/FileManager.swift` and
-`foundation/XML.swift`. `foundation/ProcessInfo.swift`, and Foundation value
-types and structs in general, are unaffected and pass.
+Run the test binary with `wasmtime run --dir . <binary>` (any preopen will do).
+swift-testing does not touch `Bundle.main` and runs without one.
 
-This is not specific to this flavour: sealing a client against the *normal*
-Swift SDK produces exactly the same undefined thunk references, so it is an
-upstream mismatch between `-experimental-hermetic-seal-at-link` and the way
-Foundation is built. It goes away once Foundation itself can be sealed, which
-is blocked on the `typeIdForMethod` assertion described above.
+SwiftPM's newer `swiftbuild` build system produces a test runner that discovers
+**zero** XCTest cases on wasm; `swift build --build-system native --build-tests`
+discovers them correctly. swift-testing discovery works under both.
 
-It is also broader than `open` members. A three-line sealed program calling
-`NSLock.lock()` fails the same way (`$s10Foundation6NSLockC4lockyyFTj`), and a
-large real-world application built under the contract referenced several
-hundred distinct missing Foundation thunks. The 2026-08-30-a Foundation
-archives define no `...Tj` symbols at all, in either flavour. In practice,
-**an application that calls Foundation class methods cannot currently link
-under the contract.** Building such an application without the seal does
-link, but then LTO alone gives no size benefit: the sealed-away metadata and
-virtual-function elimination are where the whole win comes from, and in the
-one large application measured this way the post-Binaryen output came out
-slightly larger than with the normal SDK, with a much slower `wasm-opt`
-step. Until Foundation can be sealed, this flavour is only useful for
-programs that stay on Foundation value types and the standard library.
+Note also that swift-testing writes its report to **stderr**, so a pipeline that
+checks its output needs `2>&1 |`.
 
 ### Autolinking still has to be spelled out for libraries the SDK does not ship
 
@@ -371,6 +284,25 @@ The static-executable response file the Swift driver uses for WASI passes
 a normal build and expensive here, where the link is a whole-program compile.
 Pass `-Xlinker --threads=N` from your own toolset to override it. The default
 is upstream's call and is deliberately left alone in this repository.
+
+### Resolved: `swift test` and Foundation dispatch thunks
+
+Earlier revisions of this document said that `swift test` was unsupported and
+that Foundation APIs dispatching through `open` class members could not link
+(`undefined symbol: $s10Foundation6BundleC10bundlePathSSvgTj`). Both were the
+same defect seen from two sides: a library that is not sealed emits no dispatch
+thunks, and a sealed client calls them.
+
+Both are gone. The Foundation stack is sealed -- which needed several
+`swift-frontend` fixes (a `typeIdForMethod` assertion on overriding designated
+initializers, a foreign-class context descriptor without a vtable, and a
+`DISubprogram` nesting problem), all of which are in the base toolchain this
+SDK is built with rather than in this repository -- and so are swift-testing
+and XCTest, so every library in the SDK defines the thunks its clients call. The
+three `UNSUPPORTED: hermetic-lto` markers on `test/swift-sdk/foundation/*.swift`
+have been removed and those tests pass, and a sealed swift-testing executable --
+including one built by `swift build --build-tests` -- runs its tests and reports
+failures correctly.
 
 ### Resolved: the sealed standard library trapping at runtime
 
@@ -449,16 +381,18 @@ is dropped as soon as that pull request is in the pinned snapshot.
 | ----- | ------------ | -------- | ----------------- |
 | `0001-stdlib-Pair-hermetic-seal-at-link-with-the-selected-stdlib-LTO-mode.patch` | Emits the matching `-lto=llvm-full` / `-lto=llvm-thin` inside the hermetic-seal block of `stdlib/cmake/modules/SwiftSource.cmake`, and raises a `FATAL_ERROR` for any other LTO value. The frontend rejects `-experimental-hermetic-seal-at-link` without an `-lto=` mode, and upstream computes the two in different CMake functions with no guard. | [swiftlang/swift#90654](https://github.com/swiftlang/swift/pull/90654) | merged into the pinned base snapshot |
 | `0002-build-script-Add-WASI-Swift-SDK-LTO-options.patch` | Adds `--wasi-swift-sdk-lto` and `--wasi-swift-sdk-hermetic-seal-at-link` to `utils/build-script`, threading LTO flags into the Foundation stack (corelibs-foundation with the swift-foundation sources, CoreFoundation, FoundationICU, libxml2). `SWIFT_STDLIB_ENABLE_LTO` never reaches those; they are separate CMake projects with their own flags. With an LTO mode selected it also points `CMAKE_AR`/`CMAKE_RANLIB` at `--native-llvm-tools-path` (GNU `ar` cannot index bitcode produced by a newer LLVM than its plugin and silently writes an incomplete symbol table) and defines `FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION`. | upstream PR to be opened by the maintainer (prepared on branch `katei/wasi-swift-sdk-lto-option`) | merged into the pinned base snapshot |
+| `0003-build-script-Build-the-WASI-Swift-SDK-test-libraries-with-LTO.patch` | Extends the two options above to `helpers.build_swift_testing()` and `helpers.build_xctest()`, which previously got no flags at all and shipped native, unsealed archives. `_TestingInternals` is C++ and needs `-flto=` too. When the seal is requested it also passes `SwiftTesting_ENABLE_LIBRARY_EVOLUTION=FALSE`, and it defines `SwiftTesting_DISABLE_SWIFT_SPLIT_COMPILATION` next to the Foundation one. | upstream PR to be opened by the maintainer | merged into the pinned base snapshot |
 
-`schemes/main/swift-corelibs-foundation/` and `schemes/main/swift-foundation/`
-carry one patch each; `tools/git-swift-workspace` applies
-`schemes/<scheme>/<repo>` for every repository it knows about, so the directory
-name is the update-checkout repository name.
+`schemes/main/swift-corelibs-foundation/`, `schemes/main/swift-foundation/` and
+`schemes/main/swift-testing/` carry one patch each; `tools/git-swift-workspace`
+applies `schemes/<scheme>/<repo>` for every repository it knows about, so the
+directory name is the update-checkout repository name.
 
 | Patch | What it does | Upstream | Removal condition |
 | ----- | ------------ | -------- | ----------------- |
 | `swift-corelibs-foundation/0001-cmake-Allow-opting-out-of-the-CMP0157-Swift-split-compilation-model.patch` | Makes the `cmake_policy(SET CMP0157 NEW)` line conditional on `FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION`. CMake's Swift split-compilation model drives the compiler with an output-file-map naming only `object` outputs; under `-lto=` the driver emits LLVM bitcode, ignores those entries and derives `<basename>.bc` names in the working directory, so the object files CMake declared are never created and the archive step fails with `error opening input file ... .swift.obj`. Opting out restores the one-step compile-and-archive rule, where the driver names and archives its own outputs. The default is unchanged. | upstream PR to be opened by the maintainer | merged into the pinned base snapshot, or fixed in swift-driver / CMake so that split compilation and `-lto=` work together |
 | `swift-foundation/0001-cmake-Allow-opting-out-of-the-CMP0157-Swift-split-compilation-model.patch` | The same one-line change in `swift-foundation`, whose sources are built by the same configure. | upstream PR to be opened by the maintainer | as above |
+| `swift-testing/0001-cmake-Add-an-option-to-build-without-library-evolution.patch` | Adds `SwiftTesting_ENABLE_LIBRARY_EVOLUTION` (default `YES`). When `NO`, the testing library and its overlays drop `-enable-library-evolution`, stop emitting `.swiftinterface` files, install the binary `.swiftmodule` instead, and install the `_TestingInternals` Clang module (a binary module records every module it imports; an interface does not, which is why the resilient configuration never needed it). Sealing and library evolution are mutually exclusive in the driver. The patch also adds `SwiftTesting_DISABLE_SWIFT_SPLIT_COMPILATION`, the CMP0157 opt-out that swift-corelibs-foundation already has. | upstream PR to be opened by the maintainer | merged into the pinned base snapshot |
 
 ## Why full LTO and not thin
 
