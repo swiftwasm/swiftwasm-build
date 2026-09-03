@@ -122,6 +122,40 @@ main() {
     # the virtual-method type id for NSMutableDictionary's overridden
     # `init(sharedKeySet:)` in swift-corelibs-foundation. The standard library
     # and the runtime are still sealed. See docs/hermetic-lto-sdk.md.
+    #
+    # TODO: add `--wasi-swift-sdk-hermetic-seal-at-link` here once the pinned
+    # base snapshot in schemes/main/manifest.json contains BOTH of these
+    # swift-frontend fixes. Sealing Foundation needs both; either one alone
+    # still aborts the compile, and both are assertion-only changes:
+    #
+    #   1. `typeIdForMethod` (lib/IRGen/GenClass.cpp) asserted
+    #      `!method.getOverridden()`. A `required` convenience initializer that
+    #      overrides a non-required, non-designated convenience initializer
+    #      introduces its own vtable slot, so it *is* the base method of that
+    #      slot. The fix asserts `method == method.getOverriddenVTableEntry()`.
+    #      Hit on NSDictionary.swift (`NSMutableDictionary.init()`).
+    #
+    #   2. `ClassContextDescriptorBuilder::addVTableTypeMetadata`
+    #      (lib/IRGen/GenMeta.cpp) asserted `VTable && "no vtable?!"`. A
+    #      foreign class -- an imported CF type -- has no Swift vtable and
+    #      collects no method descriptors, so the call has nothing to do. The
+    #      fix skips it for `getType()->isForeign()`.
+    #      Hit on NSLocale.swift (`CFLocale`).
+    #
+    # Both are verified with an assertions-enabled frontend and a real sealed
+    # Foundation build; see the "Status with the pending compiler fixes"
+    # section of docs/hermetic-lto-sdk.md. A quick check that a candidate
+    # snapshot has fix 1, on any host, with no wasm SDK and no seal involved:
+    #
+    #   cat > t.swift <<'EOF'
+    #   class B { init(x: Int) {}
+    #             convenience init() { self.init(x: 0) } }
+    #   class D: B { required convenience init() { self.init(x: 1) } }
+    #   EOF
+    #   swiftc -Xfrontend -enable-llvm-vfe -emit-ir t.swift -o /dev/null
+    #
+    # It exits 0 with the fix and aborts without it. Fix 2 needs a CF-bridged
+    # typedef plus a metatype reference; see the docs section.
     HERMETIC_LTO_BUILD_SCRIPT_ARGS+=(
       --wasi-swift-sdk-lto=full
     )

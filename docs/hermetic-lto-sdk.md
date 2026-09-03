@@ -23,13 +23,80 @@ virtual-method type ids, and it cannot map an *overriding* designated
 initializer back to its base method, so
 `swift-frontend` aborts in `typeIdForMethod` (`GenClass.cpp`) on
 `NSMutableDictionary.init(sharedKeySet:)`. Foundation therefore still gets LTO
-and dead-code elimination, just not devirtualisation-driven elimination. The
-seal will be turned on for Foundation once that compiler bug is fixed upstream.
+and dead-code elimination, just not devirtualisation-driven elimination. That
+assertion, and a second one on imported CF types right behind it, are both
+fixed in a compiler patch series prepared for upstreaming; the seal will be
+turned on for Foundation once a pinned snapshot contains them. See
+[Status with the pending compiler fixes](#status-with-the-pending-compiler-fixes).
 
 XCTest and swift-testing are neither bitcode nor sealed.
 
 This variant is **binary-incompatible** with the normal Swift SDK. It exists
 alongside it, never in place of it.
+
+## Status with the pending compiler fixes
+
+**Read this before the limitations below.** Most of them are properties of the
+*pinned base snapshot's compiler*, not of this SDK flavour, and they have all
+been fixed and validated against a locally built toolchain. That compiler patch
+series is **prepared for upstreaming** and is not in any released snapshot yet,
+so everything in [Known issues](#known-issues) still applies to the bundles
+this repository publishes today.
+
+With the series in place, an assertions-enabled `swift-frontend` built from a
+recent snapshot plus the patches, and the SDK rebuilt by it with
+`--wasi-swift-sdk-hermetic-seal-at-link` added:
+
+- **Foundation can be sealed.** Both compiler assertions that stopped it are
+  fixed (see the TODO in
+  [`schemes/main/build/build-target-toolchain.sh`](../schemes/main/build/build-target-toolchain.sh)
+  for the exact two, with a reproducer). The Foundation compile really carries
+  `-lto=llvm-full -enable-llvm-vfe -enable-llvm-wme -conditional-runtime-records
+  -internalize-at-link` and finishes with no assertion.
+- **The Foundation class-method limitation goes away.** A sealed Foundation
+  emits dispatch thunks again: `libFoundation.a` defines 2,168 `...Tj` symbols
+  where the current bundles define none, `libFoundationEssentials.a` 538 and
+  `libFoundationXML.a` 236. The three e2e tests marked
+  `UNSUPPORTED: hermetic-lto` -- `foundation/Bundle.swift`,
+  `foundation/FileManager.swift` and `foundation/XML.swift` -- pass with the
+  marker removed, and the whole e2e suite is green. So does a sealed program
+  calling `NSLock.lock()`, and so do applications that call Foundation class
+  methods, which is the case
+  [Known issues](#foundation-apis-that-dispatch-through-open-class-members-do-not-link)
+  says cannot link today.
+- **The manual archive list goes away.** With Wasm autolink metadata emitted by
+  the frontend under LTO and read back by `wasm-ld`, a whole-program link
+  resolves every runtime archive from `!llvm.dependent-libraries` with no
+  explicit `-l` flags at all. The
+  `linker.extraCLIOptions` list that `tools/build/package-toolchain` derives,
+  and the manual `-Xlinker -l<name>` workaround for other autolinked
+  libraries, both become unnecessary. (The toolset list is harmless and can be
+  kept as belt and braces; naming an archive that is also autolinked changes
+  nothing.)
+- **The filtered standard-library executable suite is down to one failure.**
+  Under the link contract it went from ten failures to one, and that one --
+  `stdlib/KeyPath`, which traps with `invalid unsafeDowncast` in the "key path
+  in-place instantiation" case -- is **pre-existing**: it reproduces with LTO
+  optimisation off and with virtual-function elimination off, and until the
+  debug-info fix in the series it was hidden behind a link failure. Six of the
+  nine that were fixed were general compiler bugs with nothing to do with
+  WebAssembly, LTO or the seal; three were resilience-incompatible tests that
+  now report `UNSUPPORTED` through a new lit feature instead of failing.
+- **A large real-world application links under the contract**, with Foundation,
+  the standard library and every application module sealed, needs no
+  hand-derived archive list, passes every structural and runtime gate, and
+  measures substantially smaller than the same application against the same SDK
+  with the seal switched off -- which was the only thing possible before. That
+  reverses this document's earlier conclusion that the flavour is "only useful
+  for programs that stay on Foundation value types and the standard library".
+
+`--wasi-swift-sdk-hermetic-seal-at-link` will be re-enabled in
+`schemes/main/build/build-target-toolchain.sh`, and the corresponding
+[Known issues](#known-issues) entries and e2e `UNSUPPORTED: hermetic-lto`
+markers removed, **once the pinned base snapshot in
+`schemes/main/manifest.json` contains the two frontend fixes** listed in that
+script's TODO. Nothing in this repository has to change before then; the
+limitation is a property of the pinned compiler.
 
 ## The link contract
 
