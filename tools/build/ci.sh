@@ -34,6 +34,15 @@ install_sccache_if_needed() {
 install_sccache_if_needed
 export PATH="$SCCACHE_INSTALL_PATH:$PATH"
 
+# Start the sccache server once, up front, instead of letting the first burst
+# of parallel ninja jobs race to start it. On loaded CI runners that race can
+# hit the client's fixed startup timeout ("Timed out waiting for server
+# startup") and fail the build; jobs with a cold cache are the most exposed.
+if command -v sccache > /dev/null 2>&1; then
+  mkdir -p "$SCCACHE_DIR"
+  sccache --start-server > /dev/null 2>&1 || true
+fi
+
 $TOOLS_BUILD_PATH/build-toolchain --scheme "$SCHEME"
 
 $TOOLS_BUILD_PATH/package-toolchain --scheme "$SCHEME" --daily-snapshot
