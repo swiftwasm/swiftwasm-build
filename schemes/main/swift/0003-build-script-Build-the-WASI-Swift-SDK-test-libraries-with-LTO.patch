@@ -1,0 +1,195 @@
+From 326d12683a7bb930119d426b65292668379b04f2 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 3 Sep 2026 17:18:48 +0000
+Subject: [PATCH] [build-script] Build the WASI Swift SDK's test libraries with
+ LTO too
+
+`--wasi-swift-sdk-lto` and `--wasi-swift-sdk-hermetic-seal-at-link` only
+reached libxml2 and the Foundation stack, so swift-testing and XCTest
+were still installed as ordinary object code. A client compiled with
+`-experimental-hermetic-seal-at-link` dispatches through dispatch thunks
+that unsealed archives never define, and mixing bitcode and native
+objects defeats whole-program optimization, so a Swift SDK built with
+these options could not build test executables at all.
+
+Pass the same flags to `helpers.build_swift_testing()` and
+`helpers.build_xctest()`, which grow the `extra_swift_flags` /
+`extra_c_flags` parameters `build_foundation()` and `build_libxml2()`
+already have. `_TestingInternals` is C++, so it needs `-flto=` as well
+for its members to be bitcode.
+
+swift-testing hardcodes `-enable-library-evolution` for `Testing`,
+`_TestDiscovery` and `_TestingInterop`, and the frontend rejects
+`-experimental-hermetic-seal-at-link` together with library evolution --
+a resilient module cannot be sealed. When the seal is requested, ask
+swift-testing for a non-resilient build through its new
+`SwiftTesting_ENABLE_LIBRARY_EVOLUTION` option, which also makes it
+install binary `.swiftmodule` files instead of `.swiftinterface` ones so
+that clients type-check against the very module the sealed archives were
+built from instead of rebuilding one from an interface.
+
+swift-testing gets the CMP0157 opt-out the Foundation projects already
+receive, under its own `SwiftTesting_DISABLE_SWIFT_SPLIT_COMPILATION`
+name: the split-compilation model names `object` outputs that the driver
+never produces under `-lto=`.
+
+`_foundation_stack_lto_flags()` is renamed to
+`_target_libraries_lto_flags()` now that it covers more than Foundation.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XYudU7MTp4QeCPKenE9XU8
+---
+ .../build_swift/driver_arguments.py           | 13 +++++---
+ .../helpers/wasmswiftsdkhelpers.py            | 18 ++++++++---
+ .../products/wasiswiftsdk.py                  | 31 ++++++++++++++-----
+ 3 files changed, 45 insertions(+), 17 deletions(-)
+
+diff --git a/utils/build_swift/build_swift/driver_arguments.py b/utils/build_swift/build_swift/driver_arguments.py
+index 3325d050837..7f0d9f37e48 100644
+--- a/utils/build_swift/build_swift/driver_arguments.py
++++ b/utils/build_swift/build_swift/driver_arguments.py
+@@ -912,15 +912,18 @@ def create_argument_parser():
+            default=None,
+            metavar='LTO_TYPE',
+            help='use lto optimization when building the Swift and C parts '
+-                'of the WASI Swift SDK\'s Foundation stack. The standard '
+-                'library is configured separately through the '
+-                'SWIFT_STDLIB_ENABLE_LTO CMake option. Options: full, thin')
++                'of the WASI Swift SDK\'s target libraries: the Foundation '
++                'stack, swift-testing and XCTest. The standard library is '
++                'configured separately through the SWIFT_STDLIB_ENABLE_LTO '
++                'CMake option. Options: full, thin')
+     option('--wasi-swift-sdk-hermetic-seal-at-link',
+            toggle_true('wasi_swift_sdk_hermetic_seal_at_link'),
+-           help='compile the Foundation stack of the WASI Swift SDK with '
++           help='compile the target libraries of the WASI Swift SDK with '
+                 '-experimental-hermetic-seal-at-link, allowing the linker '
+                 'to strip unused code and metadata from the final '
+-                'executable. Requires --wasi-swift-sdk-lto')
++                'executable. swift-testing is built without library '
++                'evolution in this mode, since a resilient module cannot be '
++                'sealed. Requires --wasi-swift-sdk-lto')
+ 
+     # Emscripten options
+ 
+diff --git a/utils/swift_build_support/swift_build_support/helpers/wasmswiftsdkhelpers.py b/utils/swift_build_support/swift_build_support/helpers/wasmswiftsdkhelpers.py
+index 469acaae684..c1a3de261df 100644
+--- a/utils/swift_build_support/swift_build_support/helpers/wasmswiftsdkhelpers.py
++++ b/utils/swift_build_support/swift_build_support/helpers/wasmswiftsdkhelpers.py
+@@ -177,7 +177,9 @@ def build_foundation(args, toolchain, source_dir, build_dir,
+ 
+ def build_swift_testing(args, toolchain, source_dir, build_dir,
+                         swift_host_triple, dest_dir,
+-                        append_platform_cmake_options):
++                        append_platform_cmake_options,
++                        extra_swift_flags=[], extra_c_flags=[],
++                        enable_library_evolution=True):
+     """Build swift-testing and install into *dest_dir*."""
+     swift_testing = CMakeProduct(
+         args=args,
+@@ -190,11 +192,16 @@ def build_swift_testing(args, toolchain, source_dir, build_dir,
+     # sections from being stripped at link-time.
+     append_platform_cmake_options(
+         swift_testing.cmake_options,
+-        ['-Xfrontend', '-enable-single-module-llvm-emission'])
++        ['-Xfrontend', '-enable-single-module-llvm-emission'] +
++        list(extra_swift_flags),
++        list(extra_c_flags))
+     swift_testing.cmake_options.define('BUILD_SHARED_LIBS', 'FALSE')
+     swift_testing.cmake_options.define(
+         'CMAKE_Swift_COMPILATION_MODE', 'wholemodule')
+     swift_testing.cmake_options.define('SwiftTesting_MACRO', 'NO')
++    if not enable_library_evolution:
++        swift_testing.cmake_options.define(
++            'SwiftTesting_ENABLE_LIBRARY_EVOLUTION:BOOL', 'FALSE')
+ 
+     swift_testing.build_with_cmake(
+         [], args.build_variant, [],
+@@ -207,7 +214,8 @@ def build_swift_testing(args, toolchain, source_dir, build_dir,
+ 
+ def build_xctest(args, toolchain, source_dir, build_dir,
+                  swift_host_triple, dest_dir,
+-                 append_platform_cmake_options):
++                 append_platform_cmake_options,
++                 extra_swift_flags=[], extra_c_flags=[]):
+     """Build swift-corelibs-xctest and install into *dest_dir*."""
+     xctest = CMakeProduct(
+         args=args,
+@@ -215,7 +223,9 @@ def build_xctest(args, toolchain, source_dir, build_dir,
+         source_dir=os.path.join(
+             os.path.dirname(source_dir), 'swift-corelibs-xctest'),
+         build_dir=os.path.join(build_dir, 'xctest', swift_host_triple))
+-    append_platform_cmake_options(xctest.cmake_options, [])
++    append_platform_cmake_options(xctest.cmake_options,
++                                  list(extra_swift_flags),
++                                  list(extra_c_flags))
+     xctest.cmake_options.define('BUILD_SHARED_LIBS', 'FALSE')
+ 
+     xctest.build_with_cmake(
+diff --git a/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py b/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
+index bf9f6b24ddc..47f30134902 100644
+--- a/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
++++ b/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
+@@ -99,15 +99,18 @@ class WASISwiftSDK(product.Product):
+             # the compiler with an output-file-map that only names 'object'
+             # outputs; under '-lto=' the driver emits '<basename>.bc' files in
+             # the working directory instead and the build fails. Ask the
+-            # Foundation projects to keep the one-step compile-and-archive
+-            # model, where the driver names its own outputs.
++            # projects to keep the one-step compile-and-archive model, where
++            # the driver names its own outputs.
+             cmake_options.define(
+                 'FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION:BOOL', 'TRUE')
++            cmake_options.define(
++                'SwiftTesting_DISABLE_SWIFT_SPLIT_COMPILATION:BOOL', 'TRUE')
+ 
+-    def _foundation_stack_lto_flags(self):
++    def _target_libraries_lto_flags(self):
+         """Return the extra Swift and C/C++ flags requesting LTO for the
+-        Foundation stack, as configured by '--wasi-swift-sdk-lto' and
+-        '--wasi-swift-sdk-hermetic-seal-at-link'.
++        target libraries built as standalone CMake projects -- the Foundation
++        stack, swift-testing and XCTest -- as configured by
++        '--wasi-swift-sdk-lto' and '--wasi-swift-sdk-hermetic-seal-at-link'.
+ 
+         The standard library's SWIFT_STDLIB_ENABLE_LTO does not reach these
+         libraries because they are built as standalone CMake projects.
+@@ -172,7 +175,7 @@ class WASISwiftSDK(product.Product):
+             host_toolchain_path = self.native_toolchain_path(
+                 self.args.host_target)
+ 
+-            lto_swift_flags, lto_c_flags = self._foundation_stack_lto_flags()
++            lto_swift_flags, lto_c_flags = self._target_libraries_lto_flags()
+ 
+             helpers.build_libxml2(
+                 self.args, self.toolchain, self.source_dir, self.build_dir,
+@@ -185,12 +188,24 @@ class WASISwiftSDK(product.Product):
+                 sysroot, dest_dir, host_toolchain_path, append_cmake_opts,
+                 extra_swift_flags=lto_swift_flags,
+                 extra_c_flags=lto_c_flags)
++            # '-experimental-hermetic-seal-at-link' and
++            # '-enable-library-evolution' are mutually exclusive, and a
++            # resilient module cannot be sealed anyway: ask swift-testing for a
++            # non-resilient build (which also installs binary '.swiftmodule'
++            # files instead of '.swiftinterface' ones, so that clients use the
++            # very module the sealed archives were built from).
+             helpers.build_swift_testing(
+                 self.args, self.toolchain, self.source_dir, self.build_dir,
+-                swift_host_triple, dest_dir, append_cmake_opts)
++                swift_host_triple, dest_dir, append_cmake_opts,
++                extra_swift_flags=lto_swift_flags,
++                extra_c_flags=lto_c_flags,
++                enable_library_evolution=not (
++                    self.args.wasi_swift_sdk_hermetic_seal_at_link))
+             helpers.build_xctest(
+                 self.args, self.toolchain, self.source_dir, self.build_dir,
+-                swift_host_triple, dest_dir, append_cmake_opts)
++                swift_host_triple, dest_dir, append_cmake_opts,
++                extra_swift_flags=lto_swift_flags,
++                extra_c_flags=lto_c_flags)
+ 
+             # Append this triple's Swift SDK to the shared wasm
+             # `.artifactbundle`. The bundle is reused across wasi /
+-- 
+2.43.0
+

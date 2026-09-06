@@ -17,6 +17,12 @@ from build.build_support.actions import derive_options_from_args, REPO_ROOT
 
 USER_AGENT = "gh-distribute-toolchain by swiftwasm/swiftwasm-build"
 
+# Build flavours that CI publishes alongside the default one. The infix is
+# placed between the scheme and the target triple in the CI artifact name and
+# between the Swift version and the target triple in the Swift SDK id
+# (see tools/build/package-toolchain: derive_variant_infix).
+VARIANT_INFIXES = ("hermetic-lto",)
+
 
 @dataclass
 class Secrets:
@@ -193,6 +199,8 @@ class Distribution:
             self.distribution_dir, "artifacts", self.run_id)
         self.checkout_dir = os.path.join(
             self.distribution_dir, "checkout")
+        # (asset name, local path, sha256), filled in by dry runs only
+        self.planned_assets = []
 
     async def run(self, options):
         downloads = []
@@ -203,7 +211,7 @@ class Distribution:
                 continue
 
             try:
-                scheme, _ = derive_platform_suffix_and_scheme(
+                scheme, variant, _ = derive_platform_suffix_and_scheme(
                     artifact["name"], options.scheme)
             except Exception:
                 print(f"Skipping {artifact['name']} because it's not a valid artifactbundle for {options.scheme}")
@@ -212,6 +220,12 @@ class Distribution:
             if options.scheme != scheme:
                 print(f"Skipping {artifact['name']} because it's not scheme {options.scheme}")
                 # Skip unrelated artifact
+                continue
+
+            if options.variant != variant:
+                print(f"Skipping {artifact['name']} because it's not variant"
+                      f" {options.variant or '<default>'}")
+                # Skip artifacts of another build flavour
                 continue
 
             async def download_work(artifact):
@@ -244,7 +258,7 @@ class Distribution:
             for artifact, artifact_path in downloaded_paths:
                 if not artifact["name"].endswith("-artifactbundle"):
                     continue
-                _, target_triple = derive_platform_suffix_and_scheme(
+                _, _, target_triple = derive_platform_suffix_and_scheme(
                     artifact["name"], options.scheme)
                 bundle_path = await self.unpack_artifactbundle(artifact_path)
                 dirents = os.listdir(bundle_path)
@@ -271,24 +285,27 @@ class Distribution:
 
             async def package_sdk_work(downloaded):
                 artifact, artifact_path = downloaded
-                scheme, target_triple = derive_platform_suffix_and_scheme(
+                _, _, target_triple = derive_platform_suffix_and_scheme(
                     artifact["name"], options.scheme)
                 artifact_format = SDKArtifactFormatV3(target_triple)
                 bundle_path = await self.unpack_artifactbundle(artifact_path)
                 package = await self.package_artifactbundle(
                     bundle_path, tag_name, artifact_format)
-                if options.dry_run:
-                    print(f"Skip uploading actual artifact \"{package}\"")
-                    return
-                self.upload_to_release(package, release)
 
-                # Upload sha256 checksum
+                # Compute the sha256 checksum sidecar
                 import hashlib
                 checksum_path = package + ".sha256"
                 with open(package, "rb") as f:
                     checksum = hashlib.sha256(f.read()).hexdigest()
                 with open(checksum_path, "w") as f:
                     f.write(checksum)
+
+                if options.dry_run:
+                    print(f"Skip uploading actual artifact \"{package}\"")
+                    self.planned_assets.append(
+                        [os.path.basename(package), package, checksum])
+                    return
+                self.upload_to_release(package, release)
                 self.upload_to_release(checksum_path, release)
 
             print(f"Packaging {artifact['name']}...")
@@ -387,8 +404,8 @@ class Distribution:
             os.path.dirname(artifact_zip), content_name)
 
         if not os.path.exists(content_path):
-            self.effect_run(["unzip", artifact_zip, "-d",
-                            os.path.dirname(content_path)], check=True)
+            self.subprocess_run(["unzip", artifact_zip, "-d",
+                                 os.path.dirname(content_path)], check=True)
         return [content_name, content_path]
 
     async def unpack_artifactbundle(self, zip_bundlezip):
@@ -417,6 +434,19 @@ class Distribution:
         print(f"Creating tag for {tag_name}...")
         swift_version, swiftwasm_build_version = \
             self.git_push_swift_source(options, tag_name)
+        if self.dry_run:
+            body = self.make_release_note(
+                swift_version, swiftwasm_build_version)
+            print("Would create prerelease with payload:")
+            print(json.dumps({
+                "repo": self.swift_github.repo,
+                "tag_name": tag_name,
+                "name": tag_name,
+                "prerelease": True,
+                "body": body,
+            }, indent=2))
+            return [{"id": None, "name": tag_name, "assets": []},
+                    swift_version, swiftwasm_build_version]
         try:
             # If release already exists, use it
             release = self.swift_github.get_release(tag_name)
@@ -458,6 +488,21 @@ You can install Swift SDKs for WebAssembly using the following commands:
 
     def update_release_notes_with_checksums(self, release, swift_version, swiftwasm_build_version):
         checksums = []
+        if self.dry_run:
+            base = (f"https://github.com/{self.swift_github.repo}/releases"
+                    f"/download/{release['name']}")
+            for name, path, checksum in sorted(self.planned_assets):
+                checksums.append([name, f"{base}/{name}", checksum])
+            body = self.make_release_note(
+                swift_version, swiftwasm_build_version, checksums)
+            print("Would update release notes to:")
+            print(body)
+            print("Planned assets:")
+            for name, path, checksum in sorted(self.planned_assets):
+                print(f"  {name} ({os.path.getsize(path)} bytes)"
+                      f" sha256={checksum}")
+                print(f"  {name}.sha256 ({len(checksum)} bytes)")
+            return
         release = self.swift_github.get_release_by_id(release["id"])
         for artifact in release["assets"]:
             if not artifact["name"].endswith(".artifactbundle.zip"):
@@ -516,6 +561,15 @@ You can install Swift SDKs for WebAssembly using the following commands:
         else:
             print(f"Tag {tag_name} already exists")
 
+        if self.dry_run:
+            head = subprocess.run(
+                ['git', '-C', swift_repo_dir, 'rev-parse', 'HEAD'],
+                capture_output=True).stdout.decode('utf-8').strip()
+            print(f"Tag {tag_name} would point at {head}")
+            self.subprocess_run(
+                ['git', '-C', swift_repo_dir, 'log', '--oneline',
+                 f'{options.tag}..HEAD'])
+
         manifest = os.path.join(
             build_repo_dir, "schemes", options.scheme, "manifest.json")
         with open(manifest, "r") as f:
@@ -567,8 +621,6 @@ You can install Swift SDKs for WebAssembly using the following commands:
     async def check_async_subprocess(self, program, *args):
         if self.verbose or self.dry_run:
             print(f"[async] {program} {' '.join(args)}")
-        if self.dry_run:
-            return
         proc = await asyncio.subprocess.create_subprocess_exec(program, *args)
         retcode = await proc.wait()
         if retcode != 0:
@@ -577,13 +629,15 @@ You can install Swift SDKs for WebAssembly using the following commands:
 
 def derive_platform_suffix_and_scheme(
     artifact_name: str, target_scheme: str
-) -> Optional[Tuple[str, str]]:
+) -> Optional[Tuple[str, Optional[str], str]]:
     """
-    Returns platform suffix, scheme, and target triple derived from the
+    Returns scheme, build-flavour variant, and target triple derived from the
     artifact name.
     e.g.
         "main-wasm32-unknown-wasi-artifactbundle", scheme="main"
-          -> ["main", "wasm32-unknown-wasi"]
+          -> ["main", None, "wasm32-unknown-wasi"]
+        "main-hermetic-lto-wasm32-unknown-wasip1-artifactbundle", scheme="main"
+          -> ["main", "hermetic-lto", "wasm32-unknown-wasip1"]
     """
 
     # v3 artifact name: <scheme>-<target-triple>-artifactbundle
@@ -603,14 +657,21 @@ def derive_platform_suffix_and_scheme(
                 f"Unexpected artifact name {name} with format v3 should"
                 " end with -artifactbundle")
         target_triple = rest[:-len("-artifactbundle")]
-        return [target_scheme, target_triple]
+        variant = None
+        for infix in VARIANT_INFIXES:
+            if target_triple.startswith(infix + "-"):
+                variant = infix
+                target_triple = target_triple[len(infix) + 1:]
+                break
+        return [target_scheme, variant, target_triple]
     raise Exception(f"Unexpected artifact name {name}")
 
 
-def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: str):
+def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str,
+                          scheme: str, variant: Optional[str] = None):
     """
     Find the latest successful run ID for the given workflow name and branch,
-    also containing a toolchain artifact built for the given scheme
+    also containing a toolchain artifact built for the given scheme and variant
     """
     for run in gh.workflow_runs(workflow_name, branch):
         if "head_branch" not in run or run["head_branch"] != branch:
@@ -621,9 +682,9 @@ def latest_success_run_id(gh: GitHub, workflow_name: str, branch: str, scheme: s
         for artifact in artifacts:
             artifact_name = artifact["name"]
             try:
-                artifact_scheme, _ = derive_platform_suffix_and_scheme(
-                    artifact_name, scheme)
-                if artifact_scheme == scheme:
+                artifact_scheme, artifact_variant, _ = \
+                    derive_platform_suffix_and_scheme(artifact_name, scheme)
+                if artifact_scheme == scheme and artifact_variant == variant:
                     return run["id"]
             except Exception:
                 continue
@@ -640,6 +701,12 @@ async def main():
         default=os.environ.get("GH_DISTRIBUTE_TOOLCHAIN_OVERRIDE_NAME"))
     parser.add_argument(
         '--only-swift-sdk', action='store_true')
+    parser.add_argument(
+        '--variant', type=str, choices=VARIANT_INFIXES,
+        default=os.environ.get("GH_DISTRIBUTE_TOOLCHAIN_VARIANT") or None,
+        help=('Distribute the given build flavour instead of the default one.'
+              ' Only artifacts carrying the flavour infix are published, and'
+              ' the derived tag keeps the infix.'))
     options = derive_options_from_args(sys.argv[1:], parser)
 
     secrets = Secrets.derive()
@@ -650,7 +717,8 @@ async def main():
     run_id = options.run_id
     if run_id == "latest":
         run_id = latest_success_run_id(
-            gh, workflow_name="build-toolchain.yml", branch="main", scheme=options.scheme)
+            gh, workflow_name="build-toolchain.yml", branch="main",
+            scheme=options.scheme, variant=options.variant)
         if run_id is None:
             # No successful run found. This scheme might not be built recently.
             return

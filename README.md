@@ -19,6 +19,16 @@ $ ./tools/build/build-toolchain main
 
 See [SwiftWasm book](https://book.swiftwasm.org/contribution-guide/how-to-build-toolchain.html) for more details about dependencies you need to install and how to build on Docker.
 
+### Hermetic full-LTO variant
+
+Setting `SWIFTWASM_HERMETIC_LTO=1` on the `main` scheme builds a size-optimised
+flavour of the Swift SDK in which the standard library, the runtime and the
+Foundation stack ship as LLVM bitcode, without library evolution and sealed at
+link, so `wasm-ld` can optimise and strip across the whole program. It is
+binary-incompatible with the normal SDK and is published under bundle names
+carrying a `hermetic-lto-` infix. See
+[docs/hermetic-lto-sdk.md](docs/hermetic-lto-sdk.md).
+
 ## Project structure
 
 - `schemes/<scheme>` - Scheme is the concept used in [Swift's `utils/update-checkout` script](https://github.com/apple/swift/blob/main/utils/update-checkout) to describe a set of build sources.
