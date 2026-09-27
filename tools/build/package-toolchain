@@ -4,6 +4,7 @@ import sys
 import os
 import argparse
 import datetime
+import json
 import re
 from build_support.actions import Action, ActionRunner, DownloadBaseSnapshotAction, derive_options_from_args
 
@@ -118,6 +119,13 @@ class PackageSwiftSDKAction(Action):
 
         artifactbundle_path = os.path.join(
             SDK_GENERATOR_PKG_PATH, "Bundles", swift_sdk_name + ".artifactbundle")
+
+        if is_hermetic_lto_flavour() and not self.options.dry_run:
+            sdk_dir = os.path.join(
+                artifactbundle_path, swift_sdk_name, target_triple)
+            toolset_path = postprocess_hermetic_lto_toolset(sdk_dir)
+            print(f"=====> Rewrote {toolset_path} for the hermetic LTO flavour")
+
         zip_path = os.path.join(
             os.getcwd(), "..", self.snapshot_info.artifactbundle_zip_name)
 
@@ -146,6 +154,147 @@ class PackageSwiftSDKAction(Action):
         os.chdir(os.path.dirname(dist_artifactbundle_path))
         self.system(*zip_args)
         os.chdir(old_cwd)
+
+
+def is_hermetic_lto_flavour() -> bool:
+    """Whether SWIFTWASM_HERMETIC_LTO selects the hermetic full-LTO flavour."""
+    return os.environ.get("SWIFTWASM_HERMETIC_LTO") == "1"
+
+
+# Compilation options every module linked into a hermetic full-LTO executable
+# must carry. They are mandatory for *correctness*, not for size: the shipped
+# standard library is sealed, so its witness tables and vtables carry
+# virtual-function-elimination metadata. A client compiled without the seal
+# dispatches through an ordinary load that GlobalDCE cannot see, concludes the
+# witness is dead and writes a null into the slot, and the program traps at
+# runtime with "indirect call to null element". `-lto=llvm-full` is required
+# because the frontend rejects the seal without an LTO mode -- and it must be
+# *full*: a ThinLTO client cannot link against this SDK at all
+# ("inconsistent LTO Unit splitting"). See docs/hermetic-lto-sdk.md.
+HERMETIC_LTO_SWIFT_COMPILER_OPTIONS = [
+    "-experimental-hermetic-seal-at-link",
+    "-lto=llvm-full",
+]
+
+# The order in which `swift-autolink-extract` lists the Swift runtime archives
+# for a program that imports Foundation. `wasm-ld` does not need archives in
+# dependency order, but keeping the known-good prefix makes the generated
+# option list easy to compare against a real autolink response file.
+HERMETIC_LTO_PRIORITY_LIBRARIES = [
+    "swiftSwiftOnoneSupport",
+    "swiftCore",
+    "swiftObservation",
+    "swift_Concurrency",
+    "swift_StringProcessing",
+    "swift_RegexParser",
+    "swiftSynchronization",
+    "swiftWASILibc",
+    "_FoundationICU",
+    "CoreFoundation",
+    "Foundation",
+    "FoundationEssentials",
+    "FoundationInternationalization",
+    "_FoundationCShims",
+    "_FoundationInternationalizationData",
+    "_FoundationCollections",
+]
+
+# WASI sysroot libraries that the Foundation and FoundationXML autolink lists
+# name and that static-executable-args.lnk does not already pass. They live in
+# WASI.sdk rather than in swift_static/wasi, so they cannot be derived from the
+# same directory listing.
+HERMETIC_LTO_SYSROOT_LIBRARIES = [
+    "wasi-emulated-getpid",
+    "wasi-emulated-mman",
+    "wasi-emulated-signal",
+    "xml2",
+]
+
+
+def derive_hermetic_lto_link_libraries(swift_static_wasi_dir: str) -> list:
+    """
+    The explicit `-l` list the hermetic LTO toolset must pass to the linker.
+
+    Under `-lto=` the client's objects are LLVM bitcode, and a stock toolchain
+    emits no autolink information for WebAssembly bitcode, so the
+    `@*.autolink` response file the Swift driver normally builds with
+    `swift-autolink-extract` is empty and *no* Swift runtime archive reaches
+    the link (`static-executable-args.lnk` names only
+    `-lswiftSwiftOnoneSupport`). Until the upstream compiler and linker
+    changes land, the SDK has to name its own archives.
+
+    The list is derived from what the bundle actually ships rather than
+    hardcoded, so it stays correct as the SDK's contents change. Naming an
+    archive that nothing references is harmless: unreferenced archive members
+    are not pulled into the link.
+    """
+    names = sorted(
+        entry[len("lib"):-len(".a")]
+        for entry in os.listdir(swift_static_wasi_dir)
+        if entry.startswith("lib") and entry.endswith(".a")
+    )
+    ordered = [name for name in HERMETIC_LTO_PRIORITY_LIBRARIES if name in names]
+    ordered += [name for name in names if name not in HERMETIC_LTO_PRIORITY_LIBRARIES]
+    ordered += HERMETIC_LTO_SYSROOT_LIBRARIES
+    return [f"-l{name}" for name in ordered]
+
+
+def merge_extra_cli_options(toolset: dict, tool: str, options: list):
+    """
+    Append `options` to `toolset[tool].extraCLIOptions`, preserving whatever
+    swift-sdk-generator emitted (the threads flags, `-static-stdlib`, ...) and
+    skipping options that are already there, so the merge is idempotent.
+    """
+    existing = toolset.setdefault(tool, {}).setdefault("extraCLIOptions", [])
+    for option in options:
+        if option not in existing:
+            existing.append(option)
+    return toolset
+
+
+def apply_hermetic_lto_toolset(toolset: dict, link_libraries: list) -> dict:
+    """The pure part of the post-processing, so it can be unit-tested."""
+    merge_extra_cli_options(
+        toolset, "swiftCompiler", HERMETIC_LTO_SWIFT_COMPILER_OPTIONS)
+    merge_extra_cli_options(toolset, "linker", link_libraries)
+    return toolset
+
+
+def postprocess_hermetic_lto_toolset(sdk_dir: str) -> str:
+    """
+    Rewrite `<bundle>/<sdk-id>/<triple>/toolset.json` in place for the hermetic
+    full-LTO flavour. `embedded-toolset.json` is deliberately left as
+    generated: embedded Swift does not use the shipped standard library
+    archives.
+    """
+    toolset_path = os.path.join(sdk_dir, "toolset.json")
+    swift_static_wasi_dir = os.path.join(
+        sdk_dir, "swift.xctoolchain", "usr", "lib", "swift_static", "wasi")
+    with open(toolset_path) as f:
+        toolset = json.load(f)
+    apply_hermetic_lto_toolset(
+        toolset, derive_hermetic_lto_link_libraries(swift_static_wasi_dir))
+    with open(toolset_path, "w") as f:
+        json.dump(toolset, f, indent=2, sort_keys=True)
+        f.write("\n")
+    return toolset_path
+
+
+def derive_variant_infix() -> str:
+    """
+    The infix inserted into both the Swift SDK id and the artifact bundle name
+    to distinguish build flavours of the same base snapshot.
+
+    Returns "hermetic-lto-" for the hermetic full-LTO flavour selected by
+    SWIFTWASM_HERMETIC_LTO=1, and "" for the default flavour.
+
+    The infix is placed *before* the target triple so that
+    tools/gh-distribute-toolchain keeps deriving a triple-free release tag from
+    the SDK id. See docs/hermetic-lto-sdk.md.
+    """
+    if is_hermetic_lto_flavour():
+        return "hermetic-lto-"
+    return ""
 
 
 def derive_toolchain_channel(scheme: str) -> str:
@@ -191,7 +340,140 @@ def derive_date_suffix_from_base_tag(tag: str) -> datetime.datetime:
     return datetime.datetime.strptime(match.group(1), "%Y-%m-%d")
 
 
+def self_test() -> int:
+    """
+    A unit-style check of the hermetic LTO toolset merge, for both triples.
+
+    Run with `./tools/build/package-toolchain --self-test`. It touches no
+    build tree: the sample toolsets are exactly what
+    `WebAssemblyRecipe.applyPlatformOptions` emits today, and the sample
+    archive listing is what the variant bundle ships.
+    """
+    import tempfile
+
+    # What swift-sdk-generator writes for each triple, verbatim.
+    samples = {
+        "wasm32-unknown-wasip1": {
+            "rootPath": "swift.xctoolchain/usr/bin",
+            "schemaVersion": "1.0",
+            "swiftCompiler": {"extraCLIOptions": ["-static-stdlib"]},
+        },
+        "wasm32-unknown-wasip1-threads": {
+            "cCompiler": {"extraCLIOptions": [
+                "-matomics", "-mbulk-memory", "-mthread-model", "posix",
+                "-pthread", "-ftls-model=local-exec"]},
+            "cxxCompiler": {"extraCLIOptions": [
+                "-matomics", "-mbulk-memory", "-mthread-model", "posix",
+                "-pthread", "-ftls-model=local-exec"]},
+            "linker": {"extraCLIOptions": [
+                "--import-memory", "--export-memory", "--shared-memory",
+                "--max-memory=1073741824"]},
+            "rootPath": "swift.xctoolchain/usr/bin",
+            "schemaVersion": "1.0",
+            "swiftCompiler": {"extraCLIOptions": [
+                "-static-stdlib", "-Xcc", "-matomics", "-Xcc", "-mbulk-memory",
+                "-Xcc", "-mthread-model", "-Xcc", "posix", "-Xcc", "-pthread",
+                "-Xcc", "-ftls-model=local-exec"]},
+        },
+    }
+    # The 29 archives the variant bundle ships under
+    # swift.xctoolchain/usr/lib/swift_static/wasi.
+    sample_archives = [
+        "libCoreFoundation.a", "libFoundation.a", "libFoundationEssentials.a",
+        "libFoundationInternationalization.a", "libFoundationXML.a",
+        "libTesting.a", "libXCTest.a", "lib_CFXMLInterface.a",
+        "lib_FoundationCShims.a", "lib_FoundationCollections.a",
+        "lib_FoundationICU.a", "lib_FoundationInternationalizationData.a",
+        "lib_TestDiscovery.a", "lib_TestingInternals.a",
+        "lib_TestingInterop.a", "lib_Testing_Foundation.a", "libswiftCore.a",
+        "libswiftDistributed.a", "libswiftObservation.a",
+        "libswiftRegexBuilder.a", "libswiftSwiftOnoneSupport.a",
+        "libswiftSynchronization.a", "libswiftWASILibc.a",
+        "libswift_Builtin_float.a", "libswift_Concurrency.a",
+        "libswift_Differentiation.a", "libswift_RegexParser.a",
+        "libswift_StringProcessing.a", "libswift_Volatile.a",
+        # Not an archive, and a decoy for the naming rule:
+        "static-executable-args.lnk",
+    ]
+
+    failures = []
+
+    def check(condition, message):
+        print(("  ok   " if condition else "  FAIL ") + message)
+        if not condition:
+            failures.append(message)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        for triple, sample in samples.items():
+            print(f"== {triple}")
+            sdk_dir = os.path.join(tmp, triple)
+            wasi_dir = os.path.join(
+                sdk_dir, "swift.xctoolchain", "usr", "lib", "swift_static",
+                "wasi")
+            os.makedirs(wasi_dir)
+            for archive in sample_archives:
+                open(os.path.join(wasi_dir, archive), "w").close()
+            with open(os.path.join(sdk_dir, "toolset.json"), "w") as f:
+                json.dump(sample, f, indent=2, sort_keys=True)
+
+            before = json.loads(json.dumps(sample))
+            path = postprocess_hermetic_lto_toolset(sdk_dir)
+            with open(path) as f:
+                after = json.load(f)
+
+            swift_options = after["swiftCompiler"]["extraCLIOptions"]
+            linker_options = after["linker"]["extraCLIOptions"]
+
+            check(swift_options[:len(before["swiftCompiler"]["extraCLIOptions"])]
+                  == before["swiftCompiler"]["extraCLIOptions"],
+                  "generated swiftCompiler options are preserved as a prefix")
+            check(swift_options[-2:] == HERMETIC_LTO_SWIFT_COMPILER_OPTIONS,
+                  "seal and -lto=llvm-full appended to swiftCompiler")
+            check(linker_options[:len(before.get("linker", {}).get("extraCLIOptions", []))]
+                  == before.get("linker", {}).get("extraCLIOptions", []),
+                  "generated linker options are preserved as a prefix")
+            check(all(o.startswith("-l") for o in linker_options
+                      if o not in before.get("linker", {}).get("extraCLIOptions", [])),
+                  "every appended linker option is a -l entry")
+            check("-lstatic-executable-args.lnk" not in linker_options
+                  and len([o for o in linker_options if o.startswith("-l")])
+                  == len(sample_archives) - 1 + len(HERMETIC_LTO_SYSROOT_LIBRARIES),
+                  "one -l per shipped archive plus the sysroot libraries")
+            check(linker_options[-len(HERMETIC_LTO_SYSROOT_LIBRARIES):]
+                  == [f"-l{n}" for n in HERMETIC_LTO_SYSROOT_LIBRARIES],
+                  "the sysroot libraries come last")
+            libs = [o[2:] for o in linker_options if o.startswith("-l")]
+            check(libs[:len(HERMETIC_LTO_PRIORITY_LIBRARIES)]
+                  == HERMETIC_LTO_PRIORITY_LIBRARIES,
+                  "the autolink-derived prefix comes first, in order")
+            rest = libs[len(HERMETIC_LTO_PRIORITY_LIBRARIES):
+                        -len(HERMETIC_LTO_SYSROOT_LIBRARIES)]
+            check(rest == sorted(rest), "the remaining archives are alphabetical")
+            check(len(libs) == len(set(libs)), "no duplicate -l entries")
+
+            # Idempotence: re-running the post-processing changes nothing.
+            with open(path) as f:
+                once = f.read()
+            postprocess_hermetic_lto_toolset(sdk_dir)
+            with open(path) as f:
+                twice = f.read()
+            check(once == twice, "re-running the merge is a no-op")
+
+            print("  --- merged toolset.json ---")
+            for line in once.rstrip("\n").splitlines():
+                print("  " + line)
+
+    print()
+    if failures:
+        print(f"self-test FAILED: {len(failures)} check(s)")
+        return 1
+    print("self-test passed")
+    return 0
+
+
 def main():
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())
     parser = argparse.ArgumentParser(description='A script to create a workspace for a Swift project applying patches')
     parser.add_argument("--daily-snapshot", action="store_true", help="Create a daily snapshot")
     parser.add_argument("--swift-version", type=str,
@@ -204,6 +486,7 @@ def main():
         os.path.dirname(__file__), '..', '..', '..', 'build', 'Packaging')
 
     toolchain_channel = derive_toolchain_channel(options.scheme)
+    variant_infix = derive_variant_infix()
     triples = [
         ["wasm32-unknown-wasip1", "wasm32-wasip1"],
     ]
@@ -227,14 +510,14 @@ def main():
             now.year, now.month, now.day,
             swift_version=options.swift_version or derive_swift_version(
                 options.daily_snapshot, toolchain_channel, now),
-            artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT-{target_triple}",
+            artifact_name=f"swift-wasm-{toolchain_channel}-SNAPSHOT-{variant_infix}{target_triple}",
             daily_snapshot=options.daily_snapshot
         )
         actions.append(PackageSwiftSDKAction(
             options, snapshot_info,
             target_toolchain_path=os.path.join(packaging_dir, 'target-toolchain', target_triple),
             wasi_sysroot_path=derive_wasi_sysroot(options, packaging_dir, short_triple),
-            swift_sdk_name=f"{snapshot_info.swift_version}-{target_triple}",
+            swift_sdk_name=f"{snapshot_info.swift_version}-{variant_infix}{target_triple}",
             target_triple=target_triple,
         ))
 
