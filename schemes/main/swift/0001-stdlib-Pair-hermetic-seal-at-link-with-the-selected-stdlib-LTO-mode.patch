@@ -1,0 +1,54 @@
+From cde418f2866e3c49a9f897e41e76b94cfc4fbf16 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <yuta@goodnotes.com>
+Date: Tue, 30 Jun 2026 17:00:00 +0000
+Subject: [PATCH] stdlib: Pair hermetic seal at link with the selected stdlib
+ LTO mode
+
+`-experimental-hermetic-seal-at-link` is only meaningful when the Swift
+frontend is also emitting LLVM LTO information.  The driver enforces this by
+requiring either `-lto=llvm-full` or `-lto=llvm-thin`.
+
+The stdlib CMake plumbing could enable
+`SWIFT_STDLIB_EXPERIMENTAL_HERMETIC_SEAL_AT_LINK` without appending the
+corresponding frontend LTO flag.  That causes Swift Core compilation to fail immediately with the driver's
+requirement diagnostic, even when `SWIFT_STDLIB_ENABLE_LTO` is set in the
+build configuration.
+
+When hermetic sealing is requested for stdlib compilation, derive the
+frontend LTO flag from `SWIFT_STDLIB_ENABLE_LTO`:
+
+  * `full` -> `-lto=llvm-full`
+  * `thin` -> `-lto=llvm-thin`
+
+This keeps the stdlib build configuration internally consistent and makes
+hermetic full-LTO SDK builds reproducible without manually editing frontend
+command lines.
+
+Hermetic sealing is the switch that lets the optimizer treat the linked
+program as a closed world.  Without it, full LTO can still leave Swift
+runtime records and dispatch targets conservatively live.
+---
+ stdlib/cmake/modules/SwiftSource.cmake | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/stdlib/cmake/modules/SwiftSource.cmake b/stdlib/cmake/modules/SwiftSource.cmake
+index f494ae46fbb..658a85f110a 100644
+--- a/stdlib/cmake/modules/SwiftSource.cmake
++++ b/stdlib/cmake/modules/SwiftSource.cmake
+@@ -652,6 +652,13 @@ function(_compile_swift_files
+ 
+   if(SWIFT_STDLIB_EXPERIMENTAL_HERMETIC_SEAL_AT_LINK)
+     list(APPEND swift_flags "-experimental-hermetic-seal-at-link")
++    if(SWIFT_STDLIB_ENABLE_LTO STREQUAL "full")
++      list(APPEND swift_flags "-lto=llvm-full")
++    elseif(SWIFT_STDLIB_ENABLE_LTO STREQUAL "thin")
++      list(APPEND swift_flags "-lto=llvm-thin")
++    else()
++      message(FATAL_ERROR "SWIFT_STDLIB_EXPERIMENTAL_HERMETIC_SEAL_AT_LINK requires SWIFT_STDLIB_ENABLE_LTO to be 'full' or 'thin', but got: '${SWIFT_STDLIB_ENABLE_LTO}'")
++    endif()
+   endif()
+ 
+   list(APPEND swift_flags "-enable-experimental-feature" "SuppressedAssociatedTypesWithDefaults")
+-- 
+2.43.0
+

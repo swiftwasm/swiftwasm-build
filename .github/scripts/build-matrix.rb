@@ -23,6 +23,25 @@ BASE_MATRIX_ENTRIES = [
     "clean_build_dir": false,
     "free_disk_space": true,
   },
+  # Hermetic full-LTO Swift SDK build (see docs/hermetic-lto-sdk.md).
+  # Same host, container and tests as above; the build is driven by
+  # SWIFTWASM_HERMETIC_LTO=1 and produces bundles with a "hermetic-lto-" infix.
+  {
+    "job_name": "Swift SDK (hermetic LTO)",
+    "build_os": "ubuntu-22.04",
+    "agent_query": "ubuntu-22.04",
+    "target": "ubuntu22.04_x86_64",
+    "containers": {
+      "main": "ghcr.io/swiftwasm/swift-ci:main-ubuntu-22.04",
+    },
+    "run_stdlib_test": true,
+    "run_full_test": false,
+    "run_e2e_test": true,
+    "build_hello_wasm": true,
+    "clean_build_dir": false,
+    "free_disk_space": true,
+    "hermetic_lto": true,
+  },
 ]
 
 def affected_schemes(changes, schemes)
