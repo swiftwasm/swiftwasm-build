@@ -1,0 +1,312 @@
+From 8b89aee82c385e1880c2d3502762a69e5fa3ae1b Mon Sep 17 00:00:00 2001
+From: Yuta Saito <yuta@goodnotes.com>
+Date: Wed, 2 Sep 2026 16:19:42 +0000
+Subject: [build-script] Add LTO and hermetic-seal options for the WASI Swift
+ SDK Foundation stack
+
+The Foundation stack of the WASI Swift SDK -- libxml2 and
+swift-corelibs-foundation together with the swift-foundation and
+swift-foundation-icu sources -- is built as a set of standalone CMake
+projects driven by the `WASISwiftSDK` product. The standard library's
+`SWIFT_STDLIB_ENABLE_LTO` and
+`SWIFT_STDLIB_EXPERIMENTAL_HERMETIC_SEAL_AT_LINK` options never reach
+them, because those only affect the targets created by
+`AddSwiftStdlib.cmake`. Configuring a bitcode standard library therefore
+still left Foundation as ordinary object code, which blocks the linker
+from optimizing and stripping the parts of Foundation an application
+does not use.
+
+Add two build-script options that thread the corresponding compiler
+flags into those projects:
+
+- `--wasi-swift-sdk-lto=<full|thin>` adds `-lto=llvm-<mode>` to
+  `CMAKE_Swift_FLAGS` and `-flto=<mode>` to `CMAKE_C_FLAGS` and
+  `CMAKE_CXX_FLAGS`.
+- `--wasi-swift-sdk-hermetic-seal-at-link` additionally adds
+  `-experimental-hermetic-seal-at-link` to the Swift flags. It requires
+  an LTO mode, since the frontend rejects that flag without `-lto=`.
+
+The flags travel through the existing `extra_swift_flags` mechanism of
+`_append_platform_cmake_options`, which now also takes the extra C and
+C++ flags it has to merge into `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS`.
+
+swift-testing and XCTest are deliberately left alone: they are not part
+of a shipped product, and swift-testing is built with library evolution
+enabled, which hermetic sealing rejects.
+
+Two build-system details come with an LTO mode. Bitcode archives have
+to be created with `llvm-ar` and `llvm-ranlib`: GNU `ar` indexes
+bitcode through the LLVM plugin the host binutils were built against,
+which cannot read bitcode produced by a newer LLVM and silently leaves
+the archive with an incomplete symbol table, so `CMAKE_AR` and
+`CMAKE_RANLIB` are pointed at `--native-llvm-tools-path` whenever an
+LTO mode is requested. And CMake's Swift split-compilation model
+(policy CMP0157 NEW) drives the compiler with an output-file-map that
+names only `object` outputs; under `-lto=` the driver emits LLVM
+bitcode, ignores those entries and derives `<basename>.bc` names in the
+working directory instead, so the object files CMake declared are never
+created and the archive step fails. The Foundation projects are
+therefore asked to opt out of that model through
+`FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION`.
+
+When neither option is passed, the generated CMake options are
+unchanged.
+---
+ .../build_swift/driver_arguments.py           | 22 ++++++++
+ utils/build_swift/tests/expected_options.py   |  4 ++
+ .../helpers/wasmswiftsdkhelpers.py            | 10 ++--
+ .../products/emscriptenswiftsdk.py            |  8 +--
+ .../products/wasiswiftsdk.py                  | 54 +++++++++++++++++--
+ 5 files changed, 86 insertions(+), 12 deletions(-)
+
+diff --git a/utils/build_swift/build_swift/driver_arguments.py b/utils/build_swift/build_swift/driver_arguments.py
+index 7aa4d8ad161..e2402a023eb 100644
+--- a/utils/build_swift/build_swift/driver_arguments.py
++++ b/utils/build_swift/build_swift/driver_arguments.py
+@@ -302,6 +302,14 @@ def _apply_default_arguments(args):
+         args.test_xros_host = False
+         args.test_android_host = False
+ 
++    # The Foundation stack of the WASI Swift SDK can only be sealed at link
++    # when it is also compiled to bitcode: the frontend rejects
++    # -experimental-hermetic-seal-at-link without an -lto= mode.
++    if args.wasi_swift_sdk_hermetic_seal_at_link and \
++            args.wasi_swift_sdk_lto is None:
++        raise ValueError('error: --wasi-swift-sdk-hermetic-seal-at-link '
++                         'requires --wasi-swift-sdk-lto')
++
+ 
+ def create_argument_parser():
+     """Return a configured argument parser."""
+@@ -899,6 +907,20 @@ def create_argument_parser():
+            help='build WasmKit')
+     option(['--install-wasmkit'], toggle_true('install_wasmkit'),
+            help='install SourceKitLSP')
++    option('--wasi-swift-sdk-lto', store('wasi_swift_sdk_lto'),
++           choices=['full', 'thin'],
++           default=None,
++           metavar='LTO_TYPE',
++           help='use lto optimization when building the Swift and C parts '
++                'of the WASI Swift SDK\'s Foundation stack. The standard '
++                'library is configured separately through the '
++                'SWIFT_STDLIB_ENABLE_LTO CMake option. Options: full, thin')
++    option('--wasi-swift-sdk-hermetic-seal-at-link',
++           toggle_true('wasi_swift_sdk_hermetic_seal_at_link'),
++           help='compile the Foundation stack of the WASI Swift SDK with '
++                '-experimental-hermetic-seal-at-link, allowing the linker '
++                'to strip unused code and metadata from the final '
++                'executable. Requires --wasi-swift-sdk-lto')
+ 
+     # Emscripten options
+ 
+diff --git a/utils/build_swift/tests/expected_options.py b/utils/build_swift/tests/expected_options.py
+index 70b76f1e90f..186d4f6ef98 100644
+--- a/utils/build_swift/tests/expected_options.py
++++ b/utils/build_swift/tests/expected_options.py
+@@ -361,6 +361,8 @@ EXPECTED_DEFAULTS = {
+     'tvos_all': False,
+     'validation_test': None,
+     'verbose_build': False,
++    'wasi_swift_sdk_hermetic_seal_at_link': False,
++    'wasi_swift_sdk_lto': None,
+     'watchos': False,
+     'watchos_all': False,
+     'xros': False,
+@@ -628,6 +630,7 @@ EXPECTED_OPTIONS = [
+     SetTrueOption('--build-minimal-stdlib', dest='build_minimalstdlib'),
+     SetTrueOption('--build-wasi-stdlib', dest='build_wasistdlib'),
+     SetTrueOption('--wasmkit', dest='build_wasmkit'),
++    SetTrueOption('--wasi-swift-sdk-hermetic-seal-at-link'),
+     SetTrueOption('--build-emscripten-stdlib', dest='build_emscriptenstdlib'),
+     SetTrueOption('--build-emscripten-host-llvm',
+                   dest='build_emscripten_host_llvm'),
+@@ -843,6 +846,7 @@ EXPECTED_OPTIONS = [
+                   choices=['armv7', 'aarch64', 'x86_64']),
+     ChoicesOption('--foundation-tests-build-type',
+                   dest='foundation_tests_build_variant', choices=['Debug', 'Release']),
++    ChoicesOption('--wasi-swift-sdk-lto', choices=['full', 'thin']),
+ 
+     StrOption('--android-api-level'),
+     StrOption('--build-args'),
+diff --git a/utils/swift_build_support/swift_build_support/helpers/wasmswiftsdkhelpers.py b/utils/swift_build_support/swift_build_support/helpers/wasmswiftsdkhelpers.py
+index a513811494c..469acaae684 100644
+--- a/utils/swift_build_support/swift_build_support/helpers/wasmswiftsdkhelpers.py
++++ b/utils/swift_build_support/swift_build_support/helpers/wasmswiftsdkhelpers.py
+@@ -62,7 +62,7 @@ def install_stdlib_and_resources(cmake_path, stdlib_build_path,
+ def build_libxml2(args, toolchain, source_dir, build_dir,
+                   swift_host_triple, clang_multiarch_triple,
+                   has_pthread, sysroot,
+-                  append_platform_cmake_options):
++                  append_platform_cmake_options, extra_c_flags=[]):
+     """Build libxml2 for a WebAssembly target and install into *sysroot*."""
+     libxml2 = CMakeProduct(
+         args=args,
+@@ -70,7 +70,7 @@ def build_libxml2(args, toolchain, source_dir, build_dir,
+         source_dir=os.path.join(
+             os.path.dirname(source_dir), 'libxml2'),
+         build_dir=os.path.join(build_dir, 'libxml2', swift_host_triple))
+-    append_platform_cmake_options(libxml2.cmake_options, [])
++    append_platform_cmake_options(libxml2.cmake_options, [], extra_c_flags)
+     libxml2.cmake_options.define('LIBXML2_WITH_C14N', 'FALSE')
+     libxml2.cmake_options.define('LIBXML2_WITH_CATALOG', 'FALSE')
+     libxml2.cmake_options.define('LIBXML2_WITH_DEBUG', 'FALSE')
+@@ -132,7 +132,8 @@ def build_libxml2(args, toolchain, source_dir, build_dir,
+ def build_foundation(args, toolchain, source_dir, build_dir,
+                      swift_host_triple, clang_multiarch_triple,
+                      sysroot, dest_dir, host_toolchain_path,
+-                     append_platform_cmake_options):
++                     append_platform_cmake_options,
++                     extra_swift_flags=[], extra_c_flags=[]):
+     """Build swift-corelibs-foundation and install into *dest_dir*."""
+     source_root = os.path.dirname(source_dir)
+ 
+@@ -141,7 +142,8 @@ def build_foundation(args, toolchain, source_dir, build_dir,
+         toolchain=toolchain,
+         source_dir=os.path.join(source_root, 'swift-corelibs-foundation'),
+         build_dir=os.path.join(build_dir, 'foundation', swift_host_triple))
+-    append_platform_cmake_options(foundation.cmake_options, [])
++    append_platform_cmake_options(foundation.cmake_options,
++                                  extra_swift_flags, extra_c_flags)
+     foundation.cmake_options.define('BUILD_SHARED_LIBS', 'FALSE')
+     foundation.cmake_options.define('FOUNDATION_BUILD_TOOLS', 'FALSE')
+     foundation.cmake_options.define(
+diff --git a/utils/swift_build_support/swift_build_support/products/emscriptenswiftsdk.py b/utils/swift_build_support/swift_build_support/products/emscriptenswiftsdk.py
+index 8993e5f80d5..5e7650215c7 100644
+--- a/utils/swift_build_support/swift_build_support/products/emscriptenswiftsdk.py
++++ b/utils/swift_build_support/swift_build_support/products/emscriptenswiftsdk.py
+@@ -49,7 +49,7 @@ class EmscriptenSwiftSDK(product.Product):
+ 
+     def _append_platform_cmake_options(self, cmake_options,
+                                        swift_host_triple, sysroot,
+-                                       extra_swift_flags):
++                                       extra_swift_flags, extra_c_flags):
+         cmake_options.define('CMAKE_SYSTEM_NAME:STRING', 'Emscripten')
+         cmake_options.define('CMAKE_SYSTEM_PROCESSOR:STRING', 'wasm32')
+         cmake_options.define('CMAKE_C_COMPILER_TARGET', swift_host_triple)
+@@ -66,7 +66,7 @@ class EmscriptenSwiftSDK(product.Product):
+ 
+         swift_flags = ['-sdk', sysroot, '-resource-dir',
+                        swift_resource_dir] + extra_swift_flags
+-        c_flags = ['-resource-dir', clang_resource_dir]
++        c_flags = ['-resource-dir', clang_resource_dir] + extra_c_flags
+         cxx_flags = c_flags + ['-fno-exceptions']
+ 
+         # Emscripten keeps compatibility headers (e.g. xlocale.h) in a
+@@ -122,10 +122,12 @@ class EmscriptenSwiftSDK(product.Product):
+         # to be uncommented when the porting work is done.
+ 
+         def append_cmake_opts(cmake_options, extra_swift_flags,
++                              extra_c_flags=[],
+                               _triple=swift_host_triple,
+                               _sysroot=sysroot):
+             self._append_platform_cmake_options(
+-                cmake_options, _triple, _sysroot, extra_swift_flags)
++                cmake_options, _triple, _sysroot,
++                extra_swift_flags, extra_c_flags)
+ 
+         host_toolchain_path = self.native_toolchain_path(
+             self.args.host_target)
+diff --git a/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py b/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
+index 2a1db902371..bf9f6b24ddc 100644
+--- a/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
++++ b/utils/swift_build_support/swift_build_support/products/wasiswiftsdk.py
+@@ -41,7 +41,8 @@ class WASISwiftSDK(product.Product):
+ 
+     def _append_platform_cmake_options(self, cmake_options,
+                                        swift_host_triple, has_pthread,
+-                                       sysroot, extra_swift_flags):
++                                       sysroot, extra_swift_flags,
++                                       extra_c_flags):
+         cmake_options.define('CMAKE_SYSTEM_NAME:STRING', 'WASI')
+         cmake_options.define('CMAKE_SYSTEM_PROCESSOR:STRING', 'wasm32')
+         cmake_options.define('CMAKE_C_COMPILER_TARGET', swift_host_triple)
+@@ -58,7 +59,7 @@ class WASISwiftSDK(product.Product):
+ 
+         swift_flags = ['-sdk', sysroot, '-resource-dir',
+                        swift_resource_dir] + extra_swift_flags
+-        c_flags = ['-resource-dir', clang_resource_dir]
++        c_flags = ['-resource-dir', clang_resource_dir] + extra_c_flags
+         cxx_flags = c_flags + ['-fno-exceptions']
+         if has_pthread:
+             clang_flags = ['-mthread-model', 'posix', '-pthread']
+@@ -83,6 +84,43 @@ class WASISwiftSDK(product.Product):
+             cmake_options.define('CMAKE_RANLIB', os.path.join(
+                 native_toolchain_path, 'bin', 'llvm-ranlib'))
+ 
++        if self.args.wasi_swift_sdk_lto is not None:
++            # LTO builds emit LLVM bitcode object files. The host's GNU 'ar'
++            # cannot index them (its LTO plugin is built against a different
++            # LLVM version), which silently produces archives with an
++            # incomplete symbol table, so use the LLVM archiver instead.
++            llvm_tools_path = self.args.native_llvm_tools_path
++            if llvm_tools_path:
++                cmake_options.define('CMAKE_AR', os.path.join(
++                    llvm_tools_path, 'llvm-ar'))
++                cmake_options.define('CMAKE_RANLIB', os.path.join(
++                    llvm_tools_path, 'llvm-ranlib'))
++            # CMake's Swift split-compilation model (policy CMP0157 NEW) drives
++            # the compiler with an output-file-map that only names 'object'
++            # outputs; under '-lto=' the driver emits '<basename>.bc' files in
++            # the working directory instead and the build fails. Ask the
++            # Foundation projects to keep the one-step compile-and-archive
++            # model, where the driver names its own outputs.
++            cmake_options.define(
++                'FOUNDATION_DISABLE_SWIFT_SPLIT_COMPILATION:BOOL', 'TRUE')
++
++    def _foundation_stack_lto_flags(self):
++        """Return the extra Swift and C/C++ flags requesting LTO for the
++        Foundation stack, as configured by '--wasi-swift-sdk-lto' and
++        '--wasi-swift-sdk-hermetic-seal-at-link'.
++
++        The standard library's SWIFT_STDLIB_ENABLE_LTO does not reach these
++        libraries because they are built as standalone CMake projects.
++        """
++        lto_type = self.args.wasi_swift_sdk_lto
++        if lto_type is None:
++            return [], []
++
++        swift_flags = ['-lto=llvm-{}'.format(lto_type)]
++        if self.args.wasi_swift_sdk_hermetic_seal_at_link:
++            swift_flags.append('-experimental-hermetic-seal-at-link')
++        return swift_flags, ['-flto={}'.format(lto_type)]
++
+     def build(self, host_target):
+         build_root = os.path.dirname(self.build_dir)
+ 
+@@ -123,24 +161,30 @@ class WASISwiftSDK(product.Product):
+ 
+             # Create a closure capturing WASI-specific platform config.
+             def append_cmake_opts(cmake_options, extra_swift_flags,
++                                  extra_c_flags=[],
+                                   _triple=swift_host_triple,
+                                   _pthread=has_pthread,
+                                   _sysroot=sysroot):
+                 self._append_platform_cmake_options(
+                     cmake_options, _triple, _pthread,
+-                    _sysroot, extra_swift_flags)
++                    _sysroot, extra_swift_flags, extra_c_flags)
+ 
+             host_toolchain_path = self.native_toolchain_path(
+                 self.args.host_target)
+ 
++            lto_swift_flags, lto_c_flags = self._foundation_stack_lto_flags()
++
+             helpers.build_libxml2(
+                 self.args, self.toolchain, self.source_dir, self.build_dir,
+                 swift_host_triple, clang_multiarch_triple,
+-                has_pthread, sysroot, append_cmake_opts)
++                has_pthread, sysroot, append_cmake_opts,
++                extra_c_flags=lto_c_flags)
+             helpers.build_foundation(
+                 self.args, self.toolchain, self.source_dir, self.build_dir,
+                 swift_host_triple, clang_multiarch_triple,
+-                sysroot, dest_dir, host_toolchain_path, append_cmake_opts)
++                sysroot, dest_dir, host_toolchain_path, append_cmake_opts,
++                extra_swift_flags=lto_swift_flags,
++                extra_c_flags=lto_c_flags)
+             helpers.build_swift_testing(
+                 self.args, self.toolchain, self.source_dir, self.build_dir,
+                 swift_host_triple, dest_dir, append_cmake_opts)
+-- 
+2.43.0
+

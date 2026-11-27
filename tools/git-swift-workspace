@@ -32,6 +32,7 @@ def main():
         ApplyPatchesAction(options, 'swift-foundation-icu'),
         ApplyPatchesAction(options, 'swift-collections'),
         ApplyPatchesAction(options, 'swift-corelibs-xctest'),
+        ApplyPatchesAction(options, 'swift-testing'),
     ]
 
     ActionRunner(actions).run()

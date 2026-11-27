@@ -1,0 +1,341 @@
+From cac22ab53843e16ca3ada39e8102d1f95ab65c84 Mon Sep 17 00:00:00 2001
+From: Yuta Saito <kateinoigakukun@gmail.com>
+Date: Thu, 3 Sep 2026 17:19:59 +0000
+Subject: [PATCH] [cmake] Add an option to build without library evolution
+
+A toolchain that links whole programs -- for example a Swift SDK whose
+libraries are shipped as LLVM bitcode and compiled with
+`-experimental-hermetic-seal-at-link` -- cannot use a resilient testing
+library. `-enable-library-evolution` and
+`-experimental-hermetic-seal-at-link` are rejected together by the
+driver, and the point of the seal is precisely to devirtualize and strip
+what resilience must keep indirect and reachable.
+
+Add `SwiftTesting_ENABLE_LIBRARY_EVOLUTION` (default `YES`, so nothing
+changes for existing builds). When it is `NO`:
+
+* `Testing`, `_TestDiscovery`, `_TestingInterop` and the overlays are
+  compiled without `-enable-library-evolution` and stop emitting
+  `.swiftinterface` files;
+* `_swift_testing_install_target()` installs the binary `.swiftmodule`
+  instead of the `.swiftinterface`. Handing a client an interface built
+  without library evolution is not safe -- the client would rebuild the
+  module from source and could disagree with the shipped binaries about
+  layout and dispatch -- so the module that the libraries were actually
+  built from is installed instead. This is the same shape
+  swift-corelibs-xctest already uses.
+* the `_TestingInternals` Clang module (headers and module map) is
+  installed next to the Swift resource directory. A binary
+  `.swiftmodule` records every module it imports, `_TestingInternals`
+  included, while a `.swiftinterface` never mentions it; without this,
+  a client's `import Testing` fails with `missing required module
+  '_TestingInternals'`.
+
+Also add `SwiftTesting_DISABLE_SWIFT_SPLIT_COMPILATION`, which keeps
+CMP0157 `OLD`. The split-compilation model drives swiftc with an
+output-file-map that only names `object` outputs; under `-lto=llvm-full`
+or `-lto=llvm-thin` the driver emits `<basename>.bc` in the working
+directory instead, the declared objects are never created, and the
+archive step fails. The option lets a bitcode build fall back to the
+one-step compile-and-archive model, where the driver names its own
+outputs. swift-corelibs-foundation has an option of the same shape.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XYudU7MTp4QeCPKenE9XU8
+---
+ CMakeLists.txt                                | 22 +++++++++++++++++++
+ .../Overlays/_Testing_AppKit/CMakeLists.txt   |  8 ++++---
+ .../_Testing_CoreGraphics/CMakeLists.txt      |  8 ++++---
+ .../_Testing_CoreImage/CMakeLists.txt         |  8 ++++---
+ .../_Testing_CoreTransferable/CMakeLists.txt  |  8 ++++---
+ .../_Testing_Foundation/CMakeLists.txt        |  9 +++++---
+ .../Overlays/_Testing_UIKit/CMakeLists.txt    |  8 ++++---
+ .../Overlays/_Testing_WinSDK/CMakeLists.txt   |  8 ++++---
+ Sources/Testing/CMakeLists.txt                |  8 ++++---
+ Sources/_TestDiscovery/CMakeLists.txt         |  8 ++++---
+ Sources/_TestingInternals/CMakeLists.txt      | 11 ++++++++++
+ Sources/_TestingInterop/CMakeLists.txt        |  8 ++++---
+ cmake/modules/SwiftModuleInstallation.cmake   | 16 +++++++++++---
+ 13 files changed, 97 insertions(+), 33 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 084e9efc..1769b49a 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -14,6 +14,16 @@ if(POLICY CMP0157)
+     # toolchain, because the early swift-driver isn't (yet) available. Disable
+     # it for now.
+     cmake_policy(SET CMP0157 OLD)
++  elseif(SwiftTesting_DISABLE_SWIFT_SPLIT_COMPILATION)
++    # The split-compilation model drives swiftc with an output-file-map that
++    # only names 'object' outputs. When the compiler is asked for LTO
++    # ('-lto=llvm-full'/'-lto=llvm-thin') the driver produces LLVM bitcode
++    # instead and derives '<basename>.bc' names in the working directory, so
++    # the object files CMake expects are never created and the archive step
++    # fails. Builds that need bitcode libraries set
++    # SwiftTesting_DISABLE_SWIFT_SPLIT_COMPILATION to fall back to the one-step
++    # compile-and-archive model, which lets the driver name its own outputs.
++    cmake_policy(SET CMP0157 OLD)
+   else()
+     cmake_policy(SET CMP0157 NEW)
+   endif()
+@@ -53,8 +63,20 @@ include(PlatformInfo)
+ include(SwiftModuleInstallation)
+ 
+ option(SwiftTesting_INSTALL_NESTED_SUBDIR "Install libraries under a platform and architecture subdirectory" NO)
++
++# Library evolution lets a client built against a '.swiftinterface' keep working
++# with a differently-built copy of the testing library, and is what makes it
++# possible to ship only interfaces. It is incompatible with builds that seal the
++# whole program at link time -- '-experimental-hermetic-seal-at-link' and
++# '-enable-library-evolution' are mutually exclusive, since a resilient module
++# must keep its dispatch indirect. Turning this option off drops the flag,
++# stops emitting module interfaces, and installs the binary '.swiftmodule'
++# instead, so clients type-check against the very module the shipped libraries
++# were built from.
++option(SwiftTesting_ENABLE_LIBRARY_EVOLUTION "Build the testing library with library evolution enabled" YES)
+ set(SwiftTesting_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/${SwiftTesting_PLATFORM_SUBDIR}$<$<AND:$<PLATFORM_ID:Darwin>,$<NOT:$<BOOL:${SwiftTesting_INSTALL_NESTED_SUBDIR}>>>:/testing>$<$<BOOL:${SwiftTesting_INSTALL_NESTED_SUBDIR}>:/${SwiftTesting_ARCH_SUBDIR}>")
+ set(SwiftTesting_INSTALL_SWIFTMODULEDIR "${CMAKE_INSTALL_LIBDIR}/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/${SwiftTesting_PLATFORM_SUBDIR}$<$<AND:$<PLATFORM_ID:Darwin>,$<NOT:$<BOOL:${SwiftTesting_INSTALL_NESTED_SUBDIR}>>>:/testing>")
++set(SwiftTesting_INSTALL_CLANGMODULEDIR "${CMAKE_INSTALL_LIBDIR}/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>")
+ 
+ add_compile_options($<$<COMPILE_LANGUAGE:Swift>:-no-toolchain-stdlib-rpath>)
+ 
+diff --git a/Sources/Overlays/_Testing_AppKit/CMakeLists.txt b/Sources/Overlays/_Testing_AppKit/CMakeLists.txt
+index 7f242534..844e434b 100644
+--- a/Sources/Overlays/_Testing_AppKit/CMakeLists.txt
++++ b/Sources/Overlays/_Testing_AppKit/CMakeLists.txt
+@@ -16,9 +16,11 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+     Testing
+     _Testing_CoreGraphics)
+ 
+-  target_compile_options(_Testing_AppKit PRIVATE
+-    -enable-library-evolution
+-    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_AppKit,Swift_MODULE_DIRECTORY>/_Testing_AppKit.swiftinterface)
++  if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++    target_compile_options(_Testing_AppKit PRIVATE
++      -enable-library-evolution
++      -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_AppKit,Swift_MODULE_DIRECTORY>/_Testing_AppKit.swiftinterface)
++  endif()
+ 
+   _swift_testing_install_target(_Testing_AppKit)
+ endif()
+diff --git a/Sources/Overlays/_Testing_CoreGraphics/CMakeLists.txt b/Sources/Overlays/_Testing_CoreGraphics/CMakeLists.txt
+index bb57c557..d973c0a5 100644
+--- a/Sources/Overlays/_Testing_CoreGraphics/CMakeLists.txt
++++ b/Sources/Overlays/_Testing_CoreGraphics/CMakeLists.txt
+@@ -18,9 +18,11 @@ if(APPLE)
+   target_link_libraries(_Testing_CoreGraphics PUBLIC
+     Testing)
+ 
+-  target_compile_options(_Testing_CoreGraphics PRIVATE
+-    -enable-library-evolution
+-    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_CoreGraphics,Swift_MODULE_DIRECTORY>/_Testing_CoreGraphics.swiftinterface)
++  if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++    target_compile_options(_Testing_CoreGraphics PRIVATE
++      -enable-library-evolution
++      -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_CoreGraphics,Swift_MODULE_DIRECTORY>/_Testing_CoreGraphics.swiftinterface)
++  endif()
+ 
+   _swift_testing_install_target(_Testing_CoreGraphics)
+ endif()
+diff --git a/Sources/Overlays/_Testing_CoreImage/CMakeLists.txt b/Sources/Overlays/_Testing_CoreImage/CMakeLists.txt
+index 326f13b9..f10b3d5e 100644
+--- a/Sources/Overlays/_Testing_CoreImage/CMakeLists.txt
++++ b/Sources/Overlays/_Testing_CoreImage/CMakeLists.txt
+@@ -16,9 +16,11 @@ if(APPLE)
+     Testing
+     _Testing_CoreGraphics)
+ 
+-  target_compile_options(_Testing_CoreImage PRIVATE
+-    -enable-library-evolution
+-    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_CoreImage,Swift_MODULE_DIRECTORY>/_Testing_CoreImage.swiftinterface)
++  if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++    target_compile_options(_Testing_CoreImage PRIVATE
++      -enable-library-evolution
++      -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_CoreImage,Swift_MODULE_DIRECTORY>/_Testing_CoreImage.swiftinterface)
++  endif()
+ 
+   _swift_testing_install_target(_Testing_CoreImage)
+ endif()
+diff --git a/Sources/Overlays/_Testing_CoreTransferable/CMakeLists.txt b/Sources/Overlays/_Testing_CoreTransferable/CMakeLists.txt
+index 2752a5c3..52a6287a 100644
+--- a/Sources/Overlays/_Testing_CoreTransferable/CMakeLists.txt
++++ b/Sources/Overlays/_Testing_CoreTransferable/CMakeLists.txt
+@@ -16,9 +16,11 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+   target_link_libraries(_Testing_CoreTransferable PUBLIC
+     Testing)
+ 
+-  target_compile_options(_Testing_CoreTransferable PRIVATE
+-    -enable-library-evolution
+-    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_CoreTransferable,Swift_MODULE_DIRECTORY>/_Testing_CoreTransferable.swiftinterface)
++  if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++    target_compile_options(_Testing_CoreTransferable PRIVATE
++      -enable-library-evolution
++      -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_CoreTransferable,Swift_MODULE_DIRECTORY>/_Testing_CoreTransferable.swiftinterface)
++  endif()
+ 
+   _swift_testing_install_target(_Testing_CoreTransferable)
+ endif()
+diff --git a/Sources/Overlays/_Testing_Foundation/CMakeLists.txt b/Sources/Overlays/_Testing_Foundation/CMakeLists.txt
+index d5922df0..e8046c65 100644
+--- a/Sources/Overlays/_Testing_Foundation/CMakeLists.txt
++++ b/Sources/Overlays/_Testing_Foundation/CMakeLists.txt
+@@ -36,8 +36,11 @@ endif()
+ 
+ # Note: This does not enable Library Evolution, despite emitting a module
+ # interface, because Foundation does not have Library Evolution enabled for all
+-# platforms.
+-target_compile_options(_Testing_Foundation PRIVATE
+-  -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_Foundation,Swift_MODULE_DIRECTORY>/_Testing_Foundation.swiftinterface)
++# platforms. It still follows SwiftTesting_ENABLE_LIBRARY_EVOLUTION, because
++# that option also decides whether interfaces or binary modules are installed.
++if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++  target_compile_options(_Testing_Foundation PRIVATE
++    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_Foundation,Swift_MODULE_DIRECTORY>/_Testing_Foundation.swiftinterface)
++endif()
+ 
+ _swift_testing_install_target(_Testing_Foundation)
+diff --git a/Sources/Overlays/_Testing_UIKit/CMakeLists.txt b/Sources/Overlays/_Testing_UIKit/CMakeLists.txt
+index e54ef95d..ba29ab92 100644
+--- a/Sources/Overlays/_Testing_UIKit/CMakeLists.txt
++++ b/Sources/Overlays/_Testing_UIKit/CMakeLists.txt
+@@ -16,9 +16,11 @@ if(APPLE)
+     Testing
+     _Testing_CoreGraphics)
+ 
+-  target_compile_options(_Testing_UIKit PRIVATE
+-    -enable-library-evolution
+-    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_UIKit,Swift_MODULE_DIRECTORY>/_Testing_UIKit.swiftinterface)
++  if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++    target_compile_options(_Testing_UIKit PRIVATE
++      -enable-library-evolution
++      -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_UIKit,Swift_MODULE_DIRECTORY>/_Testing_UIKit.swiftinterface)
++  endif()
+ 
+   _swift_testing_install_target(_Testing_UIKit)
+ endif()
+diff --git a/Sources/Overlays/_Testing_WinSDK/CMakeLists.txt b/Sources/Overlays/_Testing_WinSDK/CMakeLists.txt
+index e73e818b..5701951d 100644
+--- a/Sources/Overlays/_Testing_WinSDK/CMakeLists.txt
++++ b/Sources/Overlays/_Testing_WinSDK/CMakeLists.txt
+@@ -23,9 +23,11 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+   target_link_libraries(_Testing_WinSDK PUBLIC
+     Testing)
+ 
+-  target_compile_options(_Testing_WinSDK PRIVATE
+-    -enable-library-evolution
+-    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_WinSDK,Swift_MODULE_DIRECTORY>/_Testing_WinSDK.swiftinterface)
++  if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++    target_compile_options(_Testing_WinSDK PRIVATE
++      -enable-library-evolution
++      -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_Testing_WinSDK,Swift_MODULE_DIRECTORY>/_Testing_WinSDK.swiftinterface)
++  endif()
+ 
+   _swift_testing_install_target(_Testing_WinSDK)
+ endif()
+diff --git a/Sources/Testing/CMakeLists.txt b/Sources/Testing/CMakeLists.txt
+index 6ef2f8d8..08925825 100644
+--- a/Sources/Testing/CMakeLists.txt
++++ b/Sources/Testing/CMakeLists.txt
+@@ -159,9 +159,11 @@ if(NOT BUILD_SHARED_LIBS)
+ endif()
+ add_dependencies(Testing
+   TestingMacros)
+-target_compile_options(Testing PRIVATE
+-  -enable-library-evolution
+-  -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:Testing,Swift_MODULE_DIRECTORY>/Testing.swiftinterface)
++if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++  target_compile_options(Testing PRIVATE
++    -enable-library-evolution
++    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:Testing,Swift_MODULE_DIRECTORY>/Testing.swiftinterface)
++endif()
+ 
+ _swift_testing_install_target(Testing)
+ 
+diff --git a/Sources/_TestDiscovery/CMakeLists.txt b/Sources/_TestDiscovery/CMakeLists.txt
+index f6c375c4..633dde39 100644
+--- a/Sources/_TestDiscovery/CMakeLists.txt
++++ b/Sources/_TestDiscovery/CMakeLists.txt
+@@ -17,9 +17,11 @@ add_library(_TestDiscovery STATIC
+ target_link_libraries(_TestDiscovery PRIVATE
+   _TestingInternals)
+ 
+-target_compile_options(_TestDiscovery PRIVATE
+-  -enable-library-evolution
+-  -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_TestDiscovery,Swift_MODULE_DIRECTORY>/_TestDiscovery.swiftinterface)
++if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++  target_compile_options(_TestDiscovery PRIVATE
++    -enable-library-evolution
++    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_TestDiscovery,Swift_MODULE_DIRECTORY>/_TestDiscovery.swiftinterface)
++endif()
+ set(CMAKE_STATIC_LIBRARY_PREFIX_Swift "lib")
+ 
+ _swift_testing_install_target(_TestDiscovery)
+diff --git a/Sources/_TestingInternals/CMakeLists.txt b/Sources/_TestingInternals/CMakeLists.txt
+index 8732f421..18e66931 100644
+--- a/Sources/_TestingInternals/CMakeLists.txt
++++ b/Sources/_TestingInternals/CMakeLists.txt
+@@ -40,3 +40,14 @@ if(NOT BUILD_SHARED_LIBS)
+   # https://gitlab.kitware.com/cmake/cmake/-/issues/20041
+   set_property(GLOBAL APPEND PROPERTY SwiftTesting_EXPORTS _TestingInternals)
+ endif()
++
++if(NOT SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++  # Without library evolution the installed modules are binary '.swiftmodule'
++  # files, and those record every module they import -- including the
++  # implementation-only '_TestingInternals' Clang module, which a
++  # '.swiftinterface' never mentions. Install its headers and module map next
++  # to the Swift resource directory so that a client can load them; otherwise
++  # `import Testing` fails with "missing required module '_TestingInternals'".
++  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
++    DESTINATION "${SwiftTesting_INSTALL_CLANGMODULEDIR}/_TestingInternals")
++endif()
+diff --git a/Sources/_TestingInterop/CMakeLists.txt b/Sources/_TestingInterop/CMakeLists.txt
+index 3269e7fc..70d74666 100644
+--- a/Sources/_TestingInterop/CMakeLists.txt
++++ b/Sources/_TestingInterop/CMakeLists.txt
+@@ -18,9 +18,11 @@ if(NOT BUILD_SHARED_LIBS)
+   target_compile_options(_TestingInterop PRIVATE
+     "SHELL:-Xfrontend -public-autolink-library -Xfrontend _TestingInternals")
+ endif()
+-target_compile_options(_TestingInterop PRIVATE
+-  -enable-library-evolution
+-  -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_TestingInterop,Swift_MODULE_DIRECTORY>/_TestingInterop.swiftinterface)
++if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++  target_compile_options(_TestingInterop PRIVATE
++    -enable-library-evolution
++    -emit-module-interface -emit-module-interface-path $<TARGET_PROPERTY:_TestingInterop,Swift_MODULE_DIRECTORY>/_TestingInterop.swiftinterface)
++endif()
+ 
+ _swift_testing_install_target(_TestingInterop)
+ 
+diff --git a/cmake/modules/SwiftModuleInstallation.cmake b/cmake/modules/SwiftModuleInstallation.cmake
+index 6947bb1c..4e761ab2 100644
+--- a/cmake/modules/SwiftModuleInstallation.cmake
++++ b/cmake/modules/SwiftModuleInstallation.cmake
+@@ -28,9 +28,19 @@ function(_swift_testing_install_target module)
+   install(FILES $<TARGET_PROPERTY:${module},Swift_MODULE_DIRECTORY>/${module_name}.swiftdoc
+     DESTINATION "${module_dir}"
+     RENAME ${SwiftTesting_MODULE_TRIPLE}.swiftdoc)
+-  install(FILES $<TARGET_PROPERTY:${module},Swift_MODULE_DIRECTORY>/${module_name}.swiftinterface
+-    DESTINATION "${module_dir}"
+-    RENAME ${SwiftTesting_MODULE_TRIPLE}.swiftinterface)
++  if(SwiftTesting_ENABLE_LIBRARY_EVOLUTION)
++    install(FILES $<TARGET_PROPERTY:${module},Swift_MODULE_DIRECTORY>/${module_name}.swiftinterface
++      DESTINATION "${module_dir}"
++      RENAME ${SwiftTesting_MODULE_TRIPLE}.swiftinterface)
++  else()
++    # Without library evolution an interface is not a safe way to hand the
++    # module to a client: it would rebuild the module from source and could
++    # disagree with the shipped binaries about layout and dispatch. Install the
++    # binary module the libraries were actually built from.
++    install(FILES $<TARGET_PROPERTY:${module},Swift_MODULE_DIRECTORY>/${module_name}.swiftmodule
++      DESTINATION "${module_dir}"
++      RENAME ${SwiftTesting_MODULE_TRIPLE}.swiftmodule)
++  endif()
+ endfunction()
+ 
+ # Install the specified .swiftcrossimport directory for the specified declaring
+-- 
+2.43.0
+
